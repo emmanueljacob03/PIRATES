@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { compressImageForUpload } from '@/lib/image-compress';
 
 const UPLOAD_TIMEOUT_MS = 120_000;
 
@@ -18,6 +19,7 @@ export default function PlayerPhotoUpload({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const router = useRouter();
 
@@ -25,13 +27,15 @@ export default function PlayerPhotoUpload({
     if (!file) return;
     setLoading(true);
     setMessage('');
+    setSavedFlash(false);
     const ac = new AbortController();
     const t = window.setTimeout(() => ac.abort(), UPLOAD_TIMEOUT_MS);
     try {
-      const ext = file.name.split('.').pop() || 'png';
+      const compressed = await compressImageForUpload(file, { maxBytes: 1_600_000, maxEdge: 1600 });
+      const ext = compressed.name.split('.').pop() || 'jpg';
       const formData = new FormData();
       formData.append('player_id', playerId);
-      formData.append('file', file);
+      formData.append('file', compressed);
       formData.append('ext', ext);
       const res = await fetch('/api/players/photo', {
         method: 'POST',
@@ -46,9 +50,17 @@ export default function PlayerPhotoUpload({
       } catch {
         if (!res.ok) throw new Error(text.slice(0, 200) || `Upload failed (${res.status})`);
       }
-      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
+      if (!res.ok) {
+        const hint =
+          res.status === 413 || text.includes('FUNCTION_PAYLOAD_TOO_LARGE') || text.includes('Too Large')
+            ? ' Image was still too large — try another photo or take a new picture at lower quality.'
+            : '';
+        throw new Error((data?.error || `Upload failed (${res.status})`) + hint);
+      }
       if (data?.photo) setPreviewUrl(String(data.photo));
-      setMessage('Photo updated.');
+      setMessage('Saved.');
+      setSavedFlash(true);
+      window.setTimeout(() => setSavedFlash(false), 3500);
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       router.refresh();
@@ -74,7 +86,10 @@ export default function PlayerPhotoUpload({
   }
 
   return (
-    <form className={compact ? 'm-0 inline' : 'mt-3 space-y-2 text-left'} onSubmit={(e) => e.preventDefault()}>
+    <form
+      className={compact ? 'relative m-0 inline-block' : 'mt-3 space-y-2 text-left'}
+      onSubmit={(e) => e.preventDefault()}
+    >
       <input
         ref={fileInputRef}
         type="file"
@@ -120,6 +135,14 @@ export default function PlayerPhotoUpload({
       {message && compact ? (
         <span className="sr-only" role="status">
           {message}
+        </span>
+      ) : null}
+      {compact && savedFlash ? (
+        <span
+          className="absolute -top-1 -right-1 z-50 whitespace-nowrap rounded bg-emerald-700/95 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow"
+          role="status"
+        >
+          Saved
         </span>
       ) : null}
     </form>

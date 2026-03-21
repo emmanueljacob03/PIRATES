@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { format, parseISO, isValid } from 'date-fns';
+import { compressImageForUpload } from '@/lib/image-compress';
 
 type Profile = {
   name: string | null;
@@ -57,6 +58,18 @@ export default function ProfilePageClient({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [profileFormError, setProfileFormError] = useState('');
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!avatarFile) {
+      setFilePreviewUrl(null);
+      return;
+    }
+    const u = URL.createObjectURL(avatarFile);
+    setFilePreviewUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [avatarFile]);
 
   useEffect(() => {
     if (editing) return;
@@ -93,9 +106,10 @@ export default function ProfilePageClient({
 
       let nextAvatarUrl = avatarUrl.trim() || null;
       if (avatarFile) {
-        const ext = avatarFile.name.split('.').pop() || 'png';
+        const compressed = await compressImageForUpload(avatarFile, { maxBytes: 2_400_000, maxEdge: 2000 });
+        const ext = compressed.name.split('.').pop() || 'jpg';
         const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, {
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, compressed, {
           upsert: true,
         });
         if (uploadError) {
@@ -119,7 +133,18 @@ export default function ProfilePageClient({
         .eq('id', user.id);
 
       if (profileErr) {
-        setProfileFormError(profileErr.message || 'Could not update profile.');
+        const msg = profileErr.message || 'Could not update profile.';
+        if (
+          msg.includes('date_of_birth') ||
+          msg.toLowerCase().includes('schema cache') ||
+          msg.includes('PGRST204')
+        ) {
+          setProfileFormError(
+            'The profiles table needs the date_of_birth column and a fresh API schema. In Supabase → SQL Editor, run supabase/alter_profiles_dob.sql (it adds the column and runs NOTIFY pgrst reload). If the column already exists, run only: NOTIFY pgrst, \'reload schema\';',
+          );
+        } else {
+          setProfileFormError(msg);
+        }
         return;
       }
 
@@ -149,6 +174,8 @@ export default function ProfilePageClient({
       }));
       setAvatarFile(null);
       setEditing(false);
+      setSaveNotice('Saved.');
+      window.setTimeout(() => setSaveNotice(null), 5000);
       router.refresh();
     } catch (e) {
       setProfileFormError(e instanceof Error ? e.message : 'Something went wrong while saving.');
@@ -157,20 +184,36 @@ export default function ProfilePageClient({
     }
   }
 
+  const headerPhotoSrc =
+    editing && (filePreviewUrl || avatarUrl.trim())
+      ? filePreviewUrl || avatarUrl.trim()
+      : profile.avatar_url;
+  const headerPhotoIsBlob = typeof headerPhotoSrc === 'string' && headerPhotoSrc.startsWith('blob:');
+
   return (
     <div className="card max-w-2xl space-y-6">
+      {saveNotice ? (
+        <p className="rounded-lg bg-emerald-900/50 border border-emerald-600/50 text-emerald-200 text-sm px-3 py-2" role="status">
+          {saveNotice}
+        </p>
+      ) : null}
       <div className="flex flex-col sm:flex-row gap-6 items-start">
         <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-[var(--pirate-yellow)] bg-[var(--pirate-navy)] flex-shrink-0">
-          {profile.avatar_url ? (
-            <Image
-              key={profile.avatar_url}
-              src={profile.avatar_url}
-              alt=""
-              fill
-              className="object-cover"
-              sizes="112px"
-              unoptimized
-            />
+          {headerPhotoSrc ? (
+            headerPhotoIsBlob ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob preview before upload
+              <img src={headerPhotoSrc} alt="" className="absolute inset-0 w-full h-full object-cover" />
+            ) : (
+              <Image
+                key={headerPhotoSrc}
+                src={headerPhotoSrc}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="112px"
+                unoptimized
+              />
+            )
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl">👤</div>
           )}

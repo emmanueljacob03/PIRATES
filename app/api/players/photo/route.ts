@@ -3,6 +3,9 @@ import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createServerSupabase } from '@/lib/supabase-server';
 
+/** Keep uploads small: Vercel serverless rejects large bodies (FUNCTION_PAYLOAD_TOO_LARGE). Client compresses in PlayerPhotoUpload. */
+const MAX_FILE_BYTES = 4_000_000;
+
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const playerId = String(formData.get('player_id') ?? '').trim();
@@ -11,6 +14,13 @@ export async function POST(req: NextRequest) {
 
   if (!playerId || !(file instanceof File)) {
     return NextResponse.json({ error: 'player_id and file are required' }, { status: 400 });
+  }
+
+  if (file.size > MAX_FILE_BYTES) {
+    return NextResponse.json(
+      { error: 'File too large for upload. Choose a smaller image (the app should compress automatically — try again or pick another photo).' },
+      { status: 413 },
+    );
   }
 
   const cookieStore = await cookies();
