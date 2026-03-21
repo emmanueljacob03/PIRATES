@@ -1,12 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 
-type Profile = { name: string | null; email: string; phone: string | null; avatar_url: string | null };
+type Profile = {
+  name: string | null;
+  email: string;
+  phone: string | null;
+  avatar_url: string | null;
+  date_of_birth: string | null;
+};
+
+function formatDobDisplay(ymd: string | null): string {
+  if (!ymd) return '—';
+  try {
+    const d = parseISO(ymd.slice(0, 10));
+    return isValid(d) ? format(d, 'MMMM d, yyyy') : '—';
+  } catch {
+    return '—';
+  }
+}
 type Duty = { who: string; duty_date: string; notes: string };
 
 export default function ProfilePageClient({
@@ -34,11 +50,36 @@ export default function ProfilePageClient({
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialProfile.name ?? '');
   const [phone, setPhone] = useState(initialProfile.phone ?? '');
+  const [dob, setDob] = useState(
+    initialProfile.date_of_birth ? initialProfile.date_of_birth.slice(0, 10) : '',
+  );
   const [avatarUrl, setAvatarUrl] = useState(initialProfile.avatar_url ?? '');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [profileFormError, setProfileFormError] = useState('');
+
+  useEffect(() => {
+    if (editing) return;
+    setProfile(initialProfile);
+    setName(initialProfile.name ?? '');
+    setPhone(initialProfile.phone ?? '');
+    setDob(initialProfile.date_of_birth ? initialProfile.date_of_birth.slice(0, 10) : '');
+    setAvatarUrl(initialProfile.avatar_url ?? '');
+  }, [
+    editing,
+    initialProfile.name,
+    initialProfile.phone,
+    initialProfile.avatar_url,
+    initialProfile.date_of_birth,
+    initialProfile.email,
+  ]);
 
   async function handleSave() {
+    setProfileFormError('');
+    if (!dob.trim()) {
+      setProfileFormError('Date of birth is required.');
+      return;
+    }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -52,11 +93,13 @@ export default function ProfilePageClient({
           nextAvatarUrl = urlData.publicUrl;
         }
       }
+      const dobValue = dob.trim() ? dob.trim().slice(0, 10) : null;
       await (supabase as any)
         .from('profiles')
         .update({
           name: name.trim() || null,
           phone: phone.trim() || null,
+          date_of_birth: dobValue,
           avatar_url: nextAvatarUrl,
           updated_at: new Date().toISOString(),
         })
@@ -74,7 +117,13 @@ export default function ProfilePageClient({
           })
           .eq('id', playerId);
       }
-      setProfile((p) => ({ ...p, name: name.trim() || null, phone: phone.trim() || null, avatar_url: nextAvatarUrl }));
+      setProfile((p) => ({
+        ...p,
+        name: name.trim() || null,
+        phone: phone.trim() || null,
+        date_of_birth: dobValue,
+        avatar_url: nextAvatarUrl,
+      }));
       router.refresh();
     }
     setSaving(false);
@@ -95,16 +144,39 @@ export default function ProfilePageClient({
           {!editing ? (
             <>
               <p className="text-lg font-semibold text-white">{profile.name || '—'}</p>
-              <p className="text-slate-400 text-sm">Email: {profile.email || '—'}</p>
-              <p className="text-slate-400 text-sm">Phone: {profile.phone || '—'}</p>
-              <button type="button" onClick={() => setEditing(true)} className="btn-secondary text-sm mt-2">
+              <div className="mt-3 rounded-lg border border-slate-600/70 bg-slate-900/50 p-3 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                  Email, phone & date of birth
+                </p>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-500">Email</span> — {profile.email || '—'}
+                </p>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-500">Phone</span> — {profile.phone || '—'}
+                </p>
+                <p className="text-slate-300 text-sm">
+                  <span className="text-slate-500">Date of birth</span> — {formatDobDisplay(profile.date_of_birth)}
+                </p>
+              </div>
+              <button type="button" onClick={() => setEditing(true)} className="btn-secondary text-sm mt-3">
                 Edit profile
               </button>
             </>
           ) : (
             <div className="space-y-2">
+              {profileFormError ? (
+                <p className="text-red-400 text-sm" role="alert">
+                  {profileFormError}
+                </p>
+              ) : null}
+              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Email, phone & DOB</p>
               <input className="input-field" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
+              <p className="text-slate-500 text-xs">Email (read-only): {profile.email}</p>
               <input className="input-field" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <label className="block text-slate-300 text-sm font-medium">
+                Date of birth <span className="text-red-400">*</span>
+              </label>
+              <input className="input-field" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
               <input className="input-field" placeholder="Photo URL" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
               <input
                 type="file"
@@ -117,7 +189,20 @@ export default function ProfilePageClient({
               <p className="text-slate-500 text-xs">Email cannot be changed here.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={handleSave} className="btn-primary text-sm" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-                <button type="button" onClick={() => setEditing(false)} className="btn-secondary text-sm">Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(false);
+                    setName(profile.name ?? '');
+                    setPhone(profile.phone ?? '');
+                    setDob(profile.date_of_birth ? profile.date_of_birth.slice(0, 10) : '');
+                    setAvatarUrl(profile.avatar_url ?? '');
+                    setAvatarFile(null);
+                  }}
+                  className="btn-secondary text-sm"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}

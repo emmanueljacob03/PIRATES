@@ -7,11 +7,18 @@ export default async function ProfilesPage() {
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
 
-  let profile: { name: string | null; email: string; phone: string | null; avatar_url: string | null } = {
+  let profile: {
+    name: string | null;
+    email: string;
+    phone: string | null;
+    avatar_url: string | null;
+    date_of_birth: string | null;
+  } = {
     name: null,
     email: '',
     phone: null,
     avatar_url: null,
+    date_of_birth: null,
   };
   let contributionTotal = 0;
   let matchesPlayed = 0;
@@ -44,7 +51,7 @@ export default async function ProfilesPage() {
     profile.email = user.email ?? '';
     let { data: profileRow } = await supabase
       .from('profiles')
-      .select('name, avatar_url, phone')
+      .select('name, avatar_url, phone, date_of_birth')
       .eq('id', user.id)
       .single();
 
@@ -57,15 +64,21 @@ export default async function ProfilesPage() {
           { id: user.id, email: user.email ?? '', name, role: 'viewer' },
           { onConflict: 'id' },
         );
-      const res = await supabase.from('profiles').select('name, avatar_url, phone').eq('id', user.id).single();
+      const res = await supabase.from('profiles').select('name, avatar_url, phone, date_of_birth').eq('id', user.id).single();
       profileRow = res.data;
     }
 
     if (profileRow) {
-      const r = profileRow as { name: string | null; avatar_url: string | null; phone: string | null };
+      const r = profileRow as {
+        name: string | null;
+        avatar_url: string | null;
+        phone: string | null;
+        date_of_birth: string | null;
+      };
       profile.name = r.name;
       profile.avatar_url = r.avatar_url;
       profile.phone = r.phone;
+      profile.date_of_birth = r.date_of_birth ?? null;
     }
     if (!profile.name) profile.name = user.email ?? 'User';
 

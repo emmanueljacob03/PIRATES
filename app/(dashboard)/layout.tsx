@@ -7,6 +7,7 @@ import DashboardNav from '@/components/DashboardNav';
 import LogoutButton from '@/components/LogoutButton';
 import PiratesHeader from '@/components/PiratesHeader';
 import MatchNotification from '@/components/MatchNotification';
+import BirthdaySlideNotification from '@/components/BirthdaySlideNotification';
 import NotificationBar from '@/components/NotificationBar';
 import ExpenseApprovalNotification from '@/components/ExpenseApprovalNotification';
 import SignupApprovalRequests from '@/components/SignupApprovalRequests';
@@ -41,6 +42,7 @@ export default async function DashboardLayout({
     return (
       <div className="min-h-screen bg-pirate-dark">
         <MatchNotification />
+        {!demo && <BirthdaySlideNotification />}
         <header className="border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4">
           <PiratesHeader href={logoHref} />
           <div className="flex items-center gap-3 flex-1 justify-end max-w-2xl">

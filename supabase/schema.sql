@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email TEXT NOT NULL,
   name TEXT,
   age INT,
+  date_of_birth DATE,
   phone TEXT,
   avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin', 'editor', 'viewer')),

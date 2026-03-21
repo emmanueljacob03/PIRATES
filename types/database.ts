@@ -11,6 +11,7 @@ export interface Database {
           email: string;
           name: string | null;
           age: number | null;
+          date_of_birth: string | null;
           phone: string | null;
           avatar_url: string | null;
           role: Role;

@@ -27,7 +27,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [age, setAge] = useState('');
+  const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
   const [profilePic, setProfilePic] = useState<File | null>(null);
   const [teamCode, setTeamCode] = useState('');
@@ -131,10 +131,15 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
+        if (!dob.trim()) {
+          setMessage({ type: 'err', text: 'Date of birth is required to create an account.' });
+          setLoading(false);
+          return;
+        }
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { name, age: age ? +age : null, phone } },
+          options: { data: { name, dob: dob.trim() || null, phone } },
         });
         if (error) {
           const msg = error.message || '';
@@ -162,7 +167,7 @@ export default function LoginPage() {
           // @ts-expect-error Supabase client generic inference
           await supabase.from('profiles').update({
             name: name || null,
-            age: age ? +age : null,
+            date_of_birth: dob.trim() || null,
             phone: phone || null,
             avatar_url: avatarUrl,
             updated_at: new Date().toISOString(),
@@ -294,7 +299,7 @@ export default function LoginPage() {
               </p>
             )}
             <form onSubmit={handleCredentials} className="space-y-4">
-              {isSignUp && (
+              {isSignUp ? (
                 <>
                   <div>
                     <label htmlFor="name" className="block text-slate-300 text-sm font-medium mb-1">
@@ -312,19 +317,18 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="age" className="block text-slate-300 text-sm font-medium mb-1">
-                      Age (optional)
+                    <label htmlFor="email" className="block text-slate-300 text-sm font-medium mb-1">
+                      Email address
                     </label>
                     <input
-                      id="age"
-                      type="number"
-                      min="1"
-                      max="120"
+                      id="email"
+                      type="email"
                       className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      value={age}
-                      onChange={(e) => setAge(e.target.value)}
-                      placeholder="Age"
-                      autoComplete="off"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      autoComplete="email"
                     />
                   </div>
                   <div>
@@ -342,6 +346,23 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
+                    <label htmlFor="dob" className="block text-slate-300 text-sm font-medium mb-1">
+                      Date of birth <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      id="dob"
+                      type="date"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      required
+                      autoComplete="bday"
+                    />
+                    <p className="text-slate-500 text-xs mt-1">
+                      Required. On a teammate’s birthday, everyone sees one team birthday slide that day (Central Time).
+                    </p>
+                  </div>
+                  <div>
                     <label htmlFor="photo" className="block text-slate-300 text-sm font-medium mb-1">
                       Photo (optional)
                     </label>
@@ -353,38 +374,56 @@ export default function LoginPage() {
                       onChange={(e) => setProfilePic(e.target.files?.[0] ?? null)}
                     />
                   </div>
+                  <div>
+                    <label htmlFor="password" className="block text-slate-300 text-sm font-medium mb-1">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="email" className="block text-slate-300 text-sm font-medium mb-1">
+                      Email address
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="password" className="block text-slate-300 text-sm font-medium mb-1">
+                      Password
+                    </label>
+                    <input
+                      id="password"
+                      type="password"
+                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      autoComplete="current-password"
+                    />
+                  </div>
                 </>
               )}
-              <div>
-                <label htmlFor="email" className="block text-slate-300 text-sm font-medium mb-1">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-slate-300 text-sm font-medium mb-1">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                />
-              </div>
               <button
                 type="submit"
                 className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50"
