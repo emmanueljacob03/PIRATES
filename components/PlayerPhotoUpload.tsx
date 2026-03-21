@@ -32,6 +32,7 @@ export default function PlayerPhotoUpload({
       const res = await fetch('/api/players/photo', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Upload failed');

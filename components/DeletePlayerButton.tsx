@@ -32,7 +32,7 @@ export default function DeletePlayerButton({ playerId, playerName }: { playerId:
         void handleDelete();
       }}
       disabled={loading}
-      className="absolute top-1 right-1 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-red-600/90 text-white text-sm font-bold leading-none shadow hover:bg-red-500 disabled:opacity-50"
+      className="absolute top-2 left-2 z-[45] flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white text-sm font-bold leading-none shadow-md hover:bg-red-500 hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
       title={`Remove ${playerName}`}
       aria-label={`Remove player ${playerName}`}
     >

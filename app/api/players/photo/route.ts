@@ -20,17 +20,19 @@ export async function POST(req: NextRequest) {
   const {
     data: { user },
   } = await userSupabase.auth.getUser();
-  if (!user) {
+
+  // Team code admin cookie works without a Supabase session (same as delete-player API)
+  if (!adminCookie && !user) {
     return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
   }
 
   let allowed = adminCookie;
-  if (!allowed) {
+  if (!allowed && user) {
     const { data: pr } = await userSupabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
     const role = (pr as { role?: string } | null)?.role;
     if (role === 'admin' || role === 'editor') allowed = true;
   }
-  if (!allowed) {
+  if (!allowed && user) {
     const { data: row } = await userSupabase.from('players').select('profile_id').eq('id', playerId).maybeSingle();
     const pid = (row as { profile_id?: string | null } | null)?.profile_id;
     if (pid === user.id) allowed = true;

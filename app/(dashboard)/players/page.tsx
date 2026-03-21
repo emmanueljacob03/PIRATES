@@ -9,18 +9,28 @@ export default async function PlayersPage() {
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
   const isAdminCode = cookieStore.get('pirates_admin')?.value === 'true';
-  let players: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string }[] = [];
+  type PlayerRow = {
+    id: string;
+    name: string;
+    photo: string | null;
+    jersey_number: number | null;
+    role: string;
+    profile_id?: string | null;
+    updated_at?: string;
+  };
+  type DisplayPlayer = PlayerRow & { displayName: string; displayPhoto: string | null };
+  let players: DisplayPlayer[] = [];
   let canEdit = false;
   let canDeletePlayers = false;
 
   try {
     const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
-    let fetchedPlayers: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string }[] = [];
+    let fetchedPlayers: PlayerRow[] = [];
 
     if (codeVerified) {
       const supabase = createAdminSupabase();
       const { data } = await supabase.from('players').select('*').order('name');
-      fetchedPlayers = (data ?? []) as typeof fetchedPlayers;
+      fetchedPlayers = (data ?? []) as PlayerRow[];
       const s2 = await createServerSupabase();
       const {
         data: { user: u2 },
@@ -40,10 +50,33 @@ export default async function PlayersPage() {
       canDeletePlayers = isAdminCode || profile?.role === 'admin';
 
       const { data } = await supabase.from('players').select('*').order('name');
-      fetchedPlayers = (data ?? []) as typeof fetchedPlayers;
+      fetchedPlayers = (data ?? []) as PlayerRow[];
     }
 
-    players = fetchedPlayers;
+    const profileIds = Array.from(
+      new Set(
+        fetchedPlayers.map((p) => p.profile_id).filter((id): id is string => Boolean(id)),
+      ),
+    );
+    const profileById = new Map<string, { name: string | null; avatar_url: string | null }>();
+    if (profileIds.length > 0) {
+      const sb = codeVerified ? createAdminSupabase() : await createServerSupabase();
+      const { data: profs } = await sb.from('profiles').select('id, name, avatar_url').in('id', profileIds);
+      for (const row of profs ?? []) {
+        const r = row as { id: string; name: string | null; avatar_url: string | null };
+        profileById.set(r.id, { name: r.name, avatar_url: r.avatar_url });
+      }
+    }
+
+    players = fetchedPlayers.map((p) => {
+      const pr = p.profile_id ? profileById.get(p.profile_id) : undefined;
+      const registered = pr?.name?.trim() || '';
+      const rawPlayerName = p.name?.trim() || '';
+      const looksLikeEmail = rawPlayerName.includes('@');
+      const displayName = registered || (!looksLikeEmail ? rawPlayerName : '') || 'Player';
+      const displayPhoto = (p.photo?.trim() || pr?.avatar_url?.trim() || null) as string | null;
+      return { ...p, displayName, displayPhoto };
+    });
   } catch {
     players = [];
   }
@@ -53,26 +86,39 @@ export default async function PlayersPage() {
       <h2 className="text-2xl font-bold text-pirate-gold mb-6">Players</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {players.map((p) => {
+          const imgSrc =
+            p.displayPhoto &&
+            `${p.displayPhoto}${p.displayPhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(p.updated_at ?? p.id)}`;
           const content = (
             <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-slate-800">
-              {p.photo ? (
-                <Image src={p.photo} alt={p.name} fill className="object-cover" sizes="220px" />
+              {p.displayPhoto && imgSrc ? (
+                <Image
+                  key={imgSrc}
+                  src={imgSrc}
+                  alt={p.displayName}
+                  fill
+                  className="object-cover"
+                  sizes="220px"
+                  unoptimized
+                />
               ) : (
-                <PlayerPhotoUpload playerId={p.id} playerName={p.name} />
+                <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} />
               )}
-              {!demo && (isAdminCode || canEdit) && p.photo && (
-                <div className="absolute top-2 right-2 z-10">
-                  <PlayerPhotoUpload playerId={p.id} playerName={p.name} compact />
+              {!demo && (isAdminCode || canEdit) && p.displayPhoto && (
+                <div className="absolute top-2 right-2 z-30">
+                  <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} compact />
                 </div>
               )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/10 px-3 py-2 flex items-center gap-2">
-                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1">{p.name}</p>
+                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1">{p.displayName}</p>
               </div>
             </div>
           );
           return (
             <div key={p.id} className="card p-2 hover:border-amber-500/40 transition relative">
-              {!demo && canDeletePlayers && <DeletePlayerButton playerId={p.id} playerName={p.name} />}
+              {!demo && canDeletePlayers && (
+                <DeletePlayerButton playerId={p.id} playerName={p.displayName} />
+              )}
               {content}
             </div>
           );
