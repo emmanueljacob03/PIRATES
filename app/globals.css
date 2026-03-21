@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Intro video: remove WebKit/iOS default play glyph (often shows as a white dot) */
+.intro-video-no-ui::-webkit-media-controls {
+  display: none !important;
+}
+.intro-video-no-ui::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+.intro-video-no-ui::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
+/* Volume slider: avoid a stray light “dot” from default thumb styling */
+.intro-video-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 6px;
+}
+.intro-video-volume::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.45);
+}
+.intro-video-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--pirate-yellow);
+  margin-top: -5px;
+  border: 2px solid rgba(15, 23, 42, 0.9);
+}
+.intro-video-volume::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.45);
+}
+.intro-video-volume::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--pirate-yellow);
+  border: 2px solid rgba(15, 23, 42, 0.9);
+}
+
+:root {
+  /* Classic palette */
+  --pirate-gold: #c9a227;
+  --pirate-yellow: #facc15;
+  --pirate-dark: #0a0a0a;
+  --pirate-navy: #0f172a;
+  --pirate-green: #14532d;
+  --pirate-cream: #fefce8;
+  --pirate-white: #ffffff;
+}
+
+body {
+  font-family: 'Times New Roman', Times, serif;
+  background: var(--pirate-dark);
+  color: var(--pirate-cream);
+  min-height: 100vh;
+}
+
+@keyframes pirates-thunder {
+  0%, 90%, 100% { opacity: 0; }
+  92% { opacity: 1; }
+  94% { opacity: 0; }
+  96% { opacity: 1; }
+  98% { opacity: 0; }
+}
+
+/* Welcome finale: crackers rising bottom → top */
+/* Team photo (pirates2): slide up into frame so lower area isn’t lost under the footer gradient */
+/* pirates2: stronger rise into frame after top clip */
+@keyframes pirates-team-slide-up {
+  from {
+    transform: translateY(22%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pirates-team-slide-up {
+  animation: pirates-team-slide-up 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes pirates-cracker-rise {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.35);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift-x, 0px), -110vh, 0) scale(1.15);
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply font-semibold py-2 px-4 rounded-lg transition;
+    background: var(--pirate-yellow);
+    color: var(--pirate-dark);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.1);
+  }
+  .btn-secondary {
+    @apply font-medium py-2 px-4 rounded-lg transition;
+    background: var(--pirate-navy);
+    color: var(--pirate-white);
+  }
+  .card {
+    border: 1px solid rgba(20, 83, 45, 0.5);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.9);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  }
+  .card:hover {
+    box-shadow: 0 8px 20px -4px rgba(0,0,0,0.4), 0 0 0 1px rgba(201, 162, 39, 0.2);
+    border-color: rgba(201, 162, 39, 0.35);
+  }
+  .card-hover-lift:hover {
+    transform: translateY(-2px);
+  }
+  .input-field {
+    @apply w-full rounded-lg px-3 py-2 transition;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--pirate-green);
+    color: var(--pirate-white);
+  }
+  .input-field:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--pirate-yellow);
+  }
+  .input-field::placeholder {
+    color: #94a3b8;
+  }
+}
