@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+const UPLOAD_TIMEOUT_MS = 120_000;
+
 export default function PlayerPhotoUpload({
   playerId,
   playerName,
@@ -23,6 +25,8 @@ export default function PlayerPhotoUpload({
     if (!file) return;
     setLoading(true);
     setMessage('');
+    const ac = new AbortController();
+    const t = window.setTimeout(() => ac.abort(), UPLOAD_TIMEOUT_MS);
     try {
       const ext = file.name.split('.').pop() || 'png';
       const formData = new FormData();
@@ -33,17 +37,30 @@ export default function PlayerPhotoUpload({
         method: 'POST',
         body: formData,
         credentials: 'include',
+        signal: ac.signal,
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      const text = await res.text();
+      let data: { error?: string; photo?: string } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        if (!res.ok) throw new Error(text.slice(0, 200) || `Upload failed (${res.status})`);
+      }
+      if (!res.ok) throw new Error(data?.error || `Upload failed (${res.status})`);
       if (data?.photo) setPreviewUrl(String(data.photo));
-      setMessage('Photo uploaded.');
+      setMessage('Photo updated.');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       router.refresh();
     } catch (err: unknown) {
-      setMessage((err as Error).message);
+      const msg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Upload timed out. Try a smaller image or check your connection.'
+          : (err as Error).message;
+      setMessage(msg);
+      if (compact && typeof window !== 'undefined') window.alert(msg);
     } finally {
+      window.clearTimeout(t);
       setLoading(false);
     }
   }
@@ -57,7 +74,7 @@ export default function PlayerPhotoUpload({
   }
 
   return (
-    <form className="mt-3 space-y-2 text-left" onSubmit={(e) => e.preventDefault()}>
+    <form className={compact ? 'm-0 inline' : 'mt-3 space-y-2 text-left'} onSubmit={(e) => e.preventDefault()}>
       <input
         ref={fileInputRef}
         type="file"
@@ -66,33 +83,45 @@ export default function PlayerPhotoUpload({
         className="hidden"
         onChange={onFileSelected}
       />
+      {message && !compact ? (
+        <p className={`text-xs ${message.includes('failed') || message.includes('timed') || message.includes('Not allowed') ? 'text-red-400' : 'text-green-400'}`}>
+          {message}
+        </p>
+      ) : null}
       <button
         type="button"
         className={
           compact
-            ? 'inline-flex items-center justify-center min-w-[2rem] min-h-[2rem] rounded-lg bg-black/55 text-slate-100 hover:bg-black/75 border border-white/20 text-lg font-light leading-none px-2 py-1 transition'
+            ? 'inline-flex items-center justify-center min-w-[2.25rem] min-h-[2.25rem] rounded-md bg-black/60 text-amber-300 hover:bg-black/80 border border-amber-500/40 text-base leading-none p-1.5 transition shadow-sm'
             : 'w-full h-full rounded-lg border border-dashed border-slate-500/70 bg-slate-800/40 hover:border-amber-400 hover:bg-slate-800 transition p-0 text-center overflow-hidden'
         }
         disabled={loading}
-        aria-label={loading ? 'Uploading photo' : 'Add or change photo'}
-        title={loading ? 'Uploading…' : 'Add or change photo'}
+        aria-label={loading ? 'Uploading photo' : 'Change photo'}
+        title={loading ? 'Uploading…' : 'Change photo'}
         onClick={() => fileInputRef.current?.click()}
       >
         {compact ? (
-          <span aria-hidden>{loading ? '…' : '+'}</span>
+          <span aria-hidden className="block scale-110" style={{ fontFamily: 'system-ui' }}>
+            {loading ? '…' : '✎'}
+          </span>
         ) : (
           <>
             {previewUrl ? (
               <img src={previewUrl} alt={playerName} className="w-full h-full object-cover" />
             ) : (
               <div className="flex flex-col items-center justify-center gap-1 w-full h-full px-2">
-                <span className="text-2xl leading-none text-amber-400">{loading ? '...' : '+'}</span>
+                <span className="text-2xl leading-none text-amber-400">{loading ? '...' : '✎'}</span>
                 <span className="text-xs text-slate-300">{loading ? 'Uploading...' : 'Add photo'}</span>
               </div>
             )}
           </>
         )}
       </button>
+      {message && compact ? (
+        <span className="sr-only" role="status">
+          {message}
+        </span>
+      ) : null}
     </form>
   );
 }

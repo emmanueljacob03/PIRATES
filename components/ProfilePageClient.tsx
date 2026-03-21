@@ -81,20 +81,33 @@ export default function ProfilePageClient({
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
+    try {
+      const {
+        data: { user },
+        error: authErr,
+      } = await supabase.auth.getUser();
+      if (authErr || !user) {
+        setProfileFormError('You must be signed in to save.');
+        return;
+      }
+
       let nextAvatarUrl = avatarUrl.trim() || null;
       if (avatarFile) {
         const ext = avatarFile.name.split('.').pop() || 'png';
         const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-          nextAvatarUrl = urlData.publicUrl;
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, {
+          upsert: true,
+        });
+        if (uploadError) {
+          setProfileFormError(`Photo upload failed: ${uploadError.message}. Check Storage policies for the “avatars” bucket.`);
+          return;
         }
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+        nextAvatarUrl = urlData.publicUrl;
       }
+
       const dobValue = dob.trim() ? dob.trim().slice(0, 10) : null;
-      await (supabase as any)
+      const { error: profileErr } = await (supabase as any)
         .from('profiles')
         .update({
           name: name.trim() || null,
@@ -105,10 +118,14 @@ export default function ProfilePageClient({
         })
         .eq('id', user.id);
 
-      // Keep linked player card (Players page) in sync with profile name + photo
+      if (profileErr) {
+        setProfileFormError(profileErr.message || 'Could not update profile.');
+        return;
+      }
+
       if (playerId) {
         const displayName = (name.trim() || profile.name || profile.email || 'Player').trim();
-        await (supabase as any)
+        const { error: playerErr } = await (supabase as any)
           .from('players')
           .update({
             name: displayName,
@@ -116,18 +133,28 @@ export default function ProfilePageClient({
             updated_at: new Date().toISOString(),
           })
           .eq('id', playerId);
+        if (playerErr && typeof window !== 'undefined') {
+          window.alert(
+            `Your profile was saved, but the Players card could not be updated: ${playerErr.message}`,
+          );
+        }
       }
-      setProfile((p) => ({
-        ...p,
+
+      setProfile((prev) => ({
+        ...prev,
         name: name.trim() || null,
         phone: phone.trim() || null,
         date_of_birth: dobValue,
         avatar_url: nextAvatarUrl,
       }));
+      setAvatarFile(null);
+      setEditing(false);
       router.refresh();
+    } catch (e) {
+      setProfileFormError(e instanceof Error ? e.message : 'Something went wrong while saving.');
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
-    setEditing(false);
   }
 
   return (
@@ -135,7 +162,15 @@ export default function ProfilePageClient({
       <div className="flex flex-col sm:flex-row gap-6 items-start">
         <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-[var(--pirate-yellow)] bg-[var(--pirate-navy)] flex-shrink-0">
           {profile.avatar_url ? (
-            <Image src={profile.avatar_url} alt="" fill className="object-cover" sizes="112px" />
+            <Image
+              key={profile.avatar_url}
+              src={profile.avatar_url}
+              alt=""
+              fill
+              className="object-cover"
+              sizes="112px"
+              unoptimized
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-4xl">👤</div>
           )}

@@ -35,6 +35,19 @@ export default function LoginPage() {
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [codeError, setCodeError] = useState('');
   const teamCodeSubmitLock = useRef(false);
+  const credentialsSubmitLock = useRef(false);
+
+  function authErrorUserMessage(raw: string): string {
+    const lower = raw.toLowerCase();
+    if (
+      lower.includes('rate limit') ||
+      lower.includes('too many requests') ||
+      lower.includes('too many') && lower.includes('email')
+    ) {
+      return 'Too many sign-in attempts from this network. Please wait 5–15 minutes and try again, or use another connection. (Supabase protects accounts from brute-force logins.)';
+    }
+    return raw;
+  }
 
   const fromAchievementsWelcome = searchParams.get('welcome') === '1';
   const urlCodeStatus = searchParams.get('code');
@@ -100,7 +113,7 @@ export default function LoginPage() {
       } else if (approval === 'rejected') {
         setStep('rejected');
       }
-    }, 8000);
+    }, 45_000);
     return () => window.clearInterval(id);
   }, [step]);
 
@@ -126,6 +139,8 @@ export default function LoginPage() {
 
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
+    if (credentialsSubmitLock.current) return;
+    credentialsSubmitLock.current = true;
     setLoading(true);
     setMessage(null);
 
@@ -149,6 +164,10 @@ export default function LoginPage() {
             msg.toLowerCase().includes('already been registered')
           ) {
             setMessage({ type: 'err', text: 'This email is already registered. Use Log in instead.' });
+            return;
+          }
+          if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many requests')) {
+            setMessage({ type: 'err', text: authErrorUserMessage(msg) });
             return;
           }
           throw error;
@@ -208,6 +227,10 @@ export default function LoginPage() {
             setMessage({ type: 'err', text: 'Please confirm your email first. Check your inbox and click the link, then try again.' });
             return;
           }
+          if (raw.toLowerCase().includes('rate limit') || raw.toLowerCase().includes('too many requests')) {
+            setMessage({ type: 'err', text: authErrorUserMessage(raw) });
+            return;
+          }
           setMessage({ type: 'err', text: raw || 'Log in failed. Check your email and password.' });
           return;
         }
@@ -236,9 +259,17 @@ export default function LoginPage() {
         }
       }
     } catch (err: unknown) {
-      setMessage({ type: 'err', text: err instanceof Error ? err.message : 'Something went wrong.' });
+      const raw = err instanceof Error ? err.message : 'Something went wrong.';
+      setMessage({
+        type: 'err',
+        text:
+          typeof raw === 'string' && (raw.toLowerCase().includes('rate limit') || raw.toLowerCase().includes('too many requests'))
+            ? authErrorUserMessage(raw)
+            : raw,
+      });
     } finally {
       setLoading(false);
+      credentialsSubmitLock.current = false;
     }
   }
 

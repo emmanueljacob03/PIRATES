@@ -86,6 +86,7 @@ export default async function PlayersPage() {
       <h2 className="text-2xl font-bold text-pirate-gold mb-6">Players</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
         {players.map((p) => {
+          const canEditPhoto = !demo && (isAdminCode || canEdit);
           const imgSrc =
             p.displayPhoto &&
             `${p.displayPhoto}${p.displayPhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(p.updated_at ?? p.id)}`;
@@ -102,15 +103,17 @@ export default async function PlayersPage() {
                   unoptimized
                 />
               ) : (
-                <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} />
-              )}
-              {!demo && (isAdminCode || canEdit) && p.displayPhoto && (
-                <div className="absolute top-2 right-2 z-30">
-                  <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} compact />
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 text-slate-500 text-xs px-2 text-center">
+                  No photo yet
                 </div>
               )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/10 px-3 py-2 flex items-center gap-2">
-                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1">{p.displayName}</p>
+              <div className="absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-2 py-2 flex items-center justify-between gap-2 min-h-[2.75rem]">
+                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1 pr-1">{p.displayName}</p>
+                {canEditPhoto ? (
+                  <div className="flex-shrink-0 self-end mb-0.5">
+                    <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} compact />
+                  </div>
+                ) : null}
               </div>
             </div>
           );
