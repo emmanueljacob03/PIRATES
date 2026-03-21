@@ -1,24 +1,39 @@
 # Achievements assets
 
-## Intro video (required path for the app)
+## Intro video
 
-The browser can only load videos from the **project’s `public` folder**, not from `Downloads` or other paths.
+### Option A — File in this repo (`public/`)
 
-**Your file:** `~/Downloads/Pirates intro.MP4`
-
-**One-time setup** (Terminal, from your machine):
+Put the file here (or copy from Downloads):
 
 ```bash
-cp "/Users/emmanueljacobkanagala/Downloads/Pirates intro.MP4" "/Users/emmanueljacobkanagala/Desktop/PIRATES/public/achievements/intro.mp4"
+cp "/path/to/Pirates intro.MP4" "/path/to/PIRATES/public/achievements/intro.mp4"
 ```
 
-Adjust the second path if your project folder is elsewhere. After copying, the app uses:
+App URL: **`/achievements/intro.mp4`**
 
-`public/achievements/intro.mp4` → URL **`/achievements/intro.mp4`**
+### Option B — Hosted URL (no big MP4 in Git)
+
+Upload the MP4 to any **HTTPS** URL the browser can request (CORS must allow your site to load the video — most CDNs/object storage do when the bucket is public).
+
+| Where | How |
+|--------|-----|
+| **Supabase Storage** | Dashboard → Storage → new bucket (public) → Upload → copy **public** object URL |
+| **Cloudflare R2 / AWS S3** | Upload file → enable public read (or signed URL) → use the object URL |
+| **Vercel Blob** | `@vercel/blob` upload or dashboard → paste URL |
+| **YouTube / Vimeo** | Not a direct MP4 URL in `<video src>`; you’d need their embed API instead |
+
+Then in **`.env.local`** (and in Vercel/hosting **Environment Variables** for production):
+
+```bash
+NEXT_PUBLIC_INTRO_VIDEO_URL=https://your-cdn.example.com/path/intro.mp4
+```
+
+Rebuild/redeploy after changing env vars. If the URL is missing or the file fails to load, the intro step is skipped (same as a broken local file).
 
 - Prefer **H.264 + AAC** in an `.mp4` container.
 - Intro: slight zoom (~**6%**), **no native WebKit controls** (avoids the small white play dot). **Volume starts at 100%** and we try **sound on first**; if the browser mutes autoplay, **tap once on the video** (or use Volume) to turn sound on. Length ≈ **8 seconds**. **Skip** continues to achievements.
-- If `intro.mp4` is missing or invalid, the intro step is skipped automatically.
+- If the video URL fails (missing file, bad URL, CORS), the intro step is skipped automatically.
 
 ---
 

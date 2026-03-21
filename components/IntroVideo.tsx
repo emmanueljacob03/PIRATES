@@ -3,9 +3,13 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 /**
- * Served from: public/achievements/intro.mp4 → /achievements/intro.mp4
+ * Video source:
+ * - Set NEXT_PUBLIC_INTRO_VIDEO_URL to a full HTTPS URL (CDN, Supabase Storage, S3, etc.)
+ * - Or omit it and use the file in public/: /achievements/intro.mp4
  */
-const INTRO_VIDEO_SRC = '/achievements/intro.mp4';
+const INTRO_VIDEO_SRC =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_INTRO_VIDEO_URL?.trim()) ||
+  '/achievements/intro.mp4';
 
 /** Wall-clock length we aim for (seconds). playbackRate = duration / this. */
 const TARGET_PLAY_SECONDS = 8;
