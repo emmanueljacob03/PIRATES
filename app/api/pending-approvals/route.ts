@@ -39,6 +39,27 @@ export async function POST(req: NextRequest) {
       .update({ approval_status, updated_at: new Date().toISOString() })
       .eq('id', userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    // Ensure a roster card exists on approve (same as visiting My Profile would do)
+    if (action === 'approve') {
+      const { data: prof } = await (supabase as any)
+        .from('profiles')
+        .select('name, email, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      const p = prof as { name?: string | null; email?: string | null; avatar_url?: string | null } | null;
+      const displayName = (p?.name ?? p?.email ?? 'Player').trim() || 'Player';
+      const { data: existingPlayer } = await supabase.from('players').select('id').eq('profile_id', userId).maybeSingle();
+      if (!existingPlayer) {
+        await (supabase as any).from('players').insert({
+          name: displayName,
+          photo: p?.avatar_url ?? null,
+          profile_id: userId,
+          role: 'Player',
+        });
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

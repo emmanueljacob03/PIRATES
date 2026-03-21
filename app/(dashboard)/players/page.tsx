@@ -9,10 +9,7 @@ export default async function PlayersPage() {
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
   const isAdminCode = cookieStore.get('pirates_admin')?.value === 'true';
-  const starterPlayers = [
-    { id: '11111111-1111-4111-8111-111111111111', name: 'Emmanuel Jacob Kanagala', photo: '/emmanuel-jacob-kanagala.png', jersey_number: null, role: 'Player' },
-  ];
-  let players: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string }[] = starterPlayers;
+  let players: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string }[] = [];
   let canEdit = false;
   let canDeletePlayers = false;
 
@@ -46,15 +43,9 @@ export default async function PlayersPage() {
       fetchedPlayers = (data ?? []) as typeof fetchedPlayers;
     }
 
-    // Use database values for starter players when available (so new photos win)
-    const merged = starterPlayers.map((starter) => {
-      const dbMatch = fetchedPlayers.find((p) => p.id === starter.id);
-      return dbMatch ?? starter;
-    });
-    const extraPlayers = fetchedPlayers.filter((p) => !starterPlayers.some((starter) => starter.id === p.id));
-    players = [...merged, ...extraPlayers];
+    players = fetchedPlayers;
   } catch {
-    players = starterPlayers;
+    players = [];
   }
 
   return (
