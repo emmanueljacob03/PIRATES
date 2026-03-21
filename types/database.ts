@@ -14,6 +14,7 @@ export interface Database {
           phone: string | null;
           avatar_url: string | null;
           role: Role;
+          approval_status: 'pending' | 'approved' | 'rejected';
           created_at: string;
           updated_at: string;
         };
@@ -92,17 +93,18 @@ export interface Database {
       match_media: {
         Row: {
           id: string;
-          match_id: string;
+          match_id: string | null;
           type: 'photo' | 'video' | 'highlight';
           url: string;
           title: string | null;
           album: 'main' | 'others';
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['match_media']['Row'], 'id' | 'created_at' | 'album'> & {
+        Insert: Omit<Database['public']['Tables']['match_media']['Row'], 'id' | 'created_at' | 'album' | 'match_id'> & {
           id?: string;
           created_at?: string;
           album?: 'main' | 'others';
+          match_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['match_media']['Insert']>;
       };

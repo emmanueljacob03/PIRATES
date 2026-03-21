@@ -23,6 +23,7 @@ export const config = {
     '/achievements',
     '/login',
     '/auth/callback',
+    '/api/team-code-handoff',
     '/api/upcoming-matches',
     '/dashboard',
     '/dashboard/:path*',

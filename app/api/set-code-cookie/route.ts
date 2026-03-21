@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateCodeToken } from '@/lib/code-token-store';
-import { setSlideReminderCookieOnResponse } from '@/lib/slide-reminder-cookie';
+import { applyPiratesTeamCodeCookies } from '@/lib/team-code-cookies';
+import { createTeamCodeHandoffToken } from '@/lib/team-code-handoff-token';
 
 const ENTRY_CODE = (process.env.PIRATES_SECURITY_CODE || 'Pirates102').trim().toLowerCase();
 const ADMIN_CODE = (process.env.PIRATES_ADMIN_CODE || '#Pirateswinners1').trim().toLowerCase();
@@ -14,41 +15,14 @@ function isAdminCode(code: string): boolean {
 
 /**
  * POST with body { token, code } or form token=... & code=...
- * Validates token or code (one shared team code for everyone), sets cookie, redirects to /dashboard.
+ * Validates token or code, sets cookie, redirects to /dashboard (non-JSON).
+ * JSON clients get { ok, handoff } and must GET /api/team-code-handoff?t=... so cookies attach on a real navigation.
  */
-function setTeamCookiesOnResponse(res: NextResponse, code: string | null) {
-  res.cookies.set('pirates_code_verified', 'true', {
-    path: '/',
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 24,
-  });
-  if (code && isAdminCode(code)) {
-    res.cookies.set('pirates_admin', 'true', {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24,
-    });
-  } else {
-    res.cookies.set('pirates_admin', '', {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 0,
-    });
-  }
-}
-
 export async function POST(req: NextRequest) {
   let token: string | null = null;
   let code: string | null = null;
   const contentType = req.headers.get('content-type') || '';
-  const accept = req.headers.get('accept') || '';
-  const returnJson = accept.includes('application/json');
+  const returnJson = contentType.includes('application/json');
   try {
     if (contentType.includes('application/json')) {
       const body = await req.json();
@@ -74,16 +48,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(new URL('/login?code=invalid', req.url), 303);
   }
 
+  const isAdmin = !!(code && isAdminCode(code));
+
   if (returnJson) {
-    const res = NextResponse.json({ ok: true });
-    setTeamCookiesOnResponse(res, code);
-    setSlideReminderCookieOnResponse(res);
-    return res;
+    // Do not Set-Cookie on fetch JSON — browsers/RSC can miss them before /dashboard. Client uses handoff GET.
+    const handoff = createTeamCodeHandoffToken(isAdmin);
+    return NextResponse.json({ ok: true, handoff });
   }
 
-  // Form / non-JSON clients: 303 = force GET on next hop (avoid POST replay to /dashboard).
   const res = NextResponse.redirect(new URL('/dashboard', req.url), 303);
-  setTeamCookiesOnResponse(res, code);
-  setSlideReminderCookieOnResponse(res);
+  applyPiratesTeamCodeCookies(res, isAdmin);
   return res;
 }

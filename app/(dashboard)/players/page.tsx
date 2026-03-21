@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import PlayerPhotoUpload from '@/components/PlayerPhotoUpload';
+import DeletePlayerButton from '@/components/DeletePlayerButton';
 
 export default async function PlayersPage() {
   const cookieStore = await cookies();
@@ -10,10 +11,10 @@ export default async function PlayersPage() {
   const isAdminCode = cookieStore.get('pirates_admin')?.value === 'true';
   const starterPlayers = [
     { id: '11111111-1111-4111-8111-111111111111', name: 'Emmanuel Jacob Kanagala', photo: '/emmanuel-jacob-kanagala.png', jersey_number: null, role: 'Player' },
-    { id: '22222222-2222-4222-8222-222222222222', name: 'Anil Kumar Chandu', photo: null, jersey_number: null, role: 'Player' },
   ];
   let players: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string }[] = starterPlayers;
   let canEdit = false;
+  let canDeletePlayers = false;
 
   try {
     const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
@@ -23,12 +24,23 @@ export default async function PlayersPage() {
       const supabase = createAdminSupabase();
       const { data } = await supabase.from('players').select('*').order('name');
       fetchedPlayers = (data ?? []) as typeof fetchedPlayers;
+      const s2 = await createServerSupabase();
+      const {
+        data: { user: u2 },
+      } = await s2.auth.getUser();
+      if (u2) {
+        const { data: pr2 } = await s2.from('profiles').select('role').eq('id', u2.id).maybeSingle();
+        canDeletePlayers = isAdminCode || (pr2 as { role?: string } | null)?.role === 'admin';
+      } else {
+        canDeletePlayers = isAdminCode;
+      }
     } else {
       const supabase = await createServerSupabase();
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profileRow } = user ? await supabase.from('profiles').select('role').eq('id', user.id).single() : { data: null };
       const profile = profileRow as { role: string } | null;
       canEdit = isAdminCode || profile?.role === 'admin' || profile?.role === 'editor';
+      canDeletePlayers = isAdminCode || profile?.role === 'admin';
 
       const { data } = await supabase.from('players').select('*').order('name');
       fetchedPlayers = (data ?? []) as typeof fetchedPlayers;
@@ -66,7 +78,8 @@ export default async function PlayersPage() {
             </div>
           );
           return (
-            <div key={p.id} className="card p-2 hover:border-amber-500/40 transition">
+            <div key={p.id} className="card p-2 hover:border-amber-500/40 transition relative">
+              {!demo && canDeletePlayers && <DeletePlayerButton playerId={p.id} playerName={p.name} />}
               {content}
             </div>
           );

@@ -70,6 +70,12 @@ export default async function MediaPage() {
             </div>
           </div>
         ))}
+        <Link
+          href="/media/others"
+          className="card flex items-center justify-center min-h-[5.5rem] border-amber-500/35 bg-amber-500/5 hover:border-amber-400/60 transition p-4"
+        >
+          <span className="font-semibold text-amber-200 text-lg">Others</span>
+        </Link>
       </div>
       {visibleMatches.length === 0 && (
         <p className="text-slate-500">No matches yet. Add a match in Schedule first.</p>

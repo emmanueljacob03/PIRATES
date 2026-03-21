@@ -46,9 +46,6 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
 
   const photos = mediaList.filter((m) => m.type === 'photo' && mediaAlbum(m) === 'main');
   const videos = mediaList.filter((m) => m.type === 'video' && mediaAlbum(m) === 'main');
-  const others = mediaList.filter((m) => mediaAlbum(m) === 'others');
-  const othersPhotos = others.filter((m) => m.type === 'photo');
-  const othersVideos = others.filter((m) => m.type === 'video');
 
   return (
     <div>
@@ -67,9 +64,12 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
           View all
         </Link>
       </div>
-      <p className="text-slate-500 text-sm mb-6">Photos, videos, and others for this match. View all shows every file across matches.</p>
+      <p className="text-slate-500 text-sm mb-6">
+        Photos and videos for this match. Use the team <Link href="/media/others" className="text-amber-400 hover:underline">Others</Link> folder for extra media.{' '}
+        <Link href="/media/all" className="text-amber-400 hover:underline">View all</Link> shows every file.
+      </p>
       <MatchMediaClient matchId={matchId} canUpload={canUpload} />
-      <div className="grid md:grid-cols-3 gap-6 mt-8">
+      <div className="grid md:grid-cols-2 gap-6 mt-8">
         <section className="card">
           <div className="w-full flex items-center justify-between text-left mb-4">
             <h3 className="text-lg font-semibold">
@@ -79,7 +79,7 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
               Open album
             </Link>
           </div>
-          <p className="text-slate-500 text-sm">Main match photos (no limit).</p>
+          <p className="text-slate-500 text-sm">Match photos (no limit).</p>
         </section>
         <section className="card">
           <div className="w-full flex items-center justify-between text-left mb-4">
@@ -90,24 +90,7 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
               Open album
             </Link>
           </div>
-          <p className="text-slate-500 text-sm">Main match videos (no limit).</p>
-        </section>
-        <section className="card border-amber-500/20">
-          <div className="w-full flex items-center justify-between text-left mb-4">
-            <h3 className="text-lg font-semibold">
-              Others{' '}
-              <span className="text-amber-400">
-                ({others.length})
-                <span className="text-slate-500 text-xs font-normal ml-1">
-                  {othersPhotos.length} ph · {othersVideos.length} vid
-                </span>
-              </span>
-            </h3>
-            <Link href={`/media/${matchId}/others`} className="text-xs text-amber-400 hover:underline">
-              Open album
-            </Link>
-          </div>
-          <p className="text-slate-500 text-sm">Mixed photos &amp; videos (no limit). Upload with Album → Others.</p>
+          <p className="text-slate-500 text-sm">Match videos (no limit).</p>
         </section>
       </div>
     </div>

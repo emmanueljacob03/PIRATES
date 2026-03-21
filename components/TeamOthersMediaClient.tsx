@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function MatchMediaClient({ matchId, canUpload = false }: { matchId: string; canUpload?: boolean }) {
+/** Uploads to team-level Others (`match_id` null). Admin only — same API as match media. */
+export default function TeamOthersMediaClient({ canUpload = false }: { canUpload?: boolean }) {
   const [type, setType] = useState<'photo' | 'video'>('photo');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,9 +19,8 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
     setMessage('');
     try {
       const formData = new FormData();
-      formData.append('match_id', matchId);
+      formData.append('team_others', 'true');
       formData.append('type', type);
-      formData.append('album', 'main');
       formData.append('file', file);
       const res = await fetch('/api/match-media', {
         method: 'POST',
@@ -41,8 +41,9 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
   if (!canUpload) return null;
 
   return (
-    <div className="card mb-6">
-      <h3 className="text-lg font-semibold mb-4">Upload Media</h3>
+    <div className="card mb-6 border-amber-500/20">
+      <h3 className="text-lg font-semibold mb-4">Upload to Others</h3>
+      <p className="text-slate-500 text-sm mb-4">Extra photos and videos not tied to a match (no limit).</p>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm text-slate-400 mb-1">Type</label>

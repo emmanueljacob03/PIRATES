@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone TEXT,
   avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('admin', 'editor', 'viewer')),
+  approval_status TEXT NOT NULL DEFAULT 'approved' CHECK (approval_status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -23,6 +24,12 @@ DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can read all profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+DROP POLICY IF EXISTS "Admins update any profile" ON public.profiles;
+CREATE POLICY "Admins update any profile" ON public.profiles
+  FOR UPDATE TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  );
 
 -- Jerseys
 CREATE TABLE IF NOT EXISTS public.jerseys (
@@ -116,7 +123,7 @@ CREATE POLICY "Admin create/update matches" ON public.matches FOR ALL TO authent
 -- Match media
 CREATE TABLE IF NOT EXISTS public.match_media (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  match_id UUID NOT NULL REFERENCES public.matches(id) ON DELETE CASCADE,
+  match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE,
   type TEXT NOT NULL CHECK (type IN ('photo', 'video', 'highlight')),
   url TEXT NOT NULL,
   title TEXT,
@@ -200,8 +207,8 @@ CREATE POLICY "Admin manage umpiring_duties" ON public.umpiring_duties FOR ALL T
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, name, role)
-  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'name', NEW.email), 'viewer');
+  INSERT INTO public.profiles (id, email, name, role, approval_status)
+  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'name', NEW.email), 'viewer', 'pending');
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

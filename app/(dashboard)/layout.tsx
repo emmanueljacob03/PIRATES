@@ -9,7 +9,9 @@ import PiratesHeader from '@/components/PiratesHeader';
 import MatchNotification from '@/components/MatchNotification';
 import NotificationBar from '@/components/NotificationBar';
 import ExpenseApprovalNotification from '@/components/ExpenseApprovalNotification';
+import SignupApprovalRequests from '@/components/SignupApprovalRequests';
 import ProfileIcon from '@/components/ProfileIcon';
+import { isDashboardAdmin } from '@/lib/admin-request';
 
 export default async function DashboardLayout({
   children,
@@ -20,6 +22,7 @@ export default async function DashboardLayout({
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
   const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
+  const showAdminTools = isAdmin || (await isDashboardAdmin());
   const modeLabel = isAdmin ? 'ADMIN: READ & WRITE' : 'VIEWER';
 
   let hasSession = false;
@@ -41,7 +44,8 @@ export default async function DashboardLayout({
         <header className="border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4">
           <PiratesHeader href={logoHref} />
           <div className="flex items-center gap-3 flex-1 justify-end max-w-2xl">
-            {isAdmin && <ExpenseApprovalNotification />}
+            {showAdminTools && <ExpenseApprovalNotification />}
+            {showAdminTools && <SignupApprovalRequests />}
             <NotificationBar />
             <ProfileIcon />
             <LogoutButton />

@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 type MediaRow = {
   id: string;
-  match_id: string;
+  match_id: string | null;
   type: string;
   url: string;
   album?: string | null;
@@ -56,9 +56,12 @@ export default async function MediaAllPage() {
     const matchById = Object.fromEntries(matches.map((m) => [m.id, m]));
 
     const rows = (mediaRows ?? []) as MediaRow[];
-    const filtered = rows.filter((r) => readyIds.has(r.match_id));
+    const filtered = rows.filter(
+      (r) => r.match_id == null || readyIds.has(r.match_id),
+    );
 
     const buildLabel = (r: MediaRow) => {
+      if (r.match_id == null) return 'Team · Others folder';
       const m = matchById[r.match_id];
       if (!m) return 'Unknown match';
       const d = parseISO(m.date.slice(0, 10));
@@ -85,7 +88,7 @@ export default async function MediaAllPage() {
           </Link>
           <h2 className="text-2xl font-bold text-pirate-gold">View all</h2>
           <p className="text-slate-400 mt-1">
-            Every photo and video from all match folders (main + others), newest first.
+            Every photo and video: all matches (main + per-match others) and the team Others folder.
           </p>
         </div>
       </div>

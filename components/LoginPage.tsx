@@ -1,11 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { submitTeamCodeAndGoDashboard } from '@/lib/team-code-submit';
 
-type Step = 'credentials' | 'code';
+type Step = 'credentials' | 'code' | 'waiting_approval' | 'rejected';
+
+async function loadApprovalStatus(userId: string): Promise<'pending' | 'approved' | 'rejected'> {
+  const { data, error } = await supabase.from('profiles').select('approval_status').eq('id', userId).maybeSingle();
+  if (error || !data) return 'approved';
+  const s = (data as { approval_status?: string }).approval_status;
+  if (s === 'pending' || s === 'rejected' || s === 'approved') return s;
+  return 'approved';
+}
+
+const WELCOME_GATE_STORAGE = 'pirates_welcome_gate_done';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,30 +34,75 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [codeError, setCodeError] = useState('');
+  const teamCodeSubmitLock = useRef(false);
 
   const fromAchievementsWelcome = searchParams.get('welcome') === '1';
   const urlCodeStatus = searchParams.get('code');
 
   useEffect(() => {
     const codeInvalid = urlCodeStatus === 'invalid';
-    supabase.auth
-      .getSession()
-      .then(({ data: { session } }) => {
-        if (codeInvalid && session) {
+    let cancelled = false;
+    (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (!session) {
+          setStep('credentials');
+          setMounted(true);
+          return;
+        }
+        const approval = await loadApprovalStatus(session.user.id);
+        if (cancelled) return;
+        if (approval === 'pending') {
+          setStep('waiting_approval');
+          setMounted(true);
+          return;
+        }
+        if (approval === 'rejected') {
+          setStep('rejected');
+          setMounted(true);
+          return;
+        }
+        const welcomeGateDone =
+          typeof window !== 'undefined' && sessionStorage.getItem(WELCOME_GATE_STORAGE) === '1';
+        // Achievements flow: show password once; after success we set storage + soft replace (no full reload).
+        if (fromAchievementsWelcome && !welcomeGateDone) {
+          setStep('credentials');
+        } else if (codeInvalid && session) {
           setCodeError('Wrong team code. Please try again.');
           setStep('code');
-        } else if (fromAchievementsWelcome) {
-          // Skip from achievements must land on login/create — not straight to team code.
-          setStep('credentials');
-        } else if (session) {
-          setStep('code');
         } else {
-          setStep('credentials');
+          setStep('code');
         }
         setMounted(true);
-      })
-      .catch(() => setMounted(true));
+      } catch {
+        if (!cancelled) setMounted(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [fromAchievementsWelcome, urlCodeStatus]);
+
+  useEffect(() => {
+    if (step !== 'waiting_approval') return;
+    const id = window.setInterval(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+      const approval = await loadApprovalStatus(session.user.id);
+      if (approval === 'approved') {
+        setStep('code');
+        setMessage({ type: 'ok', text: 'You’re approved. Enter your team code below.' });
+      } else if (approval === 'rejected') {
+        setStep('rejected');
+      }
+    }, 8000);
+    return () => window.clearInterval(id);
+  }, [step]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -112,9 +168,33 @@ export default function LoginPage() {
             updated_at: new Date().toISOString(),
           }).eq('id', data.user.id);
         }
-        setMessage({ type: 'ok', text: 'Account created. Now enter your team code below.' });
-        setStep('code');
-        if (fromAchievementsWelcome) router.replace('/login', { scroll: false });
+        if (data.session) {
+          const approval = await loadApprovalStatus(data.session.user.id);
+          if (approval === 'pending') {
+            setMessage({
+              type: 'ok',
+              text: 'Account created. Waiting for admin approval before you can continue.',
+            });
+            setStep('waiting_approval');
+          } else if (approval === 'rejected') {
+            setStep('rejected');
+          } else {
+            setMessage({ type: 'ok', text: 'Account created. Now enter your team code below.' });
+            setStep('code');
+          }
+        } else {
+          setMessage({
+            type: 'ok',
+            text: 'Check your email to confirm your account. After you sign in, an admin must approve you before you can use the portal.',
+          });
+          setStep('credentials');
+        }
+        if (fromAchievementsWelcome) {
+          await supabase.auth.refreshSession().catch(() => {});
+          await supabase.auth.getSession();
+          if (typeof window !== 'undefined') sessionStorage.setItem(WELCOME_GATE_STORAGE, '1');
+          router.replace('/login', { scroll: false });
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
@@ -126,9 +206,29 @@ export default function LoginPage() {
           setMessage({ type: 'err', text: raw || 'Log in failed. Check your email and password.' });
           return;
         }
-        setMessage({ type: 'ok', text: 'You are logged in. Now enter your team code.' });
-        setStep('code');
-        if (fromAchievementsWelcome) router.replace('/login', { scroll: false });
+        const {
+          data: { session: s2 },
+        } = await supabase.auth.getSession();
+        if (!s2?.user) {
+          setMessage({ type: 'err', text: 'Session missing. Try again.' });
+          return;
+        }
+        const approval = await loadApprovalStatus(s2.user.id);
+        if (approval === 'pending') {
+          setMessage({ type: 'ok', text: 'Waiting for admin approval.' });
+          setStep('waiting_approval');
+        } else if (approval === 'rejected') {
+          setStep('rejected');
+        } else {
+          setMessage({ type: 'ok', text: 'You are logged in. Now enter your team code.' });
+          setStep('code');
+        }
+        if (fromAchievementsWelcome) {
+          await supabase.auth.refreshSession().catch(() => {});
+          await supabase.auth.getSession();
+          if (typeof window !== 'undefined') sessionStorage.setItem(WELCOME_GATE_STORAGE, '1');
+          router.replace('/login', { scroll: false });
+        }
       }
     } catch (err: unknown) {
       setMessage({ type: 'err', text: err instanceof Error ? err.message : 'Something went wrong.' });
@@ -137,45 +237,23 @@ export default function LoginPage() {
     }
   }
 
-  async function handleTeamCode(e: React.FormEvent) {
+  async function handleTeamCodeSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setCodeError('');
-    setLoading(true);
-    try {
-      // JSON + Accept so the route returns Set-Cookie on this response; then full navigation.
-      // (Form redirect can skip applying cookies before /dashboard in some cases → team-code loop.)
-      const res = await fetch('/api/set-code-cookie', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({ code: teamCode.trim() }),
-        credentials: 'same-origin',
-      });
-      const data = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && data.ok) {
-        // JSON fetch sets cookies, but some browsers miss them on the very next client
-        // navigation. Match /code page: POST again as a real form → 303 to /dashboard so
-        // the follow-up GET always carries Set-Cookie (no second team-code prompt).
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/api/set-code-cookie';
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'code';
-        input.value = teamCode.trim();
-        form.appendChild(input);
-        document.body.appendChild(form);
-        form.submit();
-        return;
-      }
-      setCodeError('Wrong code. Ask your team for the correct code.');
-    } catch {
-      setCodeError('Could not verify code. Try again.');
-    } finally {
-      setLoading(false);
+    const code = teamCode.trim();
+    if (!code) {
+      setCodeError('Enter the team code.');
+      return;
     }
+    if (teamCodeSubmitLock.current) return;
+    teamCodeSubmitLock.current = true;
+    setLoading(true);
+    const result = await submitTeamCodeAndGoDashboard(code);
+    if (result === 'ok') return;
+    teamCodeSubmitLock.current = false;
+    setLoading(false);
+    if (result === 'invalid') setCodeError('Wrong team code. Please try again.');
+    else setCodeError('Network error. Try again.');
   }
 
   return (
@@ -334,6 +412,70 @@ export default function LoginPage() {
           </section>
         )}
 
+        {step === 'waiting_approval' && (
+          <section className="bg-slate-800 border border-amber-500/30 rounded-xl p-6 shadow-xl text-center">
+            <h2 className="text-xl font-semibold text-amber-400 mb-2">Waiting for approval</h2>
+            <p className="text-slate-300 text-sm mb-4">
+              An admin must approve your account before you can enter the team code and open the dashboard. This page
+              checks every few seconds, or tap below to refresh.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                className="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-lg"
+                onClick={async () => {
+                  const {
+                    data: { session },
+                  } = await supabase.auth.getSession();
+                  if (!session?.user) return;
+                  const a = await loadApprovalStatus(session.user.id);
+                  if (a === 'approved') {
+                    setMessage({ type: 'ok', text: 'You’re approved. Enter your team code below.' });
+                    setStep('code');
+                  } else if (a === 'rejected') {
+                    setStep('rejected');
+                  }
+                }}
+              >
+                Check status
+              </button>
+              <button
+                type="button"
+                className="py-2.5 px-4 bg-slate-600 hover:bg-slate-500 text-white font-medium rounded-lg"
+                onClick={async () => {
+                  if (typeof window !== 'undefined') sessionStorage.removeItem(WELCOME_GATE_STORAGE);
+                  await supabase.auth.signOut();
+                  setStep('credentials');
+                  setMessage(null);
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </section>
+        )}
+
+        {step === 'rejected' && (
+          <section className="bg-slate-800 border border-red-900/50 rounded-xl p-6 shadow-xl text-center">
+            <h2 className="text-xl font-semibold text-red-400 mb-2">Not approved</h2>
+            <p className="text-slate-300 text-sm mb-4">
+              Your sign-up was not approved. Contact your team admin if you think this is a mistake.
+            </p>
+            <button
+              type="button"
+              className="py-2.5 px-4 bg-slate-600 hover:bg-slate-500 text-white font-medium rounded-lg"
+              onClick={async () => {
+                if (typeof window !== 'undefined') sessionStorage.removeItem(WELCOME_GATE_STORAGE);
+                await supabase.auth.signOut();
+                setStep('credentials');
+                setMessage(null);
+              }}
+            >
+              Back to sign in
+            </button>
+          </section>
+        )}
+
         {step === 'code' && (
           <section
             className="bg-slate-800 border border-slate-600 rounded-xl p-6 shadow-xl"
@@ -350,7 +492,7 @@ export default function LoginPage() {
                 {message.text}
               </p>
             )}
-            <form onSubmit={handleTeamCode} className="space-y-4">
+            <form onSubmit={handleTeamCodeSubmit} className="space-y-4">
               <div>
                 <label htmlFor="teamcode" className="block text-slate-300 text-sm font-medium mb-1">
                   Team code
@@ -362,7 +504,6 @@ export default function LoginPage() {
                   value={teamCode}
                   onChange={(e) => setTeamCode(e.target.value)}
                   placeholder="Enter the code"
-                  required
                   autoComplete="off"
                   autoFocus
                 />
@@ -376,7 +517,12 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="py-2.5 px-4 bg-slate-600 hover:bg-slate-500 text-white font-medium rounded-lg focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-800"
-                  onClick={() => setStep('credentials')}
+                  onClick={() => {
+                    teamCodeSubmitLock.current = false;
+                    setLoading(false);
+                    if (typeof window !== 'undefined') sessionStorage.removeItem(WELCOME_GATE_STORAGE);
+                    setStep('credentials');
+                  }}
                 >
                   Back
                 </button>
