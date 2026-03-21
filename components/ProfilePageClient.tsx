@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 
@@ -25,6 +26,7 @@ export default function ProfilePageClient({
   pendingContribution?: number;
   playerId?: string | null;
 }) {
+  const router = useRouter();
   const totalPending = pendingJersey + pendingContribution;
   const [profile, setProfile] = useState(initialProfile);
   const [viewMoreContrib, setViewMoreContrib] = useState(false);
@@ -60,14 +62,20 @@ export default function ProfilePageClient({
         })
         .eq('id', user.id);
 
-      // Keep player card photo in sync with profile avatar
-      if (playerId && nextAvatarUrl) {
+      // Keep linked player card (Players page) in sync with profile name + photo
+      if (playerId) {
+        const displayName = (name.trim() || profile.name || profile.email || 'Player').trim();
         await (supabase as any)
           .from('players')
-          .update({ photo: nextAvatarUrl })
+          .update({
+            name: displayName,
+            photo: nextAvatarUrl,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', playerId);
       }
       setProfile((p) => ({ ...p, name: name.trim() || null, phone: phone.trim() || null, avatar_url: nextAvatarUrl }));
+      router.refresh();
     }
     setSaving(false);
     setEditing(false);

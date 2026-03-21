@@ -151,13 +151,26 @@ CREATE TABLE IF NOT EXISTS public.players (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS players_profile_id_unique
+  ON public.players (profile_id)
+  WHERE profile_id IS NOT NULL;
+
 ALTER TABLE public.players ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Authenticated read players" ON public.players;
 DROP POLICY IF EXISTS "Admin/Editor manage players" ON public.players;
+DROP POLICY IF EXISTS "Users insert own player card" ON public.players;
+DROP POLICY IF EXISTS "Users update own player card" ON public.players;
 CREATE POLICY "Authenticated read players" ON public.players FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Admin/Editor manage players" ON public.players FOR ALL TO authenticated USING (
   EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'editor'))
 );
+CREATE POLICY "Users insert own player card" ON public.players
+  FOR INSERT TO authenticated
+  WITH CHECK (profile_id = auth.uid());
+CREATE POLICY "Users update own player card" ON public.players
+  FOR UPDATE TO authenticated
+  USING (profile_id = auth.uid())
+  WITH CHECK (profile_id = auth.uid());
 
 -- Match stats (scorecard per player per match)
 CREATE TABLE IF NOT EXISTS public.match_stats (

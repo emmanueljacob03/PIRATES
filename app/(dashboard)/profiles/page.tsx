@@ -69,22 +69,46 @@ export default async function ProfilesPage() {
     }
     if (!profile.name) profile.name = user.email ?? 'User';
 
-    // Find matching player row so we can sync photo and stats
-    const { data: playerRows } = await supabase
-      .from('players')
-      .select('id, photo')
-      .ilike('name', `%${profile.name ?? ''}%`)
-      .limit(1);
-    const playerMatch = (playerRows ?? [])[0] as { id: string; photo: string | null } | undefined;
-    if (playerMatch) {
-      playerId = playerMatch.id;
-      if (!profile.avatar_url && playerMatch.photo) {
-        profile.avatar_url = playerMatch.photo;
+    // Linked roster card (profile_id) — exact; auto-create once so Players page shows them
+    type Linked = { id: string; photo: string | null };
+    let linkedPlayer: Linked | null = null;
+    {
+      const { data } = await supabase.from('players').select('id, photo').eq('profile_id', user.id).maybeSingle();
+      linkedPlayer = (data as Linked | null) ?? null;
+    }
+
+    if (!linkedPlayer) {
+      const { data: created, error: createErr } = await (supabase as any)
+        .from('players')
+        .insert({
+          name: (profile.name ?? user.email ?? 'Player').trim(),
+          photo: profile.avatar_url,
+          profile_id: user.id,
+          role: 'Player',
+        })
+        .select('id, photo')
+        .single();
+      if (!createErr && created) {
+        linkedPlayer = created as { id: string; photo: string | null };
+      } else if (createErr) {
+        const { data: again } = await supabase
+          .from('players')
+          .select('id, photo')
+          .eq('profile_id', user.id)
+          .maybeSingle();
+        if (again) linkedPlayer = again as { id: string; photo: string | null };
+      }
+    }
+
+    if (linkedPlayer) {
+      playerId = linkedPlayer.id;
+      if (!profile.avatar_url && linkedPlayer.photo) {
+        profile.avatar_url = linkedPlayer.photo;
       }
       const { count } = await supabase
         .from('match_stats')
         .select('*', { count: 'exact', head: true })
-        .eq('player_id', playerMatch.id);
+        .eq('player_id', linkedPlayer.id);
       matchesPlayed = count ?? 0;
     }
 
