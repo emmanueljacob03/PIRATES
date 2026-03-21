@@ -60,11 +60,13 @@ export default async function PlayersPage() {
               ) : (
                 <PlayerPhotoUpload playerId={p.id} playerName={p.name} />
               )}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/10 px-3 py-2 flex items-center justify-between gap-2">
-                <p className="font-semibold text-xs sm:text-sm text-white truncate">{p.name}</p>
-                {!demo && (isAdminCode || canEdit) && (
+              {!demo && (isAdminCode || canEdit) && p.photo && (
+                <div className="absolute top-2 right-2 z-10">
                   <PlayerPhotoUpload playerId={p.id} playerName={p.name} compact />
-                )}
+                </div>
+              )}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-black/10 px-3 py-2 flex items-center gap-2">
+                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1">{p.name}</p>
               </div>
             </div>
           );

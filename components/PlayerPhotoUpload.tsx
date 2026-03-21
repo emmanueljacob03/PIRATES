@@ -69,27 +69,24 @@ export default function PlayerPhotoUpload({
         type="button"
         className={
           compact
-            ? 'inline-flex items-center gap-1 text-[11px] text-slate-300 hover:text-amber-300 transition'
+            ? 'inline-flex items-center justify-center min-w-[2rem] min-h-[2rem] rounded-lg bg-black/55 text-slate-100 hover:bg-black/75 border border-white/20 text-lg font-light leading-none px-2 py-1 transition'
             : 'w-full h-full rounded-lg border border-dashed border-slate-500/70 bg-slate-800/40 hover:border-amber-400 hover:bg-slate-800 transition p-0 text-center overflow-hidden'
         }
         disabled={loading}
+        aria-label={loading ? 'Uploading photo' : 'Add or change photo'}
+        title={loading ? 'Uploading…' : 'Add or change photo'}
         onClick={() => fileInputRef.current?.click()}
       >
         {compact ? (
-          <>
-            <span className="text-xs leading-none text-amber-400">✎</span>
-            <span>{loading ? 'Saving...' : 'Edit photo'}</span>
-          </>
+          <span aria-hidden>{loading ? '…' : '+'}</span>
         ) : (
           <>
             {previewUrl ? (
               <img src={previewUrl} alt={playerName} className="w-full h-full object-cover" />
             ) : (
-              <div className="flex flex-col items-center justify-center gap-1 w-full h-full">
+              <div className="flex flex-col items-center justify-center gap-1 w-full h-full px-2">
                 <span className="text-2xl leading-none text-amber-400">{loading ? '...' : '+'}</span>
-                <span className="text-xs text-slate-300">
-                  {loading ? 'Uploading...' : `Add photo for ${playerName}`}
-                </span>
+                <span className="text-xs text-slate-300">{loading ? 'Uploading...' : 'Add photo'}</span>
               </div>
             )}
           </>

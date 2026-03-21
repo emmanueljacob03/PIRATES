@@ -2,7 +2,7 @@
 -- Run in Supabase SQL Editor after approval flow changes.
 INSERT INTO public.players (name, photo, profile_id, role)
 SELECT
-  COALESCE(NULLIF(TRIM(p.name), ''), NULLIF(TRIM(p.email), ''), 'Player'),
+  COALESCE(NULLIF(TRIM(p.name), ''), 'Player'),
   p.avatar_url,
   p.id,
   'Player'

@@ -91,10 +91,11 @@ export default async function ProfilesPage() {
     }
 
     if (!linkedPlayer) {
+      const rosterName = (profile.name ?? '').trim() || 'Player';
       const { data: created, error: createErr } = await (supabase as any)
         .from('players')
         .insert({
-          name: (profile.name ?? user.email ?? 'Player').trim(),
+          name: rosterName,
           photo: profile.avatar_url,
           profile_id: user.id,
           role: 'Player',

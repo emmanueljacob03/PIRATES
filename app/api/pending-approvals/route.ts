@@ -40,20 +40,27 @@ export async function POST(req: NextRequest) {
       .eq('id', userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    // Ensure a roster card exists on approve (same as visiting My Profile would do)
+    // One roster card per account: name + picture from profile (never show email on the card)
     if (action === 'approve') {
       const { data: prof } = await (supabase as any)
         .from('profiles')
-        .select('name, email, avatar_url')
+        .select('name, avatar_url')
         .eq('id', userId)
         .maybeSingle();
-      const p = prof as { name?: string | null; email?: string | null; avatar_url?: string | null } | null;
-      const displayName = (p?.name ?? p?.email ?? 'Player').trim() || 'Player';
+      const p = prof as { name?: string | null; avatar_url?: string | null } | null;
+      const rosterName = p?.name?.trim() || 'Player';
+      const photo = p?.avatar_url ?? null;
       const { data: existingPlayer } = await supabase.from('players').select('id').eq('profile_id', userId).maybeSingle();
-      if (!existingPlayer) {
+      const now = new Date().toISOString();
+      if (existingPlayer) {
+        await (supabase as any)
+          .from('players')
+          .update({ name: rosterName, photo, updated_at: now })
+          .eq('profile_id', userId);
+      } else {
         await (supabase as any).from('players').insert({
-          name: displayName,
-          photo: p?.avatar_url ?? null,
+          name: rosterName,
+          photo,
           profile_id: userId,
           role: 'Player',
         });
