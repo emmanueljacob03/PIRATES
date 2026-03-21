@@ -12,13 +12,15 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const match_id = String(formData.get('match_id') || '').trim();
     const type = String(formData.get('type') || '').trim() as 'photo' | 'video';
+    const albumRaw = String(formData.get('album') || 'main').trim();
+    const album = albumRaw === 'others' ? 'others' : 'main';
     const file = formData.get('file');
     if (!match_id || !file || !(file instanceof File) || !['photo', 'video'].includes(type)) {
       return NextResponse.json({ error: 'match_id, type, and file are required' }, { status: 400 });
     }
 
     const ext = file.name.split('.').pop() || (type === 'video' ? 'mp4' : 'jpg');
-    const path = `match-media/${match_id}/${type}-${Date.now()}.${ext}`;
+    const path = `match-media/${match_id}/${album}/${type}-${Date.now()}.${ext}`;
     const supabase = createAdminSupabase();
 
     const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
       type,
       url: data.publicUrl,
       title: null,
+      album,
     }).select().single();
 
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });

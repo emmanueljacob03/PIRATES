@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS public.match_media (
   type TEXT NOT NULL CHECK (type IN ('photo', 'video', 'highlight')),
   url TEXT NOT NULL,
   title TEXT,
+  album TEXT NOT NULL DEFAULT 'main' CHECK (album IN ('main', 'others')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

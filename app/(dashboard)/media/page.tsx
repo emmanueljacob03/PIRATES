@@ -40,8 +40,18 @@ export default async function MediaPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-pirate-gold mb-6">Match Media</h2>
-      <p className="text-slate-400 mb-6">Select a match folder to view or upload photos and videos.</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-pirate-gold">Match Media</h2>
+          <p className="text-slate-400 mt-2">Select a match folder to view or upload photos and videos.</p>
+        </div>
+        <Link
+          href="/media/all"
+          className="shrink-0 text-sm font-semibold text-amber-400 hover:text-amber-300 hover:underline px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 self-start"
+        >
+          View all
+        </Link>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {folders.map((folder) => (
           <div key={folder.date} className="card p-3">

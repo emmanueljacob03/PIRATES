@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function MatchMediaClient({ matchId, canUpload = false }: { matchId: string; canUpload?: boolean }) {
+  const [album, setAlbum] = useState<'main' | 'others'>('main');
   const [type, setType] = useState<'photo' | 'video'>('photo');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,7 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
       const formData = new FormData();
       formData.append('match_id', matchId);
       formData.append('type', type);
+      formData.append('album', album);
       formData.append('file', file);
       const res = await fetch('/api/match-media', {
         method: 'POST',
@@ -43,14 +45,28 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
     <div className="card mb-6">
       <h3 className="text-lg font-semibold mb-4">Upload Media</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <select
-          className="input-field"
-          value={type}
-          onChange={(e) => setType(e.target.value as 'photo' | 'video')}
-        >
-          <option value="photo">Photo</option>
-          <option value="video">Video</option>
-        </select>
+        <div>
+          <label className="block text-sm text-slate-400 mb-1">Album</label>
+          <select
+            className="input-field"
+            value={album}
+            onChange={(e) => setAlbum(e.target.value as 'main' | 'others')}
+          >
+            <option value="main">Photos / Videos (main)</option>
+            <option value="others">Others</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-400 mb-1">Type</label>
+          <select
+            className="input-field"
+            value={type}
+            onChange={(e) => setType(e.target.value as 'photo' | 'video')}
+          >
+            <option value="photo">Photo</option>
+            <option value="video">Video</option>
+          </select>
+        </div>
         <input
           ref={fileInputRef}
           type="file"

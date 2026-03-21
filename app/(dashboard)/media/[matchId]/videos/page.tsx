@@ -33,6 +33,7 @@ export default async function MatchVideosPage({ params }: { params: Promise<{ ma
       .select('id, type, url')
       .eq('match_id', matchId)
       .eq('type', 'video')
+      .eq('album', 'main')
       .order('created_at', { ascending: false });
 
     const videos = (media ?? []) as { id: string; url: string }[];

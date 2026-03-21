@@ -96,11 +96,13 @@ export interface Database {
           type: 'photo' | 'video' | 'highlight';
           url: string;
           title: string | null;
+          album: 'main' | 'others';
           created_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['match_media']['Row'], 'id' | 'created_at'> & {
+        Insert: Omit<Database['public']['Tables']['match_media']['Row'], 'id' | 'created_at' | 'album'> & {
           id?: string;
           created_at?: string;
+          album?: 'main' | 'others';
         };
         Update: Partial<Database['public']['Tables']['match_media']['Insert']>;
       };
