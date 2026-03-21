@@ -30,8 +30,12 @@ export default function Error({
       <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#c9a227', marginBottom: 16 }}>
         Something went wrong
       </h1>
-      <p style={{ marginBottom: 24, maxWidth: 400 }}>
-        The page could not load. Check your connection and that the app is running on the correct URL (e.g. http://localhost:8765).
+      <p style={{ marginBottom: 24, maxWidth: 480, lineHeight: 1.5 }}>
+        The page could not load. If you are on the{' '}
+        <strong>live site</strong>, confirm Vercel has{' '}
+        <code style={{ color: '#cbd5e1' }}>NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+        <code style={{ color: '#cbd5e1' }}>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> set, then redeploy.
+        Locally, use the URL from your terminal (e.g. <code style={{ color: '#cbd5e1' }}>http://localhost:4000</code>).
       </p>
       <button
         type="button"

@@ -1,7 +1,19 @@
 import { Suspense } from 'react';
-import LoginPage from '@/components/LoginPage';
+import nextDynamic from 'next/dynamic';
 
-/** Avoid static prerender: LoginPage imports Supabase browser client, which breaks `next build` on Vercel. */
+/**
+ * Client-only: LoginPage imports `createClientComponentClient` from Supabase, which can throw
+ * during SSR on Vercel when navigating from /achievements (Skip → /login).
+ */
+const LoginPage = nextDynamic(() => import('@/components/LoginPage'), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen bg-[var(--pirate-dark)] flex items-center justify-center text-slate-400">
+      Loading…
+    </div>
+  ),
+});
+
 export const dynamic = 'force-dynamic';
 
 export default function LoginRoutePage() {
