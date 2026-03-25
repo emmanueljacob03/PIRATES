@@ -26,7 +26,8 @@ const CLOCK_MS = 30_000;
 export default function NotificationBar() {
   const [items, setItems] = useState<Item[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [closed, setClosed] = useState(false);
+  // Default to collapsed so the dashboard header doesn't start expanded.
+  const [closed, setClosed] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [centralClock, setCentralClock] = useState('');
 
@@ -99,7 +100,7 @@ export default function NotificationBar() {
       <button
         type="button"
         onClick={handleReopen}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--pirate-yellow)]/50 text-[var(--pirate-yellow)] hover:bg-[var(--pirate-navy)]"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--pirate-yellow)]/50 text-[var(--pirate-yellow)] hover:bg-[var(--pirate-navy)] flex-shrink-0 whitespace-nowrap max-w-[92vw]"
         aria-label="Reopen notifications"
       >
         <span className="text-lg">🔔</span>
@@ -112,10 +113,18 @@ export default function NotificationBar() {
 
   if (items.length === 0) {
     return (
-      <div className="flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-md">
+      <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-md max-w-[92vw] flex-shrink-0">
         <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden>
           🔔
         </span>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute top-1 right-1 flex-shrink-0 text-slate-400 hover:text-white p-1"
+          aria-label="Close notifications"
+        >
+          ×
+        </button>
         <div className="flex-1 min-w-0 text-sm text-slate-400 space-y-1">
           <p>
             No upcoming matches.{' '}
@@ -125,20 +134,12 @@ export default function NotificationBar() {
           </p>
           <p className="text-xs text-slate-500">CST now: {centralClock}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleClose}
-          className="flex-shrink-0 text-slate-400 hover:text-white p-1"
-          aria-label="Close notifications"
-        >
-          ×
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-2xl">
+    <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-2xl max-w-[92vw] flex-shrink-0">
       <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden>
         🔔
       </span>
@@ -170,7 +171,7 @@ export default function NotificationBar() {
       <button
         type="button"
         onClick={handleClose}
-        className="flex-shrink-0 text-slate-400 hover:text-white p-1"
+        className="absolute top-2 right-2 flex-shrink-0 text-slate-400 hover:text-white p-1"
         aria-label="Close notifications"
       >
         ×
