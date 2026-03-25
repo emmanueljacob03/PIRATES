@@ -313,6 +313,16 @@ export default function LoginPage() {
           Log in or create an account to continue.
         </p>
 
+        {/* Optional: watch achievements before logging in */}
+        <div className="fixed bottom-5 right-5 z-20">
+          <Link
+            href="/achievements"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
+          >
+            🎬 Watch Achievements
+          </Link>
+        </div>
+
         {step === 'credentials' && (
           <section
             className="bg-slate-800 border border-slate-600 rounded-xl p-6 shadow-xl"

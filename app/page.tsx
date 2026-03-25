@@ -23,5 +23,6 @@ export default async function HomePage() {
     // Supabase not configured or failed – still show welcome
   }
 
-  redirect('/achievements');
+  // Achievements are now optional (watchable from the login page).
+  redirect('/login');
 }
