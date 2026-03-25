@@ -24,5 +24,6 @@ export default async function HomePage() {
   }
 
   // Achievements are now optional (watchable from the login page).
-  redirect('/login');
+  // Force credentials view so first landing never jumps to team-code.
+  redirect('/login?force=1');
 }

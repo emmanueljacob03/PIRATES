@@ -554,9 +554,9 @@ export default function AchievementsWelcome() {
         <footer className="absolute z-40 left-1/2 top-[30%] -translate-x-1/2 w-[92%] max-w-4xl bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col pointer-events-auto">
           <div className="flex-1 min-h-0" aria-hidden />
           <div className="flex flex-col gap-3 w-full">
-            {/* Big narration block + Slide A photo tile (full image visible) */}
-            <div className="flex flex-col lg:flex-row gap-4 items-stretch">
-              <div className="flex-1 min-w-0 w-full border border-amber-500/25 bg-black/80 backdrop-blur-md rounded-2xl overflow-hidden">
+            {/* Big narration block centered at top + one mini (Slide A) full image at bottom */}
+            <div className="flex flex-col gap-4 items-center">
+              <div className="w-full border border-amber-500/25 bg-black/80 backdrop-blur-md rounded-2xl overflow-hidden">
                 <div
                   ref={textViewportRef}
                   className="h-[4.65em] sm:h-[4.8em] md:h-[5.1em] overflow-y-auto overflow-x-hidden scroll-smooth px-5 py-4
@@ -573,15 +573,15 @@ export default function AchievementsWelcome() {
                 </div>
               </div>
 
-              <div className="w-full sm:w-[220px] lg:w-[300px]">
-                <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black border border-slate-700">
+              <div className="w-full sm:w-[220px] lg:w-[260px]">
+                <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black border border-slate-800">
                   {miniLeftPhoto ? (
                     <Image
                       key={`${miniLeftPhoto.src}-${slideIndex}-${currentTopic}`}
                       src={miniLeftPhoto.src}
                       alt={miniLeftPhoto.alt}
                       fill
-                      className="object-contain bg-black"
+                      className="object-contain object-center bg-black"
                       unoptimized
                     />
                   ) : null}
