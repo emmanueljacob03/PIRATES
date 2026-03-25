@@ -50,6 +50,7 @@ export default function LoginPage() {
   }
 
   const fromAchievementsWelcome = searchParams.get('welcome') === '1';
+  const forceCredentials = searchParams.get('force') === '1';
   const urlCodeStatus = searchParams.get('code');
 
   useEffect(() => {
@@ -80,8 +81,12 @@ export default function LoginPage() {
         }
         const welcomeGateDone =
           typeof window !== 'undefined' && sessionStorage.getItem(WELCOME_GATE_STORAGE) === '1';
+        // Force credentials step when coming from a link/cancel (avoid jumping straight to team code).
+        if (forceCredentials) {
+          setStep('credentials');
+        }
         // Achievements flow: show password once; after success we set storage + soft replace (no full reload).
-        if (fromAchievementsWelcome && !welcomeGateDone) {
+        else if (fromAchievementsWelcome && !welcomeGateDone) {
           setStep('credentials');
         } else if (codeInvalid && session) {
           setCodeError('Wrong team code. Please try again.');
@@ -97,7 +102,7 @@ export default function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [fromAchievementsWelcome, urlCodeStatus]);
+  }, [fromAchievementsWelcome, forceCredentials, urlCodeStatus]);
 
   useEffect(() => {
     if (step !== 'waiting_approval') return;
