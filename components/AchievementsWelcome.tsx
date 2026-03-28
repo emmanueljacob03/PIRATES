@@ -426,15 +426,17 @@ export default function AchievementsWelcome() {
           <div className="absolute inset-0 bg-black" />
         ) : (
           <>
+            {/* Portrait lineup: contain so full image fits on landscape monitors (letterboxed). */}
+            <div className="absolute inset-0 bg-black" aria-hidden />
             <Image
               src={STATIC_ACHIEVEMENTS_BG}
               alt="Pirates team lineup"
               fill
-              className="object-cover object-center"
+              className="object-contain object-center"
               sizes="100vw"
               priority
             />
-            <div className="absolute inset-0 bg-black/35 pointer-events-none" aria-hidden />
+            <div className="absolute inset-0 bg-black/30 pointer-events-none" aria-hidden />
           </>
         )}
         {!isFinal && (

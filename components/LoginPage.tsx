@@ -319,14 +319,14 @@ export default function LoginPage() {
         </p>
 
         {/* Optional: watch achievements + contact links */}
-        <div className="fixed bottom-5 right-5 z-20 flex flex-col items-end gap-2">
+        <div className="fixed bottom-5 left-5 z-20 flex flex-col items-start gap-2">
           <Link
             href="/achievements"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
           >
             🎬 Watch Achievements
           </Link>
-          <div className="flex flex-wrap justify-end gap-3">
+          <div className="flex flex-wrap justify-start gap-3">
             <a
               href="mailto:gopirates102@gmail.com"
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
