@@ -318,61 +318,61 @@ export default function LoginPage() {
           Log in or create an account to continue.
         </p>
 
-        {/* Optional: watch achievements + contact links */}
-        <div className="fixed bottom-5 left-5 z-20 flex flex-col items-start gap-2">
+        <div className="fixed bottom-5 left-5 z-20">
           <Link
             href="/achievements"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
           >
             🎬 Watch Achievements
           </Link>
-          <div className="flex flex-wrap justify-start gap-3">
-            <a
-              href="mailto:gopirates102@gmail.com"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
-                <path
-                  fill="#EA4335"
-                  d="M22.56 6.44a.26.26 0 0 0-.26-.26H1.7a.25.25 0 0 0-.17.07l10.03 8.36 10.03-8.36a.25.25 0 0 0-.03-.07z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M0 6.76v10.48l7.09-5.24L0 6.76z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M15.91 13.21l-2.35 1.96L12 15.54l-1.56-1.37-2.35 1.96L0 17.24V18c0 .55.45 1 1 1h22c.55 0 1-.45 1-1v-.76l-8.09-3.03z"
-                />
-                <path
-                  fill="#4285F4"
-                  d="M24 6.76l-7.09 5.24L24 17.24V6.76z"
-                />
-              </svg>
-              Gmail
-            </a>
-            <a
-              href="https://www.instagram.com/gopirates102/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
-                <defs>
-                  <linearGradient id="loginIgGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#f09433" />
-                    <stop offset="45%" stopColor="#e6683c" />
-                    <stop offset="100%" stopColor="#bc1888" />
-                  </linearGradient>
-                </defs>
-                <path
-                  fill="url(#loginIgGrad)"
-                  d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.354 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"
-                />
-              </svg>
-              Instagram
-            </a>
-          </div>
+        </div>
+
+        <div className="fixed bottom-5 right-5 z-20 flex flex-wrap justify-end gap-3">
+          <a
+            href="mailto:gopirates102@gmail.com"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
+              <path
+                fill="#EA4335"
+                d="M22.56 6.44a.26.26 0 0 0-.26-.26H1.7a.25.25 0 0 0-.17.07l10.03 8.36 10.03-8.36a.25.25 0 0 0-.03-.07z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M0 6.76v10.48l7.09-5.24L0 6.76z"
+              />
+              <path
+                fill="#34A853"
+                d="M15.91 13.21l-2.35 1.96L12 15.54l-1.56-1.37-2.35 1.96L0 17.24V18c0 .55.45 1 1 1h22c.55 0 1-.45 1-1v-.76l-8.09-3.03z"
+              />
+              <path
+                fill="#4285F4"
+                d="M24 6.76l-7.09 5.24L24 17.24V6.76z"
+              />
+            </svg>
+            Gmail
+          </a>
+          <a
+            href="https://www.instagram.com/gopirates102/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
+              <defs>
+                <linearGradient id="loginIgGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f09433" />
+                  <stop offset="45%" stopColor="#e6683c" />
+                  <stop offset="100%" stopColor="#bc1888" />
+                </linearGradient>
+              </defs>
+              <path
+                fill="url(#loginIgGrad)"
+                d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.354 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"
+              />
+            </svg>
+            Instagram
+          </a>
         </div>
 
         {step === 'credentials' && (

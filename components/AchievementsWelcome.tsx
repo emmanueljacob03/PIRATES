@@ -25,7 +25,7 @@ type TopicImage = {
 
 /**
  * One image set per narration topic — no file is reused across topics.
- * Team photos pirates1/pirates2 only on intro + club (early welcome); ram/sampreeth/anil/abhinav/outing each have their own lists.
+ * Team photos pirates1/pirates2 only on intro + club (early welcome); sampreeth/anil/abhinav/outing each have their own lists (ram: no slides).
  */
 const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
   intro: [
@@ -43,10 +43,7 @@ const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
       slideUp: true,
     },
   ],
-  ram: [
-    { src: '/achievements/ram.png', alt: 'Ram', framing: 'human' },
-    { src: '/achievements/ram1.png', alt: 'Ram', framing: 'human' },
-  ],
+  ram: [],
   sampreeth: [
     { src: '/achievements/sampreeth1.png', alt: 'Sampreeth', framing: 'human' },
     { src: '/achievements/sampreeth2.png', alt: 'Sampreeth', framing: 'human' },
@@ -426,13 +423,13 @@ export default function AchievementsWelcome() {
           <div className="absolute inset-0 bg-black" />
         ) : (
           <>
-            {/* Portrait lineup: contain so full image fits on landscape monitors (letterboxed). */}
+            {/* Phone: show full artwork (letterbox). Laptop+: edge-to-edge cover. */}
             <div className="absolute inset-0 bg-black" aria-hidden />
             <Image
               src={STATIC_ACHIEVEMENTS_BG}
               alt="Pirates team lineup"
               fill
-              className="object-contain object-center"
+              className="object-contain object-center md:object-cover md:object-center"
               sizes="100vw"
               priority
             />
