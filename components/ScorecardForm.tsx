@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet, stripRoleMarkers } from '@/lib/batting-ocr';
@@ -25,10 +25,13 @@ export default function ScorecardForm({
   matchId,
   players,
   existingStats,
+  prefillPlayerIds,
   isAdmin,
 }: {
   matchId: string;
   players: Player[];
+  /** When there is no saved scorecard yet, pre-select Playing XI + extras (empty stat rows). */
+  prefillPlayerIds?: string[] | null;
   existingStats: {
     id: string;
     player_id: string;
@@ -47,6 +50,12 @@ export default function ScorecardForm({
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<StatRow[]>([]);
+  const prefillKey = prefillPlayerIds?.length ? prefillPlayerIds.join(',') : '';
+
+  const rowsInFormOrder = useMemo(() => {
+    const idx = new Map(players.map((p, i) => [p.id, i]));
+    return [...rows].sort((a, b) => (idx.get(a.player_id) ?? 9999) - (idx.get(b.player_id) ?? 9999));
+  }, [rows, players]);
   const [saving, setSaving] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string>('');
@@ -162,7 +171,7 @@ export default function ScorecardForm({
 
       if (battingRows.length === 0) {
         setOcrError(
-          'Batting OCR did not match any roster names. Check the image and player names on the Players page.',
+          'Batting OCR did not match anyone in this list. Use the same names as on the scorecard (Playing XI list + Players page).',
         );
         return;
       }
@@ -276,29 +285,33 @@ export default function ScorecardForm({
   }
 
   useEffect(() => {
+    const order = new Map(players.map((p, i) => [p.id, i]));
     if (existingStats.length > 0) {
+      const mapped = existingStats.map((s) => ({
+        id: s.id,
+        player_id: s.player_id,
+        runs: s.runs ?? 0,
+        balls: s.balls ?? 0,
+        fours: s.fours ?? 0,
+        sixes: s.sixes ?? 0,
+        overs: s.overs ?? 0,
+        wickets: s.wickets ?? 0,
+        runs_conceded: s.runs_conceded ?? 0,
+        catches: s.catches ?? 0,
+        runouts: s.runouts ?? 0,
+        mvp: s.mvp ?? false,
+      }));
       setRows(
-        existingStats.map((s) => ({
-          id: s.id,
-          player_id: s.player_id,
-          runs: s.runs ?? 0,
-          balls: s.balls ?? 0,
-          fours: s.fours ?? 0,
-          sixes: s.sixes ?? 0,
-          overs: s.overs ?? 0,
-          wickets: s.wickets ?? 0,
-          runs_conceded: s.runs_conceded ?? 0,
-          catches: s.catches ?? 0,
-          runouts: s.runouts ?? 0,
-          mvp: s.mvp ?? false,
-        }))
+        [...mapped].sort(
+          (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
+        ),
       );
+    } else if (prefillPlayerIds && prefillPlayerIds.length > 0) {
+      setRows(prefillPlayerIds.map((id) => emptyRow(id)));
     } else {
-      // Start empty: OCR will detect which players actually played,
-      // and admins can correct that list in the filters section.
       setRows([]);
     }
-  }, [players, existingStats]);
+  }, [players, existingStats, prefillKey]);
 
   async function handleSave() {
     setSaving(true);
@@ -461,7 +474,8 @@ export default function ScorecardForm({
             </div>
 
             <p className="text-xs text-slate-400">
-              Batting OCR expects columns: R, B, 4s, 6s, SR. Names must match the Players list. Review before save.
+              OCR reads names from the image and matches this match’s player list (Playing XI first — display names, not
+              login emails). Columns: R, B, 4s, 6s, SR. Review before save.
             </p>
           </div>
         </div>
@@ -471,7 +485,8 @@ export default function ScorecardForm({
         <div className="card">
           <h3 className="text-lg font-semibold mb-3">Players (who played)</h3>
           <p className="text-xs text-slate-400 mb-3">
-            After OCR this list is auto-generated. If something is wrong, correct it here.
+            Playing XI and extras appear first when set for this match; tick others if they played too. OCR fills rows
+            by matching scorecard names to the names shown here.
           </p>
           <div className="flex flex-wrap gap-3">
             {players.map((p) => {
@@ -506,7 +521,7 @@ export default function ScorecardForm({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rowsInFormOrder.map((r) => {
                 const playerName = players.find((p) => p.id === r.player_id)?.name ?? r.player_id;
                 const sr = r.balls > 0 ? (r.runs / r.balls) * 100 : 0;
                 return (
@@ -573,7 +588,7 @@ export default function ScorecardForm({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rowsInFormOrder.map((r) => {
                 const playerName = players.find((p) => p.id === r.player_id)?.name ?? r.player_id;
                 const econ = computeEconomy(r.overs, r.runs_conceded);
                 return (
@@ -629,7 +644,7 @@ export default function ScorecardForm({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rowsInFormOrder.map((r) => {
                 const playerName = players.find((p) => p.id === r.player_id)?.name ?? r.player_id;
                 return (
                   <tr key={r.player_id} className="border-b border-slate-700/50">
