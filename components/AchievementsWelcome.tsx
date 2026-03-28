@@ -69,6 +69,9 @@ const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
   outro: [],
 };
 
+/** Single full-screen background for the whole welcome flow (team lineup art). */
+const STATIC_ACHIEVEMENTS_BG = '/achievements/pirates-team-lineup-bg.png';
+
 const PHOTO_SECONDS = 6;
 const PHOTO_MS = PHOTO_SECONDS * 1000;
 // Quicker & higher pitch to sound more like a younger voice.
@@ -147,22 +150,6 @@ function pickAmericanEnglishMaleVoice(voices: SpeechSynthesisVoice[]): SpeechSyn
   return ranked[0] ?? voices.find(isEnUs) ?? voices[0] ?? null;
 }
 
-function imageClassForFraming(framing: PhotoFraming): string {
-  switch (framing) {
-    case 'human':
-      // Show full human image without cropping; keep them centered.
-      return 'object-contain object-center bg-black';
-    case 'trophy':
-      return 'object-contain object-center';
-    case 'clubHero':
-      // Fill screen; tune objectPosition on the image to keep faces mid-frame and trim bottom
-      return 'object-cover bg-black';
-    case 'scene':
-    default:
-      return 'object-cover object-center';
-  }
-}
-
 function EndCrackersOverlay({ show }: { show: boolean }) {
   // Many crackers across the screen (bottom -> top via `pirates-cracker-rise`).
   const items = useMemo(
@@ -209,44 +196,19 @@ function EndCrackersOverlay({ show }: { show: boolean }) {
   );
 }
 
-/** Fills gaps when a topic has no photo — no plain black screen */
-function AmbientBackdrop() {
-  return (
-    <div
-      className="absolute inset-0 bg-gradient-to-b from-amber-950/90 via-slate-950 to-black"
-      aria-hidden
-    >
-      <div
-        className="absolute inset-0 opacity-[0.12]"
-        style={{
-          backgroundImage: `radial-gradient(circle at 20% 30%, rgba(251,191,36,0.35) 0%, transparent 45%),
-            radial-gradient(circle at 80% 20%, rgba(234,179,8,0.2) 0%, transparent 40%),
-            repeating-linear-gradient(90deg, transparent, transparent 48px, rgba(251,191,36,0.06) 48px, rgba(251,191,36,0.06) 49px)`,
-        }}
-      />
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <span className="text-[min(28vw,140px)] opacity-[0.08] select-none" aria-hidden>
-          🏏
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function AchievementsWelcome() {
   const router = useRouter();
   const { fullText, ranges, chunks } = useMemo(() => buildAchievementNarration(), []);
   const [typedLen, setTypedLen] = useState(0);
   const [speechOn, setSpeechOn] = useState(true);
   const [slideIndex, setSlideIndex] = useState(0);
-  const [lastPhoto, setLastPhoto] = useState<TopicImage | null>(null);
   const [fireworksCycle, setFireworksCycle] = useState(0);
   const [skipClicked, setSkipClicked] = useState(false);
   const timeoutRefs = useRef<number[]>([]);
   const revealRafRef = useRef<number | null>(null);
   const caretRef = useRef<HTMLSpanElement>(null);
   // Awards/stats block removed per latest UI request.
-  /** Clip to 3 visible lines; scroll so newest line sits at bottom (older lines move up). */
+  /** ~6 visible lines; scroll so newest content stays at bottom (older lines scroll up). */
   const textViewportRef = useRef<HTMLDivElement>(null);
 
   const cancelReveal = useCallback(() => {
@@ -261,14 +223,6 @@ export default function AchievementsWelcome() {
   const topicImgs = TOPIC_BACKGROUNDS[currentTopic] ?? [];
   const miniLeftPhoto =
     topicImgs.length > 0 ? topicImgs[Math.min(slideIndex, topicImgs.length - 1)] : null;
-  const activePhoto =
-    topicImgs.length > 0 ? topicImgs[Math.min(slideIndex, topicImgs.length - 1)] : null;
-
-  const displayPhoto = activePhoto ?? lastPhoto;
-
-  useEffect(() => {
-    if (activePhoto) setLastPhoto(activePhoto);
-  }, [activePhoto]);
 
   const storyComplete = typedLen >= fullText.length;
   /** Only shown-so-far (no full-story preview — that was hiding the “typing” effect). */
@@ -444,29 +398,6 @@ export default function AchievementsWelcome() {
     router.replace('/login?force=1');
   }
 
-  const imgClass = displayPhoto ? imageClassForFraming(displayPhoto.framing) : '';
-
-  const topicImageStyle =
-    displayPhoto &&
-    (displayPhoto.objectPosition ||
-      displayPhoto.clipTopPercent != null ||
-      displayPhoto.clipStretchToFullHeight)
-      ? {
-          ...(displayPhoto.objectPosition ? { objectPosition: displayPhoto.objectPosition } : {}),
-          ...(displayPhoto.clipTopPercent != null
-            ? { clipPath: `inset(${displayPhoto.clipTopPercent}% 0 0 0)` }
-            : {}),
-          ...(displayPhoto.clipStretchToFullHeight &&
-          displayPhoto.clipTopPercent != null &&
-          displayPhoto.clipTopPercent < 100
-            ? {
-                transform: `scaleY(${100 / (100 - displayPhoto.clipTopPercent)})`,
-                transformOrigin: 'top center' as const,
-              }
-            : {}),
-        }
-      : undefined;
-
   // Keep blasting crackers (3 per cycle) until Skip is clicked.
   useEffect(() => {
     if (!isFinal || skipClicked) return;
@@ -481,19 +412,6 @@ export default function AchievementsWelcome() {
     <div className="fixed inset-0 z-[1] flex flex-col bg-black overflow-hidden">
       <EndCrackersOverlay key={fireworksCycle} show={isFinal && !skipClicked} />
 
-      {/* Cancel → back to login (credentials) */}
-      <button
-        type="button"
-        onClick={() => {
-          setSkipClicked(true);
-          stopSpeech();
-          router.replace('/login?force=1');
-        }}
-        className="absolute top-3 left-3 z-[60] px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700 border border-slate-600 text-white shadow-md"
-      >
-        Cancel
-      </button>
-
       {/* Plain text (outside blocks): WELCOME */}
       {!isFinal && (
         <header className="pointer-events-none absolute left-0 right-0 z-30 top-[2.5%] text-center px-4">
@@ -506,50 +424,25 @@ export default function AchievementsWelcome() {
       <div className="absolute inset-0 z-0">
         {isFinal ? (
           <div className="absolute inset-0 bg-black" />
-        ) : displayPhoto ? (
-          displayPhoto.clipTopPercent != null ? (
-            <div
-              key={`${displayPhoto.src}-${slideIndex}-${currentTopic}`}
-              className={`absolute inset-0 overflow-hidden bg-black${displayPhoto.slideUp ? ' pirates-team-slide-up' : ''}`}
-            >
-              <div
-                className="absolute inset-0"
-                style={{
-                  transform: `translateY(-${displayPhoto.clipTopPercent}%)`,
-                }}
-              >
-                <Image
-                  src={displayPhoto.src}
-                  alt={displayPhoto.alt}
-                  fill
-                  className={imgClass}
-                  style={topicImageStyle}
-                  sizes="100vw"
-                  priority
-                />
-              </div>
-            </div>
-          ) : (
+        ) : (
+          <>
             <Image
-              key={`${displayPhoto.src}-${slideIndex}-${currentTopic}`}
-              src={displayPhoto.src}
-              alt={displayPhoto.alt}
+              src={STATIC_ACHIEVEMENTS_BG}
+              alt="Pirates team lineup"
               fill
-              className={`${imgClass}${displayPhoto.slideUp ? ' pirates-team-slide-up' : ''}`}
-              style={topicImageStyle}
+              className="object-cover object-center"
               sizes="100vw"
               priority
             />
-          )
-        ) : (
-          <AmbientBackdrop />
+            <div className="absolute inset-0 bg-black/35 pointer-events-none" aria-hidden />
+          </>
         )}
         {!isFinal && (
           <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/55 to-transparent pointer-events-none" />
         )}
       </div>
 
-      {/* Narration: exactly 3 wrapped lines visible; older lines scroll up. Block sits right above Skip. */}
+      {/* Narration: ~6 lines visible; scroll keeps newest at bottom. */}
       {!isFinal && (
         <footer className="absolute z-40 left-1/2 top-[30%] -translate-x-1/2 w-[92%] max-w-4xl bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-col pointer-events-auto">
           <div className="flex-1 min-h-0" aria-hidden />
@@ -573,8 +466,8 @@ export default function AchievementsWelcome() {
                 </div>
               </div>
 
-              <div className="w-full sm:w-[220px] lg:w-[260px]">
-                <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-black border border-slate-800">
+              <div className="w-full max-w-[min(92vw,36rem)] mx-auto">
+                <div className="relative w-full h-[clamp(200px,48vw,380px)] min-h-[200px] rounded-xl overflow-hidden bg-black border border-slate-800">
                   {miniLeftPhoto ? (
                     <Image
                       key={`${miniLeftPhoto.src}-${slideIndex}-${currentTopic}`}

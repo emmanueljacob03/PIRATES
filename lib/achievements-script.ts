@@ -1,5 +1,5 @@
 /**
- * Welcome narrative — segments control topic (photos) and pause after each chunk (human-like gaps).
+ * Welcome narrative — segments control topic (photos in Slide A) and pause after each chunk.
  */
 export type AchievementTopic =
   | 'intro'
@@ -15,9 +15,8 @@ export type AchievementSegment = {
   topic: AchievementTopic;
   /** Shown on screen (typed). Use \n\n between paragraphs. */
   text: string;
-  /** Silence after this part is read aloud (ms). Bigger = longer breath between ideas. */
+  /** Silence after this part is read aloud (ms). */
   pauseAfterMs?: number;
-  /** Screen style for this chunk */
   variant?: 'title' | 'body' | 'closing';
 };
 
@@ -25,58 +24,63 @@ export const achievementSegments: AchievementSegment[] = [
   {
     topic: 'intro',
     variant: 'title',
-    text: `**Welcome to Pirates Cricket 🏏**\n\nHello!\nThanks for being here and taking a moment to learn about Pirates.\n\n`,
-    pauseAfterMs: 750,
+    text: `**Welcome to Pirates Cricket 🏏**\n\nHey there!\nWe’re glad you’re here and taking the time to get to know Pirates.\n\n`,
+    pauseAfterMs: 720,
   },
   {
     topic: 'intro',
-    text: `We’re more than just a cricket team—we’re a family. A group of brothers who come together, compete with passion, and enjoy every moment on and off the field.\n\n`,
-    pauseAfterMs: 680,
+    text: `We’re not just a team—we’re a close-knit group that plays, grows, and celebrates together. It’s more like a brotherhood where everyone shows up with passion, commitment, and love for the game.\n\n`,
+    pauseAfterMs: 700,
   },
   {
     topic: 'ram',
-    text: `Our journey began in the early 2020s, when **Ram** brought together a group of passionate players and laid the foundation for what Pirates is today. What started as a small team steadily grew into something strong— with **40+ players** being part of this journey over time.\n\nAs we evolved, we became *Pirates*—a name that reflects our fearless mindset and team spirit.\n\n`,
-    pauseAfterMs: 650,
-  },
-  {
-    topic: 'sampreeth',
-    text: `In **2024**, we had a standout season where Pirates lifted the league title. That year also saw some incredible individual performances.\n\n* *Man of the Series* — Anil Kumar Chandu\n* *Man of the Match* — Venkata Poonam\n\nThat season truly set the tone for who we are.\n\n`,
-    pauseAfterMs: 680,
-  },
-  {
-    topic: 'anil',
-    text: `In **2025**, we continued our strong run and finished as **runners-up** after an intense season. The team once again delivered outstanding performances:\n\n* *Man of the Series* — Anil Kumar Chandu\n* *Best Bowler* — Manoj\n* *Best Fielder* — Emmanuel\n\n`,
-    pauseAfterMs: 680,
-  },
-  {
-    topic: 'abhinav',
-    text: `One of the most memorable chapters in our journey was our **first-ever leather ball tournament**. The start wasn’t easy—we faced a few tough losses early on, and expectations were low. But that’s where Pirates showed its true character.\n\n`,
-    pauseAfterMs: 650,
-  },
-  {
-    topic: 'abhinav',
-    text: `We bounced back stronger, found our rhythm, and started winning consistently. Match by match, we climbed up, made it to the qualifiers, and defeated top-ranked teams in knockout games to reach the finals.\n\n`,
-    pauseAfterMs: 560,
-  },
-  {
-    topic: 'abhinav',
-    text: `Although we finished as runners-up, the comeback we delivered caught everyone’s attention and earned respect across the Midwest cricket community.\n\nThat tournament defined us—not just by results, but by resilience, belief, and the way we fought together as a team.\n\n`,
+    text: `Pirates started its journey in the early 2020s when Ram brought together a group of enthusiastic players and built the foundation of this team. What began as a small setup gradually grew into a strong squad, with over 40 players being part of this journey. As we evolved, the name Pirates came to represent our fearless approach and strong team spirit.\n\n`,
     pauseAfterMs: 720,
   },
   {
     topic: 'club',
-    text: `At Pirates, we believe in:\n\n* Playing fearless cricket\n* Supporting each other like family\n* Giving opportunities to new players\n* Earning your place through performance and commitment\n\n`,
+    text: `Over time, we’ve earned a reputation for being competitive, determined, and exciting on the field.\n\n`,
     pauseAfterMs: 600,
   },
   {
+    topic: 'sampreeth',
+    text: `The 2024 season was a big milestone for us, as Pirates went on to win the league title. It was also a year of standout individual performances:\n\n* Man of the Series — Anil Kumar Chandu (2001 points)\n* Man of the Match — Venkata Poonam (5 wickets in the final match)\n\n`,
+    pauseAfterMs: 760,
+  },
+  {
+    topic: 'anil',
+    text: `In 2025, we carried that momentum forward and finished as runners-up after a highly competitive season. Once again, the team delivered strong performances:\n\n* Man of the Series — Anil Kumar Chandu (1083 points) along with best batsmen award\n* Best Bowler — Manoj (19 wickets) and also standing as runner up in best batsmen race\n\n`,
+    pauseAfterMs: 780,
+  },
+  {
+    topic: 'abhinav',
+    text: `One of the most defining moments for Pirates was stepping into our first leather ball tournament. The beginning was tough, with a few early losses and low expectations from outside. But that phase showed who we really are.\n\n`,
+    pauseAfterMs: 680,
+  },
+  {
+    topic: 'abhinav',
+    text: `We regrouped, stayed focused, and turned things around. With consistent wins, we pushed our way into the qualifiers, beat top-ranked teams in knockout matches, and reached the finals. Even though we ended as runners-up, the comeback we made earned respect and attention across the Midwest cricket scene.\n\n`,
+    pauseAfterMs: 760,
+  },
+  {
+    topic: 'abhinav',
+    text: `That tournament wasn’t just about results—it showed our resilience, belief, and how we stand strong together as a team.\n\n`,
+    pauseAfterMs: 640,
+  },
+  {
     topic: 'club',
-    text: `Beyond cricket, we value the bond we share. Team outings, trips, and celebrations are just as important as the matches we play—it’s what keeps the team close and strong.\n\n`,
-    pauseAfterMs: 650,
+    text: `At Pirates, we stand by a few simple values:\n\n* Play bold and fearless cricket\n* Support each other like family\n* Give chances to new players\n* Earn your place through performance\n\n`,
+    pauseAfterMs: 640,
   },
   {
     topic: 'outing',
-    text: `If you’re interested in being part of Pirates, feel free to drop a message through the login page—we’d love to connect with you.\n\n`,
+    text: `Off the field, we make sure to stay connected. Team outings, trips, and celebrations are a big part of our journey—they keep the bond strong beyond the game.\n\n`,
     pauseAfterMs: 680,
+  },
+  {
+    topic: 'outing',
+    text: `If you’re interested in joining Pirates, feel free to leave a message through the login page—we’ll get back to you.\n\n`,
+    pauseAfterMs: 700,
   },
   {
     topic: 'outro',
