@@ -24,8 +24,8 @@ type TopicImage = {
 };
 
 /**
- * One image set per narration topic — no file is reused across topics.
- * Team photos pirates1/pirates2 only on intro + club (early welcome); sampreeth/anil/abhinav/outing each have their own lists (ram: no slides).
+ * One image set per narration topic for the mini slide.
+ * Full-screen backdrop is the emblem; ram uses the team lineup art here (replacing removed Ram portraits).
  */
 const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
   intro: [
@@ -43,7 +43,14 @@ const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
       slideUp: true,
     },
   ],
-  ram: [],
+  ram: [
+    {
+      src: '/achievements/pirates-team-lineup-bg.png',
+      alt: 'Pirates team lineup',
+      framing: 'scene',
+      objectPosition: 'center center',
+    },
+  ],
   sampreeth: [
     { src: '/achievements/sampreeth1.png', alt: 'Sampreeth', framing: 'human' },
     { src: '/achievements/sampreeth2.png', alt: 'Sampreeth', framing: 'human' },
@@ -66,8 +73,8 @@ const TOPIC_BACKGROUNDS: Record<AchievementTopic, TopicImage[]> = {
   outro: [],
 };
 
-/** Single full-screen background for the whole welcome flow (team lineup art). */
-const STATIC_ACHIEVEMENTS_BG = '/achievements/pirates-team-lineup-bg.png';
+/** Full-screen background for the welcome flow (emblem); lineup art shows in-topic in the mini slide (e.g. Ram). */
+const STATIC_ACHIEVEMENTS_BG = '/pirates-emblem.png';
 
 const PHOTO_SECONDS = 6;
 const PHOTO_MS = PHOTO_SECONDS * 1000;
@@ -423,11 +430,11 @@ export default function AchievementsWelcome() {
           <div className="absolute inset-0 bg-black" />
         ) : (
           <>
-            {/* Phone: show full artwork (letterbox). Laptop+: edge-to-edge cover. */}
+            {/* Emblem: contained on small screens; covers viewport on laptop+. */}
             <div className="absolute inset-0 bg-black" aria-hidden />
             <Image
               src={STATIC_ACHIEVEMENTS_BG}
-              alt="Pirates team lineup"
+              alt="Pirates emblem"
               fill
               className="object-contain object-center md:object-cover md:object-center"
               sizes="100vw"
