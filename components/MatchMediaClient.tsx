@@ -25,6 +25,7 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
       const res = await fetch('/api/match-media', {
         method: 'POST',
         body: formData,
+        credentials: 'same-origin',
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Upload failed');

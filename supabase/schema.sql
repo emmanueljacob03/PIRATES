@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS public.contributions (
   amount DECIMAL(12,2) NOT NULL DEFAULT 0,
   paid BOOLEAN DEFAULT FALSE,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes TEXT,
+  submitted_by_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import type { Database } from '@/types/database';
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
-  if (cookieStore.get('pirates_admin')?.value !== 'true') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  if (cookieStore.get('pirates_code_verified')?.value !== 'true') {
+    return NextResponse.json({ error: 'Enter the team code to upload media.' }, { status: 403 });
+  }
+
+  const userClient = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Sign in to upload media.' }, { status: 401 });
   }
 
   try {

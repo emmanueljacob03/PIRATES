@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/database';
 import { isWithinPlaying11VisibilityWindow } from '@/lib/app-timezone';
 import { REQUIRED_PLAYING11_COUNT } from '@/lib/playing11-config';
+import { scorecardDisplayName } from '@/lib/player-display-name';
 
 function parseMatchId(raw: string | null): string | null {
   const id = (raw ?? '').trim();
@@ -38,11 +39,25 @@ export async function GET(req: NextRequest) {
 
     const { data: players, error: playersErr } = await (supabase as any)
       .from('players')
-      .select('id, name, jersey_number')
+      .select('id, name, jersey_number, profile_id')
       .order('jersey_number');
 
     if (playersErr) {
       return NextResponse.json({ error: playersErr.message }, { status: 400 });
+    }
+
+    type PRow = { id: string; name: string; jersey_number: number | null; profile_id: string | null };
+    const plist = (players ?? []) as PRow[];
+    const profileIds = Array.from(
+      new Set(plist.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
+    );
+    const profileNameById = new Map<string, string | null>();
+    if (profileIds.length > 0) {
+      const { data: profs } = await supabase.from('profiles').select('id, name').in('id', profileIds);
+      for (const row of profs ?? []) {
+        const r = row as { id: string; name: string | null };
+        profileNameById.set(r.id, r.name);
+      }
     }
 
     const { data: lineup, error: lineupErr } = await (supabase as any)
@@ -75,9 +90,9 @@ export async function GET(req: NextRequest) {
       },
       /** False once we are past match start + 4h (Central); clients should hide lineup. */
       lineup_visible: lineupVisible,
-      players: (players ?? []).map((p: { id: string; name: string; jersey_number: number | null }) => ({
+      players: plist.map((p) => ({
         id: p.id,
-        name: p.name,
+        name: scorecardDisplayName(p.name, p.profile_id ? profileNameById.get(p.profile_id) ?? null : null, p.profile_id),
         jersey_number: p.jersey_number ?? 0,
         role: lineupVisible ? (roleByPlayer.get(p.id) ?? null) : null,
       })),

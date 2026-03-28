@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function TeamOthersMediaPage() {
   const cookieStore = await cookies();
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
-  const canUpload = cookieStore.get('pirates_admin')?.value === 'true';
+  const canUpload = cookieStore.get('pirates_code_verified')?.value === 'true';
 
   let photos: { id: string; url: string }[] = [];
   let videos: { id: string; url: string }[] = [];

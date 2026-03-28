@@ -2,10 +2,20 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { scorecardDisplayName } from '@/lib/player-display-name';
 
 export default async function PlayerProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let player: { id: string; name: string; photo: string | null; jersey_number: number | null; role: string } | null = null;
+  let player: {
+    id: string;
+    name: string;
+    photo: string | null;
+    jersey_number: number | null;
+    role: string;
+    profile_id: string | null;
+  } | null = null;
+  let displayName = '';
+  let profileContact: { name: string | null; email: string; phone: string | null } | null = null;
   let totals = { runs: 0, balls: 0, overs: 0, wickets: 0, runs_conceded: 0, catches: 0, runouts: 0, mvpAwards: 0 };
   let matchesPlayed = 0;
   let highestScore = 0;
@@ -16,7 +26,31 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
     const supabase = await createServerSupabase();
     const { data: playerRow } = await supabase.from('players').select('*').eq('id', id).single();
     if (!playerRow) notFound();
-    player = playerRow as { id: string; name: string; photo: string | null; jersey_number: number | null; role: string };
+    player = playerRow as {
+      id: string;
+      name: string;
+      photo: string | null;
+      jersey_number: number | null;
+      role: string;
+      profile_id: string | null;
+    };
+
+    if (player.profile_id) {
+      const { data: pr } = await supabase
+        .from('profiles')
+        .select('name, email, phone')
+        .eq('id', player.profile_id)
+        .maybeSingle();
+      if (pr) {
+        const p = pr as { name: string | null; email: string; phone: string | null };
+        profileContact = p;
+        displayName = scorecardDisplayName(player.name, p.name, player.profile_id);
+      } else {
+        displayName = player.name;
+      }
+    } else {
+      displayName = player.name;
+    }
 
     const { data: statsData } = await supabase.from('match_stats').select('*').eq('player_id', id);
     type StatRow = { runs?: number; balls?: number; overs?: number; wickets?: number; runs_conceded?: number; catches?: number; runouts?: number; mvp?: boolean };
@@ -61,9 +95,17 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
             )}
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">{player.name}</h2>
+            <h2 className="text-2xl font-bold text-white">{displayName}</h2>
             {player.jersey_number != null && <p className="text-pirate-gold">Jersey #{player.jersey_number}</p>}
             <p className="text-slate-400">Role: {player.role}</p>
+            {profileContact && (
+              <div className="mt-4 pt-4 border-t border-slate-600 space-y-1 text-sm">
+                <p className="text-slate-500 uppercase text-xs tracking-wide">Account / contact</p>
+                {profileContact.name && <p className="text-slate-300">Profile name: {profileContact.name}</p>}
+                <p className="text-slate-300">Email: {profileContact.email}</p>
+                {profileContact.phone && <p className="text-slate-300">Phone: {profileContact.phone}</p>}
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-4">

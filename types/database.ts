@@ -48,6 +48,8 @@ export interface Database {
           amount: number;
           paid: boolean;
           date: string;
+          notes: string | null;
+          submitted_by_id: string | null;
           created_at: string;
         };
         Insert: Omit<Database['public']['Tables']['contributions']['Row'], 'id' | 'created_at'> & {

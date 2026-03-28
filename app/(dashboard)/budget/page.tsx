@@ -8,8 +8,8 @@ import type { Contribution, Expense } from '@/types/database';
 export default async function BudgetPage() {
   const cookieStore = await cookies();
   const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
-
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
+
   let contributions: Contribution[] = [];
   let expenses: (Expense & { bought?: boolean })[] = [];
   try {
@@ -30,6 +30,12 @@ export default async function BudgetPage() {
   const totalExpenses = totalExpensesBought;
   const remaining = totalContributions - totalExpensesBought;
 
+  const contribProps = {
+    initial: contributions,
+    isAdmin,
+    viewerMode: Boolean(codeVerified && !isAdmin),
+  };
+
   if (!codeVerified) {
     return (
       <div>
@@ -37,7 +43,7 @@ export default async function BudgetPage() {
         <p className="text-slate-400 mb-4">Enter the team code to view budget and add match fees or expenses.</p>
         <div className="card max-w-2xl mx-auto">
           <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
-          <BudgetContributions initial={contributions} isAdmin={false} />
+          <BudgetContributions {...contribProps} viewerMode={false} />
         </div>
       </div>
     );
@@ -50,7 +56,7 @@ export default async function BudgetPage() {
         <div className="grid md:grid-cols-2 gap-8">
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
-            <BudgetContributions initial={contributions} isAdmin={false} />
+            <BudgetContributions {...contribProps} />
           </div>
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Expenses</h3>
@@ -82,7 +88,7 @@ export default async function BudgetPage() {
       <div className="grid md:grid-cols-2 gap-8">
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
-          <BudgetContributions initial={contributions} isAdmin={isAdmin} />
+          <BudgetContributions {...contribProps} viewerMode={false} />
         </div>
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Expenses</h3>

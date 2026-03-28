@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-/** Uploads to team-level Others (`match_id` null). Admin only — same API as match media. */
+/** Uploads to team-level Others (`match_id` null). Team code + sign-in — same API as match media. */
 export default function TeamOthersMediaClient({ canUpload = false }: { canUpload?: boolean }) {
   const [type, setType] = useState<'photo' | 'video'>('photo');
   const [file, setFile] = useState<File | null>(null);
@@ -25,6 +25,7 @@ export default function TeamOthersMediaClient({ canUpload = false }: { canUpload
       const res = await fetch('/api/match-media', {
         method: 'POST',
         body: formData,
+        credentials: 'same-origin',
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Upload failed');

@@ -23,7 +23,7 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
   const { matchId } = await params;
   const cookieStore = await cookies();
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
-  const canUpload = cookieStore.get('pirates_admin')?.value === 'true';
+  const canUpload = codeVerified;
   let match: { id: string; date: string; time?: string | null; opponent: string } | null = null;
   let mediaList: { id: string; type: string; url: string; title: string | null; album?: string | null }[] = [];
 

@@ -8,7 +8,12 @@ export default function DeletePlayerButton({ playerId, playerName }: { playerId:
   const router = useRouter();
 
   async function handleDelete() {
-    if (!confirm(`Remove ${playerName} from the team? This also removes them from all Playing 11 lineups.`)) return;
+    if (
+      !confirm(
+        `Remove ${playerName} from the team?\n\nThis deletes their player card, match stats, jerseys, fee rows, Playing 11 slots, and their login account. They must create a new account and be approved again by an admin.`,
+      )
+    )
+      return;
     setLoading(true);
     try {
       const res = await fetch(`/api/players/${playerId}`, { method: 'DELETE', credentials: 'same-origin' });
