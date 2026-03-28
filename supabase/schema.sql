@@ -180,6 +180,8 @@ CREATE TABLE IF NOT EXISTS public.match_stats (
   player_id UUID NOT NULL REFERENCES public.players(id) ON DELETE CASCADE,
   runs INT DEFAULT 0,
   balls INT DEFAULT 0,
+  fours INT NOT NULL DEFAULT 0,
+  sixes INT NOT NULL DEFAULT 0,
   overs DECIMAL(5,1) DEFAULT 0,
   wickets INT DEFAULT 0,
   runs_conceded INT DEFAULT 0,

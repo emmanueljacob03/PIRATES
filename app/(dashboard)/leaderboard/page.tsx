@@ -13,6 +13,10 @@ type LeaderboardRow = {
   runouts: number;
   strikeRate: number;
   economy: number;
+  /** MVP = battingPoints + bowlingPoints + fieldingPoints (season totals). */
+  battingPoints: number;
+  bowlingPoints: number;
+  fieldingPoints: number;
   points: number;
 };
 
@@ -32,7 +36,9 @@ export default async function LeaderboardPage() {
   let data: typeof emptyLeaderboard = emptyLeaderboard;
   try {
     const supabase = await createServerSupabase();
-    const { data: stats } = await supabase.from('match_stats').select('player_id, runs, balls, overs, wickets, runs_conceded, catches, runouts');
+    const { data: stats } = await supabase
+      .from('match_stats')
+      .select('player_id, runs, balls, overs, wickets, runs_conceded, catches, runouts');
     const { data: players } = await supabase.from('players').select('id, name');
 
     type PlayerRow = { id: string; name: string };
@@ -68,17 +74,21 @@ export default async function LeaderboardPage() {
         if (realOvers <= 0) return 0;
         return a.runs_conceded / realOvers;
       })(),
-      // Scoring rules:
-      // Batting: 3 points for every 10 runs
-      // Bowling: 2 points per wicket
-      // Fielding: 1 point per catch + 1 point per run out
-      points: Math.floor(a.runs / 10) * 3 + a.wickets * 2 + a.catches * 1 + a.runouts * 1,
+      battingPoints: Math.floor(a.runs / 10) * 3,
+      bowlingPoints: a.wickets * 2,
+      fieldingPoints: a.catches * 1 + a.runouts * 1,
+      points:
+        Math.floor(a.runs / 10) * 3 + a.wickets * 2 + a.catches * 1 + a.runouts * 1,
     }));
 
     data = {
-      bestBatsman: [...withNames].sort((a, b) => b.runs - a.runs),
+      bestBatsman: [...withNames]
+        .filter((p) => p.runs > 0 || p.balls > 0)
+        .sort((a, b) => b.runs - a.runs),
       bestBowler: [...withNames].sort((a, b) => b.wickets - a.wickets),
-      bestFielder: [...withNames].map((p) => ({ ...p, fieldPoints: p.catches + p.runouts })).sort((a, b) => b.fieldPoints - a.fieldPoints),
+      bestFielder: [...withNames]
+        .map((p) => ({ ...p, fieldPoints: p.catches + p.runouts }))
+        .sort((a, b) => b.fieldPoints - a.fieldPoints),
       mvp: [...withNames].sort((a, b) => b.points - a.points),
     };
   } catch {

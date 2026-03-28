@@ -23,29 +23,43 @@ export default async function DashboardPage() {
     const [playersRes, matchesRes, statsRes, jerseysRes, contribsRes] = await Promise.all([
       (supabase as any).from('players').select('id', { count: 'exact', head: true }),
       (supabase as any).from('matches').select('id', { count: 'exact', head: true }),
-      (supabase as any).from('match_stats').select('player_id, runs, balls, wickets, catches, runouts, mvp'),
+      (supabase as any).from('match_stats').select('player_id, runs, balls, wickets, catches, runouts'),
       isAdmin ? (supabase as any).from('jerseys').select('player_name, paid') : Promise.resolve({ data: [] }),
       isAdmin ? (supabase as any).from('contributions').select('player_name, amount, paid') : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
     totalMatches = matchesRes.count ?? 0;
-    const stats = (statsRes.data ?? []) as { player_id: string; runs: number; wickets: number; catches: number; runouts: number; mvp: boolean }[];
-    const pointsByPlayer: Record<string, number> = {};
+    type StatRow = {
+      player_id: string;
+      runs: number;
+      wickets: number;
+      catches: number;
+      runouts: number;
+    };
+    const stats = (statsRes.data ?? []) as StatRow[];
+    const agg: Record<string, { runs: number; wickets: number; catches: number; runouts: number }> = {};
     stats.forEach((s) => {
       const id = s.player_id;
-      if (!pointsByPlayer[id]) pointsByPlayer[id] = 0;
-      pointsByPlayer[id] += (s.runs ?? 0) + (s.wickets ?? 0) * 20 + (s.catches ?? 0) * 10 + (s.runouts ?? 0) * 10;
+      if (!agg[id]) agg[id] = { runs: 0, wickets: 0, catches: 0, runouts: 0 };
+      agg[id].runs += s.runs ?? 0;
+      agg[id].wickets += s.wickets ?? 0;
+      agg[id].catches += s.catches ?? 0;
+      agg[id].runouts += s.runouts ?? 0;
     });
-    const mvpStat = stats.find((s) => s.mvp);
-    if (mvpStat) {
-      const { data: player } = await supabase.from('players').select('name').eq('id', mvpStat.player_id).single();
-      mvp = (player as { name?: string } | null)?.name ?? '—';
-    } else if (Object.keys(pointsByPlayer).length > 0) {
-      const topId = Object.entries(pointsByPlayer).sort((a, b) => b[1] - a[1])[0]?.[0];
-      if (topId) {
-        const { data: player } = await supabase.from('players').select('name').eq('id', topId).single();
-        mvp = (player as { name?: string } | null)?.name ?? '—';
+    const mvpPoints = (a: { runs: number; wickets: number; catches: number; runouts: number }) =>
+      Math.floor(a.runs / 10) * 3 + a.wickets * 2 + a.catches + a.runouts;
+    let topId: string | null = null;
+    let topPts = -1;
+    Object.entries(agg).forEach(([id, a]) => {
+      const pts = mvpPoints(a);
+      if (pts > topPts) {
+        topPts = pts;
+        topId = id;
       }
+    });
+    if (topId != null && topPts > 0) {
+      const { data: player } = await supabase.from('players').select('name').eq('id', topId).single();
+      mvp = (player as { name?: string } | null)?.name ?? '—';
     }
     if (isAdmin && jerseysRes.data && contribsRes.data) {
       const jerseyByPerson: Record<string, number> = {};

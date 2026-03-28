@@ -14,6 +14,9 @@ type Row = {
   runouts: number;
   strikeRate: number;
   economy: number;
+  battingPoints: number;
+  bowlingPoints: number;
+  fieldingPoints: number;
   points: number;
 };
 
@@ -116,28 +119,37 @@ export default function LeaderboardView({
         </table>
       </Section>
 
-      <Section title="MVP (Points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
+      <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
         <p className="text-slate-400 text-xs mb-2">
-          Batting: 3 pts / 10 runs + Bowling: 2 pts / wicket + Fielding: catches + run outs
+          Total = Bat + Bowl + Field. Bat: 3 pts per 10 runs · Bowl: 2 pts per wicket · Field: 1 pt per catch or
+          run out (all matches combined).
         </p>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-400 border-b border-slate-600">
-              <th className="pb-2">#</th>
-              <th className="pb-2">Player</th>
-              <th className="pb-2">Points</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
-              <tr key={p.playerId} className="border-b border-slate-700/50">
-                <td className="py-2">{i + 1}</td>
-                <td className="py-2">{p.name}</td>
-                <td className="py-2">{p.points}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[420px]">
+            <thead>
+              <tr className="text-left text-slate-400 border-b border-slate-600">
+                <th className="pb-2">#</th>
+                <th className="pb-2">Player</th>
+                <th className="pb-2">Bat</th>
+                <th className="pb-2">Bowl</th>
+                <th className="pb-2">Field</th>
+                <th className="pb-2">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
+                <tr key={p.playerId} className="border-b border-slate-700/50">
+                  <td className="py-2">{i + 1}</td>
+                  <td className="py-2">{p.name}</td>
+                  <td className="py-2">{p.battingPoints}</td>
+                  <td className="py-2">{p.bowlingPoints}</td>
+                  <td className="py-2">{p.fieldingPoints}</td>
+                  <td className="py-2 font-semibold text-[var(--pirate-yellow)]">{p.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Section>
     </div>
   );

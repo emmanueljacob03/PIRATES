@@ -7,7 +7,20 @@ import { format, parseISO } from 'date-fns';
 import ScorecardForm from '@/components/ScorecardForm';
 import type { Player } from '@/types/database';
 
-type ExistingStat = { id: string; player_id: string; runs: number; balls: number; overs: number; wickets: number; runs_conceded: number; catches: number; runouts: number; mvp: boolean };
+type ExistingStat = {
+  id: string;
+  player_id: string;
+  runs: number;
+  balls: number;
+  fours?: number;
+  sixes?: number;
+  overs: number;
+  wickets: number;
+  runs_conceded: number;
+  catches: number;
+  runouts: number;
+  mvp: boolean;
+};
 
 export default async function ScorecardPage({ params }: { params: Promise<{ matchId: string }> }) {
   const { matchId } = await params;
@@ -53,6 +66,8 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
                 <th className="pb-2 pr-4">Player</th>
                 <th className="pb-2 pr-2">Runs</th>
                 <th className="pb-2 pr-2">Balls</th>
+                <th className="pb-2 pr-2">4s</th>
+                <th className="pb-2 pr-2">6s</th>
                 <th className="pb-2 pr-2">Overs</th>
                 <th className="pb-2 pr-2">Wickets</th>
                 <th className="pb-2 pr-2">Runs conc.</th>
@@ -64,7 +79,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
             <tbody>
               {existing.length === 0 ? (
                 <tr>
-                  <td className="py-3 text-slate-500" colSpan={9}>No scorecard data yet.</td>
+                  <td className="py-3 text-slate-500" colSpan={11}>No scorecard data yet.</td>
                 </tr>
               ) : (
                 existing.map((row) => (
@@ -74,6 +89,8 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
                     </td>
                     <td className="py-2 pr-2">{row.runs ?? 0}</td>
                     <td className="py-2 pr-2">{row.balls ?? 0}</td>
+                    <td className="py-2 pr-2">{row.fours ?? 0}</td>
+                    <td className="py-2 pr-2">{row.sixes ?? 0}</td>
                     <td className="py-2 pr-2">{row.overs ?? 0}</td>
                     <td className="py-2 pr-2">{row.wickets ?? 0}</td>
                     <td className="py-2 pr-2">{row.runs_conceded ?? 0}</td>

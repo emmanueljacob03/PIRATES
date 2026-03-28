@@ -134,6 +134,8 @@ export interface Database {
           player_id: string;
           runs: number;
           balls: number;
+          fours: number;
+          sixes: number;
           overs: number;
           wickets: number;
           runs_conceded: number;
