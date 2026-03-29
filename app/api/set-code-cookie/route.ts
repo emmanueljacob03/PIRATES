@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateCodeToken } from '@/lib/code-token-store';
 import { applyPiratesTeamCodeCookies } from '@/lib/team-code-cookies';
 import { createTeamCodeHandoffToken } from '@/lib/team-code-handoff-token';
-
-const ENTRY_CODE = (process.env.PIRATES_SECURITY_CODE || 'Pirates102').trim().toLowerCase();
-const ADMIN_CODE = (process.env.PIRATES_ADMIN_CODE || '#Pirateswinners1').trim().toLowerCase();
+import { getAdminTeamCode, getViewerTeamCode } from '@/lib/team-codes';
 
 function isEntryCode(code: string): boolean {
-  return code.trim().toLowerCase() === ENTRY_CODE;
+  return code.trim() === getViewerTeamCode();
 }
 function isAdminCode(code: string): boolean {
-  return code.trim().toLowerCase() === ADMIN_CODE;
+  return code.trim() === getAdminTeamCode();
 }
 
 /**

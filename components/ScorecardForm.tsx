@@ -127,13 +127,6 @@ export default function ScorecardForm({
   const [batting1, setBatting1] = useState<File | null>(null);
   const [batting2, setBatting2] = useState<File | null>(null);
   const [bowling1, setBowling1] = useState<File | null>(null);
-  const [fielding1, setFielding1] = useState<File | null>(null);
-  const [fielding2, setFielding2] = useState<File | null>(null);
-
-  function extractNumbers(snippet: string) {
-    const matches = snippet.match(/\d+\.\d+|\d+/g);
-    return matches ? matches.map((n) => Number(n)) : [];
-  }
 
   const serverStatsKey = useMemo(
     () =>
@@ -210,9 +203,8 @@ export default function ScorecardForm({
     setOcrInfo('');
     const hasBat = !!(batting1 || batting2);
     const hasBowl = !!bowling1;
-    const hasField = !!(fielding1 || fielding2);
-    if (!hasBat && !hasBowl && !hasField) {
-      setOcrError('Upload at least one image (batting, bowling, or fielding), then click Read.');
+    if (!hasBat && !hasBowl) {
+      setOcrError('Upload at least one batting or bowling image, then click Read.');
       return;
     }
 
@@ -229,17 +221,10 @@ export default function ScorecardForm({
         const res = await worker.recognize(f);
         return (res?.data?.text ?? '').toString();
       };
-      const [b1, b2, bw, f1, f2] = await Promise.all([
-        ocrOne(batting1),
-        ocrOne(batting2),
-        ocrOne(bowling1),
-        ocrOne(fielding1),
-        ocrOne(fielding2),
-      ]);
+      const [b1, b2, bw] = await Promise.all([ocrOne(batting1), ocrOne(batting2), ocrOne(bowling1)]);
       await worker.terminate();
       const battingText = [b1, b2].filter(Boolean).join('\n');
       const bowlingText = bw || '';
-      const fieldingText = [f1, f2].filter(Boolean).join('\n');
 
       const toLines = (text: string) => {
         const raw = text ? text.split(/\n/).map((l) => l.trim()).filter(Boolean) : [];
@@ -250,16 +235,13 @@ export default function ScorecardForm({
 
       const battingLines = hasBat ? toLines(battingText) : [];
       const bowlingLines = hasBowl ? toLines(bowlingText) : [];
-      const fieldingLines = hasField ? toLines(fieldingText) : [];
 
       const claimedBat = new Set<number>();
       const claimedBowl = new Set<number>();
-      const claimedField = new Set<number>();
       const playersBySpecificity = [...players].sort((a, b) => b.name.length - a.name.length);
 
       let fillBat = 0;
       let fillBowl = 0;
-      let fillField = 0;
       let nameHits = 0;
       let statsApplied = false;
 
@@ -281,11 +263,7 @@ export default function ScorecardForm({
             ? buildBowlingOcrSnippet(bowlingLines, bowlHit.lineIndex, claimedBowl)
             : null;
 
-        const fieldHit = hasField && fieldingLines.length ? findLineForPlayer(fieldingLines, p.name, claimedField) : null;
-        if (fieldHit) claimedField.add(fieldHit.lineIndex);
-        const fieldSnippet = fieldHit?.line ?? null;
-
-        if (!batSnippet?.trim() && !bowlSnippet?.trim() && !fieldSnippet) continue;
+        if (!batSnippet?.trim() && !bowlSnippet?.trim()) continue;
 
         nameHits += 1;
 
@@ -332,18 +310,6 @@ export default function ScorecardForm({
           }
         }
 
-        if (fieldSnippet) {
-          const nums = extractNumbers(fieldSnippet);
-          if (nums.length >= 2) {
-            row.catches = Math.max(0, Math.round(nums[0]));
-            row.runouts = Math.max(0, Math.round(nums[1]));
-            row.include_field = true;
-            fillField += 1;
-            statsApplied = true;
-            appliedHere = true;
-          }
-        }
-
         const wasOnCard = prev.some((r) => r.player_id === p.id);
         if (appliedHere || wasOnCard) {
           map.set(p.id, row);
@@ -374,7 +340,6 @@ export default function ScorecardForm({
       const parts: string[] = [];
       if (hasBat) parts.push(`batting ${fillBat}`);
       if (hasBowl) parts.push(`bowling ${fillBowl}`);
-      if (hasField) parts.push(`fielding ${fillField}`);
       setOcrInfo(`Updated ${parts.join(' · ')} row(s). Review points and save.`);
     } catch (e: unknown) {
       setOcrError((e as Error).message || 'OCR failed');
@@ -528,7 +493,7 @@ export default function ScorecardForm({
 
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-slate-300 font-medium mb-2">Batting (one or two images)</p>
+              <p className="text-sm text-slate-300 font-medium mb-2">Batting</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="file"
@@ -548,7 +513,7 @@ export default function ScorecardForm({
             </div>
 
             <div>
-              <p className="text-sm text-slate-300 font-medium mb-2">Bowling (O, M, R, W — dot overs e.g. 1.1 = 1 over 1 ball)</p>
+              <p className="text-sm text-slate-300 font-medium mb-2">Bowling</p>
               <input
                 type="file"
                 accept="image/*"
@@ -558,26 +523,6 @@ export default function ScorecardForm({
               />
             </div>
 
-            <div>
-              <p className="text-sm text-slate-300 font-medium mb-2">Fielding (optional — two numbers: catches, run outs)</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="input-field text-xs"
-                  onChange={(e) => setFielding1(e.target.files?.[0] ?? null)}
-                />
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="input-field text-xs"
-                  onChange={(e) => setFielding2(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            </div>
-
             {ocrError && <p className="text-sm text-red-400">{ocrError}</p>}
             {ocrInfo && <p className="text-sm text-amber-300">{ocrInfo}</p>}
 
@@ -585,14 +530,14 @@ export default function ScorecardForm({
               type="button"
               onClick={runOcrRead}
               className="btn-primary"
-              disabled={ocrLoading || saving || (!batting1 && !batting2 && !bowling1 && !fielding1 && !fielding2)}
+              disabled={ocrLoading || saving || (!batting1 && !batting2 && !bowling1)}
             >
               {ocrLoading ? 'Reading…' : 'Read'}
             </button>
 
             <p className="text-xs text-slate-400">
-              One Read button fills every uploaded sheet: batting only updates batting; add bowling/fielding images to
-              update those too in the same run. Names must match this match’s squad list.
+              One Read fills every uploaded sheet (batting and/or bowling). Enter catches and run outs manually under
+              Field if needed. Names must match this match’s squad list.
             </p>
           </div>
         </div>

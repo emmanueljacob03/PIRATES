@@ -52,21 +52,17 @@ export default async function MatchMediaDetailPage({ params }: { params: Promise
       <Link href="/media" className="text-amber-400 hover:underline text-sm mb-4 inline-block">
         ← Back to Match Media
       </Link>
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-2">
-        <div>
-          <h2 className="text-2xl font-bold text-pirate-gold">{format(matchDate, 'MMMM d')} Match</h2>
-          <p className="text-slate-400 mt-1">vs {match.opponent}</p>
-        </div>
-        <Link
-          href="/media/all"
-          className="shrink-0 text-sm font-semibold text-amber-400 hover:text-amber-300 hover:underline px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10"
-        >
-          View all
-        </Link>
+      <div className="mb-2">
+        <h2 className="text-2xl font-bold text-pirate-gold">{format(matchDate, 'MMMM d')} Match</h2>
+        <p className="text-slate-400 mt-1">vs {match.opponent}</p>
       </div>
       <p className="text-slate-500 text-sm mb-6">
-        Photos and videos for this match. Use the team <Link href="/media/others" className="text-amber-400 hover:underline">Others</Link> folder for extra media.{' '}
-        <Link href="/media/all" className="text-amber-400 hover:underline">View all</Link> shows every file.
+        Photos and videos for this match. Use the team{' '}
+        <Link href="/media/others" className="text-amber-400 hover:underline">
+          Others
+        </Link>{' '}
+        folder for extra media. Open <Link href="/media" className="text-amber-400 hover:underline">Match Media</Link> and use
+        View all there to see every file.
       </p>
       <MatchMediaClient matchId={matchId} canUpload={canUpload} />
       <div className="grid md:grid-cols-2 gap-6 mt-8">

@@ -32,25 +32,25 @@ export function economyFromDotOvers(oversDot: number, runsConceded: number): num
   return runsConceded / legal;
 }
 
-/** Batting: volume + boundaries + milestones (common club fantasy style). */
+/** Batting: 7 pts per 10 runs + boundaries + milestones + strike-rate bonus (club fantasy style). */
 export function battingPointsFromRow(s: MatchStatPointsInput): number {
   const runs = s.runs ?? 0;
   const fours = s.fours ?? 0;
   const sixes = s.sixes ?? 0;
-  let pts = Math.floor(runs / 10) * 3 + fours * 2 + sixes * 3;
+  let pts = Math.floor(runs / 10) * 7 + fours * 2 + sixes * 3;
   if (runs >= 50) pts += 8;
   if (runs >= 100) pts += 15;
   if ((s.balls ?? 0) >= 1 && runs / s.balls >= 1.5) pts += 3;
   return Math.max(0, pts);
 }
 
-/** Bowling: wickets, maidens, economy tiers. */
+/** Bowling: 7 pts per wicket, 3 per maiden; economy tiers unchanged. */
 export function bowlingPointsFromRow(s: MatchStatPointsInput): number {
   const w = s.wickets ?? 0;
   const m = s.maidens ?? 0;
   const rc = s.runs_conceded ?? 0;
   const oversDot = s.overs ?? 0;
-  let pts = w * 6 + m * 4;
+  let pts = w * 7 + m * 3;
   const legal = oversDotToLegalOvers(oversDot);
   if (legal > 0 && w > 0) {
     const econ = rc / legal;
