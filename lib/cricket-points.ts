@@ -62,11 +62,11 @@ export function bowlingPointsFromRow(s: MatchStatPointsInput): number {
   return Math.round(Math.max(0, pts) * 10) / 10;
 }
 
-/** Fielding: catches / run-outs. */
+/** Fielding: 3 pts per catch, 3 pts per run-out. */
 export function fieldingPointsFromRow(s: MatchStatPointsInput): number {
   const c = s.catches ?? 0;
   const ro = s.runouts ?? 0;
-  return Math.max(0, c * 8 + ro * 6);
+  return Math.max(0, c * 3 + ro * 3);
 }
 
 export function totalPointsFromRow(s: MatchStatPointsInput): number {

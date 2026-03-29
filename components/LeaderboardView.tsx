@@ -129,8 +129,8 @@ export default function LeaderboardView({
 
       <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
         <p className="text-slate-400 text-xs mb-2">
-          Total = sum of fantasy points per match (batting: runs, 4s/6s, milestones; bowling: wickets, maidens,
-          economy; fielding: catches, run outs). Respects Bat/Bowl/Field toggles on each scorecard.
+          Total = sum of fantasy points per match (batting, bowling, fielding). Fielding: 3 pts per catch, 3 per run
+          out. Respects Bat/Bowl/Field toggles on each scorecard.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">

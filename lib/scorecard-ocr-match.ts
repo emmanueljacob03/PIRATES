@@ -75,5 +75,40 @@ export function findLineForPlayer(
     }
   }
 
+  // Short aliases (2 chars) e.g. "Jo" on crowded sheets — use only when unique
+  for (const alias of aliases) {
+    if (alias.length !== 2) continue;
+    const hits: number[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (claimed.has(i)) continue;
+      if (lowerLines[i].includes(alias)) hits.push(i);
+    }
+    if (hits.length === 1) {
+      const i = hits[0];
+      return { line: lines[i], lineIndex: i };
+    }
+  }
+
+  /** Token overlap when OCR mangles spacing / order of words */
+  const tokens = parts.filter((t) => t.length >= 2);
+  if (tokens.length > 0) {
+    const need = tokens.length === 1 ? 1 : Math.max(2, Math.ceil(tokens.length / 2));
+    let bestI = -1;
+    let bestScore = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (claimed.has(i)) continue;
+      const line = lowerLines[i];
+      const score = tokens.reduce((acc, t) => acc + (line.includes(t) ? t.length : 0), 0);
+      const hitCount = tokens.filter((t) => line.includes(t)).length;
+      if (hitCount >= need && score > bestScore) {
+        bestScore = score;
+        bestI = i;
+      }
+    }
+    if (bestI >= 0) {
+      return { line: lines[bestI], lineIndex: bestI };
+    }
+  }
+
   return null;
 }

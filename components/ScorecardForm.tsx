@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet } from '@/lib/bowling-ocr';
 import { findLineForPlayer } from '@/lib/scorecard-ocr-match';
-import { dotOversToTotalBalls, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
+import { formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
   battingPointsContributed,
   bowlingPointsContributed,
@@ -33,6 +33,15 @@ type StatRow = {
   include_bowl: boolean;
   include_field: boolean;
 };
+
+function withMatchStatsSchemaHint(message: string): string {
+  if (
+    /fours|sixes|include_bat|include_bowl|include_field|maidens|schema cache/i.test(message)
+  ) {
+    return `${message} If you manage Supabase: open the SQL Editor and run the script alter_match_stats_scorecard_columns_bundle.sql from this project (adds fours, sixes, role flags, maidens). Wait a minute for the schema cache to refresh, then save again.`;
+  }
+  return message;
+}
 
 function rowPointsInput(r: StatRow) {
   return {
@@ -84,6 +93,10 @@ export default function ScorecardForm({
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<StatRow[]>([]);
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
   const prefillKey = prefillPlayerIds?.length ? prefillPlayerIds.join(',') : '';
 
   const rowsInFormOrder = useMemo(() => {
@@ -223,15 +236,16 @@ export default function ScorecardForm({
       const bowlingText = bw || '';
       const fieldingText = [f1, f2].filter(Boolean).join('\n');
 
-      const battingLines = battingText
-        ? battingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
-        : [];
-      const bowlingLines = bowlingText
-        ? bowlingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
-        : [];
-      const fieldingLines = fieldingText
-        ? fieldingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
-        : [];
+      const toLines = (text: string) => {
+        const raw = text ? text.split(/\n/).map((l) => l.trim()).filter(Boolean) : [];
+        if (raw.length > 0) return raw;
+        const t = text.replace(/\s+/g, ' ').trim();
+        return t ? [t] : [];
+      };
+
+      const battingLines = hasBat ? toLines(battingText) : [];
+      const bowlingLines = hasBowl ? toLines(bowlingText) : [];
+      const fieldingLines = hasField ? toLines(fieldingText) : [];
 
       const claimedBat = new Set<number>();
       const claimedBowl = new Set<number>();
@@ -241,101 +255,116 @@ export default function ScorecardForm({
       let fillBat = 0;
       let fillBowl = 0;
       let fillField = 0;
-      let didAnything = false;
+      let nameHits = 0;
+      let statsApplied = false;
 
-      setRows((prev) => {
-        const map = new Map(prev.map((r) => [r.player_id, { ...r }]));
+      const prev = rowsRef.current;
+      const map = new Map(prev.map((r) => [r.player_id, { ...r }]));
 
-        for (const p of playersBySpecificity) {
-          const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
-          if (batHit) claimedBat.add(batHit.lineIndex);
-          const batSnippet = batHit?.line ?? null;
+      for (const p of playersBySpecificity) {
+        const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
+        if (batHit) claimedBat.add(batHit.lineIndex);
+        const batSnippet = batHit?.line ?? null;
 
-          const bowlHit = hasBowl && bowlingLines.length ? findLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
-          if (bowlHit) claimedBowl.add(bowlHit.lineIndex);
-          const bowlSnippet = bowlHit?.line ?? null;
+        const bowlHit = hasBowl && bowlingLines.length ? findLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
+        if (bowlHit) claimedBowl.add(bowlHit.lineIndex);
+        const bowlSnippet = bowlHit?.line ?? null;
 
-          const fieldHit = hasField && fieldingLines.length ? findLineForPlayer(fieldingLines, p.name, claimedField) : null;
-          if (fieldHit) claimedField.add(fieldHit.lineIndex);
-          const fieldSnippet = fieldHit?.line ?? null;
+        const fieldHit = hasField && fieldingLines.length ? findLineForPlayer(fieldingLines, p.name, claimedField) : null;
+        if (fieldHit) claimedField.add(fieldHit.lineIndex);
+        const fieldSnippet = fieldHit?.line ?? null;
 
-          if (!batSnippet && !bowlSnippet && !fieldSnippet) continue;
+        if (!batSnippet && !bowlSnippet && !fieldSnippet) continue;
 
-          let row = map.get(p.id);
-          if (!row) {
-            row = {
-              ...emptyRow(p.id),
-              include_bat: false,
-              include_bowl: false,
-              include_field: false,
-            };
+        nameHits += 1;
+
+        let row = map.get(p.id);
+        if (!row) {
+          row = {
+            ...emptyRow(p.id),
+            include_bat: false,
+            include_bowl: false,
+            include_field: false,
+          };
+        }
+
+        let appliedHere = false;
+
+        if (batSnippet) {
+          const parsed = bestBattingFromSnippet(batSnippet);
+          if (parsed && (parsed.runs > 0 || parsed.balls > 0)) {
+            row.runs = parsed.runs;
+            row.balls = parsed.balls;
+            row.fours = parsed.fours;
+            row.sixes = parsed.sixes;
+            row.include_bat = true;
+            fillBat += 1;
+            statsApplied = true;
+            appliedHere = true;
           }
+        }
 
-          if (batSnippet) {
-            const parsed = bestBattingFromSnippet(batSnippet);
-            if (parsed && (parsed.runs > 0 || parsed.balls > 0)) {
-              row.runs = parsed.runs;
-              row.balls = parsed.balls;
-              row.fours = parsed.fours;
-              row.sixes = parsed.sixes;
-              row.include_bat = true;
-              fillBat += 1;
-              didAnything = true;
-            }
+        if (bowlSnippet) {
+          const parsed = bestBowlingFromSnippet(bowlSnippet);
+          if (
+            parsed &&
+            (parsed.overs > 0 || parsed.wickets > 0 || parsed.runs_conceded > 0 || parsed.maidens > 0)
+          ) {
+            row.overs = normalizeDotOversInput(parsed.overs);
+            row.maidens = parsed.maidens;
+            row.runs_conceded = parsed.runs_conceded;
+            row.wickets = parsed.wickets;
+            row.include_bowl = true;
+            fillBowl += 1;
+            statsApplied = true;
+            appliedHere = true;
           }
+        }
 
-          if (bowlSnippet) {
-            const parsed = bestBowlingFromSnippet(bowlSnippet);
-            if (
-              parsed &&
-              (parsed.overs > 0 || parsed.wickets > 0 || parsed.runs_conceded > 0 || parsed.maidens > 0)
-            ) {
-              row.overs = normalizeDotOversInput(parsed.overs);
-              row.maidens = parsed.maidens;
-              row.runs_conceded = parsed.runs_conceded;
-              row.wickets = parsed.wickets;
-              row.include_bowl = true;
-              fillBowl += 1;
-              didAnything = true;
-            }
+        if (fieldSnippet) {
+          const nums = extractNumbers(fieldSnippet);
+          if (nums.length >= 2) {
+            row.catches = Math.max(0, Math.round(nums[0]));
+            row.runouts = Math.max(0, Math.round(nums[1]));
+            row.include_field = true;
+            fillField += 1;
+            statsApplied = true;
+            appliedHere = true;
           }
+        }
 
-          if (fieldSnippet) {
-            const nums = extractNumbers(fieldSnippet);
-            if (nums.length >= 2) {
-              row.catches = Math.max(0, Math.round(nums[0]));
-              row.runouts = Math.max(0, Math.round(nums[1]));
-              row.include_field = true;
-              fillField += 1;
-              didAnything = true;
-            }
-          }
-
+        const wasOnCard = prev.some((r) => r.player_id === p.id);
+        if (appliedHere || wasOnCard) {
           map.set(p.id, row);
         }
+      }
 
-        if (!didAnything) {
-          return prev;
-        }
-
-        const order = new Map(players.map((pl, i) => [pl.id, i]));
-        return Array.from(map.values()).sort(
-          (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
-        );
-      });
-
-      if (!didAnything) {
+      if (nameHits === 0) {
         setOcrError(
           'Read did not match any names to this squad list. Use the same names as the scorecard and Playing XI.',
         );
         return;
       }
 
+      if (!statsApplied) {
+        setOcrInfo(
+          `Found ${nameHits} player name(s) on the image but could not read stat columns. Try a sharper photo, zoom the table, or enter scores manually.`,
+        );
+        return;
+      }
+
+      const order = new Map(players.map((pl, i) => [pl.id, i]));
+      setRows(
+        Array.from(map.values()).sort(
+          (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
+        ),
+      );
+
       const parts: string[] = [];
       if (hasBat) parts.push(`batting ${fillBat}`);
       if (hasBowl) parts.push(`bowling ${fillBowl}`);
       if (hasField) parts.push(`fielding ${fillField}`);
-      setOcrInfo(`Updated ${parts.join(' · ')} row(s) where names matched. Review points and save.`);
+      setOcrInfo(`Updated ${parts.join(' · ')} row(s). Review points and save.`);
     } catch (e: unknown) {
       setOcrError((e as Error).message || 'OCR failed');
     } finally {
@@ -414,7 +443,7 @@ export default function ScorecardForm({
         .eq('match_id', matchId);
 
       if (fetchErr) {
-        setSaveError(fetchErr.message);
+        setSaveError(withMatchStatsSchemaHint(fetchErr.message));
         return;
       }
 
@@ -423,7 +452,7 @@ export default function ScorecardForm({
       for (const del of toDelete) {
         const { error: delErr } = await supabase.from('match_stats').delete().eq('id', del.id);
         if (delErr) {
-          setSaveError(delErr.message);
+          setSaveError(withMatchStatsSchemaHint(delErr.message));
           return;
         }
       }
@@ -451,7 +480,7 @@ export default function ScorecardForm({
           // @ts-expect-error Supabase Insert type may lag schema migrations
           const { error: upErr } = await supabase.from('match_stats').update(payload).eq('id', row.id);
           if (upErr) {
-            setSaveError(upErr.message);
+            setSaveError(withMatchStatsSchemaHint(upErr.message));
             return;
           }
         } else {
@@ -460,7 +489,7 @@ export default function ScorecardForm({
             onConflict: 'match_id,player_id',
           });
           if (upErr) {
-            setSaveError(upErr.message);
+            setSaveError(withMatchStatsSchemaHint(upErr.message));
             return;
           }
         }
@@ -787,9 +816,6 @@ export default function ScorecardForm({
                             )
                           }
                         />
-                        <p className="text-[10px] text-slate-500 mt-0.5 whitespace-nowrap">
-                          ≈ {dotOversToTotalBalls(r.overs)} balls
-                        </p>
                       </td>
                       <td className="py-2">
                         <input
