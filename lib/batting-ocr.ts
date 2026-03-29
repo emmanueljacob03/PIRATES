@@ -96,15 +96,100 @@ export function stripRoleMarkers(name: string): string {
     .trim();
 }
 
+/** Clean OCR batting line: not-out stars, odd spaces. */
+function cleanBattingLineForOcr(line: string): string {
+  return (line || '')
+    .replace(/[*†‡]/g, ' ')
+    .replace(/[|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isPlausibleBatting(p: ParsedBatting): boolean {
+  if (p.runs + p.balls <= 0) return false;
+  if (p.runs > 450 || p.balls > 200) return false;
+  if (p.fours > 50 || p.sixes > 40) return false;
+  if (p.runs > 0 && p.balls === 0) return false;
+  return true;
+}
+
+/**
+ * Try every plausible window — jersey / dismissal text often adds extra leading digits;
+ * stats are often the last 4–5 numbers on the line.
+ */
+export function findBestBattingFromNumberSeries(nums: number[]): ParsedBatting | null {
+  if (!nums.length) return null;
+  const candidates: ParsedBatting[] = [];
+  const seen = new Set<string>();
+  const add = (p: ParsedBatting | null) => {
+    if (!p || !isPlausibleBatting(p)) return;
+    const key = `${p.runs}-${p.balls}-${p.fours}-${p.sixes}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push(p);
+  };
+
+  const trySlice = (slice: number[]) => {
+    if (slice.length < 2) return;
+    const r = repairBattingNumberSequence([...slice]);
+    add(parseBattingNumbers(r));
+    if (r.length >= 4) {
+      add({
+        runs: Math.max(0, Math.round(r[1])),
+        balls: Math.max(0, Math.round(r[0])),
+        fours: Math.max(0, Math.round(r[2])),
+        sixes: Math.max(0, Math.round(r[3])),
+      });
+    }
+  };
+
+  const repairedAll = repairBattingNumberSequence([...nums]);
+  for (const w of [5, 4, 2]) {
+    for (let i = 0; i + w <= repairedAll.length; i++) {
+      trySlice(repairedAll.slice(i, i + w));
+    }
+  }
+  for (const w of [6, 5, 4]) {
+    if (repairedAll.length >= w) trySlice(repairedAll.slice(-w));
+  }
+
+  if (!candidates.length) {
+    const last = parseBattingNumbers(repairedAll);
+    if (
+      last &&
+      last.runs + last.balls > 0 &&
+      last.runs <= 450 &&
+      last.balls <= 200 &&
+      last.fours <= 50 &&
+      last.sixes <= 40 &&
+      !(last.runs > 0 && last.balls === 0)
+    ) {
+      return last;
+    }
+    return null;
+  }
+
+  candidates.sort((a, b) => {
+    const ta = a.runs + a.balls;
+    const tb = b.runs + b.balls;
+    if (tb !== ta) return tb - ta;
+    return b.runs - a.runs;
+  });
+  return candidates[0] ?? null;
+}
+
 /**
  * Prefer a line that looks like a batting row (R B 4s 6s [SR]) over noisy OCR from dismissals.
  */
 export function bestBattingFromSnippet(snippet: string): ParsedBatting | null {
-  const lines = snippet.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = snippet.split(/\n/).map((l) => cleanBattingLineForOcr(l)).filter(Boolean);
   for (const line of lines) {
     const nums = extractOrderedNumbers(line);
-    const p = parseBattingNumbers(nums);
-    if (p && p.runs <= 350 && p.balls <= 180 && p.runs + p.balls > 0) return p;
+    const p = findBestBattingFromNumberSeries(nums);
+    if (p && p.runs <= 450 && p.balls <= 200) return p;
   }
-  return parseBattingNumbers(extractOrderedNumbers(snippet));
+  const all = extractOrderedNumbers(cleanBattingLineForOcr(snippet));
+  const fallback = findBestBattingFromNumberSeries(all);
+  if (fallback && fallback.runs <= 450 && fallback.balls <= 200) return fallback;
+  return null;
 }
