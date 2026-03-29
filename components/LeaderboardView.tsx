@@ -67,7 +67,11 @@ export default function LeaderboardView({
             {(expand.bat ? bestBatsman : bestBatsman.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
-                <td className="py-2">{p.name}</td>
+                <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
+                  <span className="block truncate" title={p.name}>
+                    {p.name}
+                  </span>
+                </td>
                 <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.battingPoints}</td>
                 <td className="py-2">{p.runs}</td>
                 <td className="py-2">{p.strikeRate.toFixed(1)}</td>
@@ -92,7 +96,11 @@ export default function LeaderboardView({
             {(expand.bowl ? bestBowler : bestBowler.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
-                <td className="py-2">{p.name}</td>
+                <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
+                  <span className="block truncate" title={p.name}>
+                    {p.name}
+                  </span>
+                </td>
                 <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.bowlingPoints}</td>
                 <td className="py-2">{p.wickets}</td>
                 <td className="py-2">{p.economy.toFixed(1)}</td>
@@ -117,7 +125,11 @@ export default function LeaderboardView({
             {(expand.field ? bestFielder : bestFielder.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
-                <td className="py-2">{p.name}</td>
+                <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
+                  <span className="block truncate" title={p.name}>
+                    {p.name}
+                  </span>
+                </td>
                 <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.fieldingPoints}</td>
                 <td className="py-2">{p.catches}</td>
                 <td className="py-2">{p.runouts}</td>
@@ -148,20 +160,16 @@ export default function LeaderboardView({
               {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
                 <tr key={p.playerId} className="border-b border-slate-700/50">
                   <td className="py-2">{i + 1}</td>
-                  <td className="py-2">
-                    <span className="inline-flex items-center gap-2">
-                      {p.photoUrl ? (
-                        <Image
-                          src={p.photoUrl}
-                          alt=""
-                          width={28}
-                          height={28}
-                          className="rounded-full object-cover shrink-0"
-                        />
-                      ) : (
-                        <span className="w-7 h-7 rounded-full bg-slate-700 shrink-0 inline-block" aria-hidden />
-                      )}
-                      {p.name}
+                  <td className="py-2 min-w-0 max-w-[14rem] sm:max-w-[18rem]">
+                    <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
+                      <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-700">
+                        {p.photoUrl ? (
+                          <Image src={p.photoUrl} alt="" fill className="object-cover" sizes="28px" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 truncate font-medium" title={p.name}>
+                        {p.name}
+                      </span>
                     </span>
                   </td>
                   <td className="py-2">{p.battingPoints}</td>

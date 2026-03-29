@@ -1,6 +1,7 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import LeaderboardView from '@/components/LeaderboardView';
 import { matchStatRowFromDb, sumCategoryPointsAcrossRows } from '@/lib/cricket-points';
+import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name';
 
 type LeaderboardRow = {
   playerId: string;
@@ -49,10 +50,42 @@ export default async function LeaderboardPage() {
   try {
     const supabase = await createServerSupabase();
     const { data: stats } = await supabase.from('match_stats').select('*');
-    const { data: players } = await supabase.from('players').select('id, name, photo');
+    const { data: players } = await supabase.from('players').select('id, name, photo, profile_id');
 
-    type PlayerRow = { id: string; name: string; photo: string | null };
-    const playerMap = new Map(((players ?? []) as PlayerRow[]).map((p) => [p.id, p]));
+    type PlayerRow = {
+      id: string;
+      name: string;
+      photo: string | null;
+      profile_id: string | null;
+    };
+    const plist = (players ?? []) as PlayerRow[];
+    const profileIds = Array.from(
+      new Set(plist.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
+    );
+    const profileById = new Map<string, { name: string | null; avatar_url: string | null }>();
+    if (profileIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', profileIds);
+      for (const row of profs ?? []) {
+        const r = row as { id: string; name: string | null; avatar_url: string | null };
+        profileById.set(r.id, { name: r.name, avatar_url: r.avatar_url });
+      }
+    }
+    const playerMap = new Map(
+      plist.map((p) => {
+        const pr = p.profile_id ? profileById.get(p.profile_id) : undefined;
+        return [
+          p.id,
+          {
+            ...p,
+            displayName: scorecardDisplayName(p.name, pr?.name ?? null, p.profile_id),
+            displayPhoto: playerPhotoUrl(p.photo, pr?.avatar_url ?? null),
+          },
+        ] as const;
+      }),
+    );
 
     type StatRow = Record<string, unknown> & { player_id: string };
     const statsList = (stats ?? []) as StatRow[];
@@ -68,8 +101,8 @@ export default async function LeaderboardPage() {
     const withNames: LeaderboardRow[] = [];
     groups.forEach((rows, playerId) => {
       const p = playerMap.get(playerId);
-      const name = p?.name ?? 'Unknown';
-      const photoUrl = p?.photo ?? null;
+      const name = p?.displayName ?? 'Unknown';
+      const photoUrl = p?.displayPhoto ?? null;
 
       const pointsRows = rows.map((r) => matchStatRowFromDb(r));
       const pts = sumCategoryPointsAcrossRows(pointsRows);

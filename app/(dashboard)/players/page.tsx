@@ -2,6 +2,7 @@ import Image from 'next/image';
 import { cookies } from 'next/headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
+import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name';
 import PlayerPhotoUpload from '@/components/PlayerPhotoUpload';
 import DeletePlayerButton from '@/components/DeletePlayerButton';
 
@@ -70,11 +71,8 @@ export default async function PlayersPage() {
 
     players = fetchedPlayers.map((p) => {
       const pr = p.profile_id ? profileById.get(p.profile_id) : undefined;
-      const registered = pr?.name?.trim() || '';
-      const rawPlayerName = p.name?.trim() || '';
-      const looksLikeEmail = rawPlayerName.includes('@');
-      const displayName = registered || (!looksLikeEmail ? rawPlayerName : '') || 'Player';
-      const displayPhoto = (p.photo?.trim() || pr?.avatar_url?.trim() || null) as string | null;
+      const displayName = scorecardDisplayName(p.name, pr?.name ?? null, p.profile_id ?? null);
+      const displayPhoto = playerPhotoUrl(p.photo, pr?.avatar_url ?? null);
       return { ...p, displayName, displayPhoto };
     });
   } catch {

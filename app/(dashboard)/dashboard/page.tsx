@@ -3,6 +3,7 @@ import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import DashboardMetrics, { type DashboardMvp } from '@/components/DashboardMetrics';
 import { matchStatRowFromDb, sumCategoryPointsAcrossRows } from '@/lib/cricket-points';
+import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name';
 import UmpiringDuties from '@/components/UmpiringDuties';
 import TotalPendingCard from '@/components/TotalPendingCard';
 import Playing11Widget from '@/components/Playing11Widget';
@@ -49,12 +50,31 @@ export default async function DashboardPage() {
     if (topId != null) {
       const { data: player } = await supabase
         .from('players')
-        .select('name, photo')
+        .select('name, photo, profile_id')
         .eq('id', topId)
         .single();
-      const pl = player as { name?: string; photo?: string | null } | null;
-      if (pl?.name) {
-        mvp = { name: pl.name, photoUrl: pl.photo ?? null };
+      const pl = player as {
+        name?: string;
+        photo?: string | null;
+        profile_id?: string | null;
+      } | null;
+      if (pl?.name != null || pl?.profile_id) {
+        let profName: string | null = null;
+        let profAvatar: string | null = null;
+        if (pl.profile_id) {
+          const { data: pr } = await supabase
+            .from('profiles')
+            .select('name, avatar_url')
+            .eq('id', pl.profile_id)
+            .maybeSingle();
+          const row = pr as { name: string | null; avatar_url: string | null } | null;
+          profName = row?.name ?? null;
+          profAvatar = row?.avatar_url ?? null;
+        }
+        const name = scorecardDisplayName(pl.name ?? '', profName, pl.profile_id ?? null);
+        if (name && name !== 'Unknown') {
+          mvp = { name, photoUrl: playerPhotoUrl(pl.photo ?? null, profAvatar) };
+        }
       }
     }
     if (isAdmin && jerseysRes.data && contribsRes.data) {
@@ -81,7 +101,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 [&>*]:min-w-0">
         <DashboardMetrics
           totalPlayers={totalPlayers}
           desiredCollectionsInitial={desiredCollectionsInitial}

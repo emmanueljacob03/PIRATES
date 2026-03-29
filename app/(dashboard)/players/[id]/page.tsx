@@ -46,10 +46,10 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
         profileContact = p;
         displayName = scorecardDisplayName(player.name, p.name, player.profile_id);
       } else {
-        displayName = player.name;
+        displayName = scorecardDisplayName(player.name, null, player.profile_id);
       }
     } else {
-      displayName = player.name;
+      displayName = scorecardDisplayName(player.name, null, null);
     }
 
     const { data: statsData } = await supabase.from('match_stats').select('*').eq('player_id', id);
@@ -89,7 +89,7 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 relative rounded-lg overflow-hidden bg-slate-700 flex-shrink-0">
             {player.photo ? (
-              <Image src={player.photo} alt={player.name} fill className="object-cover" sizes="128px" />
+              <Image src={player.photo} alt={displayName} fill className="object-cover" sizes="128px" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-4xl">🏏</div>
             )}
