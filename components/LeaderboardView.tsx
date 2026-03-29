@@ -44,7 +44,7 @@ export default function LeaderboardView({
 }: {
   bestBatsman: Row[];
   bestBowler: Row[];
-  bestFielder: (Row & { fieldPoints: number })[];
+  bestFielder: Row[];
   mvp: Row[];
 }) {
   const [expand, setExpand] = useState<Record<string, boolean>>({});
@@ -52,12 +52,13 @@ export default function LeaderboardView({
 
   return (
     <div className="grid md:grid-cols-2 gap-8">
-      <Section title="Best Batsman (Runs)" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
+      <Section title="Batting (by fantasy points)" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
               <th className="pb-2">#</th>
               <th className="pb-2">Player</th>
+              <th className="pb-2">Pts</th>
               <th className="pb-2">Runs</th>
               <th className="pb-2">SR</th>
             </tr>
@@ -67,6 +68,7 @@ export default function LeaderboardView({
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
                 <td className="py-2">{p.name}</td>
+                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.battingPoints}</td>
                 <td className="py-2">{p.runs}</td>
                 <td className="py-2">{p.strikeRate.toFixed(1)}</td>
               </tr>
@@ -75,12 +77,13 @@ export default function LeaderboardView({
         </table>
       </Section>
 
-      <Section title="Best Bowler (Wickets)" expanded={!!expand.bowl} onToggle={() => toggle('bowl')}>
+      <Section title="Bowling (by fantasy points)" expanded={!!expand.bowl} onToggle={() => toggle('bowl')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
               <th className="pb-2">#</th>
               <th className="pb-2">Player</th>
+              <th className="pb-2">Pts</th>
               <th className="pb-2">Wickets</th>
               <th className="pb-2">Econ</th>
             </tr>
@@ -90,6 +93,7 @@ export default function LeaderboardView({
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
                 <td className="py-2">{p.name}</td>
+                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.bowlingPoints}</td>
                 <td className="py-2">{p.wickets}</td>
                 <td className="py-2">{p.economy.toFixed(1)}</td>
               </tr>
@@ -98,12 +102,13 @@ export default function LeaderboardView({
         </table>
       </Section>
 
-      <Section title="Best Fielder (Catches + Run outs)" expanded={!!expand.field} onToggle={() => toggle('field')}>
+      <Section title="Fielding (by fantasy points)" expanded={!!expand.field} onToggle={() => toggle('field')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
               <th className="pb-2">#</th>
               <th className="pb-2">Player</th>
+              <th className="pb-2">Pts</th>
               <th className="pb-2">Catches</th>
               <th className="pb-2">Run outs</th>
             </tr>
@@ -113,6 +118,7 @@ export default function LeaderboardView({
               <tr key={p.playerId} className="border-b border-slate-700/50">
                 <td className="py-2">{i + 1}</td>
                 <td className="py-2">{p.name}</td>
+                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.fieldingPoints}</td>
                 <td className="py-2">{p.catches}</td>
                 <td className="py-2">{p.runouts}</td>
               </tr>

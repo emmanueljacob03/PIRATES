@@ -39,16 +39,14 @@ export default async function DashboardPage() {
       list.push(s);
       groups.set(id, list);
     });
-    let topId: string | null = null;
-    let topPts = -1;
+    const contenders: { id: string; pts: number }[] = [];
     groups.forEach((rows, id) => {
       const pts = sumCategoryPointsAcrossRows(rows.map((r) => matchStatRowFromDb(r))).total;
-      if (pts > topPts) {
-        topPts = pts;
-        topId = id;
-      }
+      contenders.push({ id, pts });
     });
-    if (topId != null && topPts > 0) {
+    contenders.sort((a, b) => b.pts - a.pts || a.id.localeCompare(b.id));
+    const topId = contenders.length > 0 && contenders[0].pts > 0 ? contenders[0].id : null;
+    if (topId != null) {
       const { data: player } = await supabase
         .from('players')
         .select('name, photo')

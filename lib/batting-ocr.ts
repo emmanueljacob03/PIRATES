@@ -16,10 +16,42 @@ export type ParsedBatting = {
 };
 
 /**
+ * OCR often splits "46" into 4 and 6. Merge when the next value looks like balls faced.
+ */
+export function repairBattingNumberSequence(nums: number[]): number[] {
+  if (nums.length < 3) return nums;
+  const a0 = nums[0];
+  const a1 = nums[1];
+  if (
+    Number.isInteger(a0) &&
+    Number.isInteger(a1) &&
+    a0 >= 0 &&
+    a0 <= 9 &&
+    a1 >= 0 &&
+    a1 <= 9 &&
+    !(a0 === 0 && a1 === 0)
+  ) {
+    const merged = a0 * 10 + a1;
+    const balls = nums[2];
+    if (
+      merged >= 10 &&
+      merged <= 350 &&
+      balls >= 1 &&
+      balls <= 180 &&
+      Number.isFinite(balls)
+    ) {
+      return [merged, balls, ...nums.slice(3)];
+    }
+  }
+  return nums;
+}
+
+/**
  * From a contiguous list of numbers after a player name, infer R / B / 4s / 6s.
  * Prefers 5-value rows (with SR) when the last value matches runs/balls*100.
  */
 export function parseBattingNumbers(nums: number[]): ParsedBatting | null {
+  nums = repairBattingNumberSequence(nums);
   const n = nums.length;
   if (n >= 5) {
     const runs = Math.max(0, Math.round(nums[0]));

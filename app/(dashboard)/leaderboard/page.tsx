@@ -24,7 +24,7 @@ type LeaderboardRow = {
 const emptyLeaderboard: {
   bestBatsman: LeaderboardRow[];
   bestBowler: LeaderboardRow[];
-  bestFielder: (LeaderboardRow & { fieldPoints: number })[];
+  bestFielder: LeaderboardRow[];
   mvp: LeaderboardRow[];
 } = {
   bestBatsman: [],
@@ -101,15 +101,28 @@ export default async function LeaderboardPage() {
       });
     });
 
+    const byBattingPts = (a: LeaderboardRow, b: LeaderboardRow) =>
+      b.battingPoints !== a.battingPoints
+        ? b.battingPoints - a.battingPoints
+        : b.runs - a.runs || a.playerId.localeCompare(b.playerId);
+    const byBowlingPts = (a: LeaderboardRow, b: LeaderboardRow) =>
+      b.bowlingPoints !== a.bowlingPoints
+        ? b.bowlingPoints - a.bowlingPoints
+        : b.wickets - a.wickets || a.playerId.localeCompare(b.playerId);
+    const byFieldingPts = (a: LeaderboardRow, b: LeaderboardRow) =>
+      b.fieldingPoints !== a.fieldingPoints
+        ? b.fieldingPoints - a.fieldingPoints
+        : b.catches + b.runouts - (a.catches + a.runouts) || a.playerId.localeCompare(b.playerId);
+    const byMvp = (a: LeaderboardRow, b: LeaderboardRow) =>
+      b.points !== a.points ? b.points - a.points : a.playerId.localeCompare(b.playerId);
+
     data = {
-      bestBatsman: [...withNames]
-        .filter((p) => p.runs > 0 || p.balls > 0)
-        .sort((a, b) => b.runs - a.runs),
-      bestBowler: [...withNames].sort((a, b) => b.wickets - a.wickets),
+      bestBatsman: [...withNames].filter((p) => p.runs > 0 || p.balls > 0 || p.battingPoints > 0).sort(byBattingPts),
+      bestBowler: [...withNames].filter((p) => p.wickets > 0 || p.overs > 0 || p.bowlingPoints > 0).sort(byBowlingPts),
       bestFielder: [...withNames]
-        .map((p) => ({ ...p, fieldPoints: p.catches + p.runouts }))
-        .sort((a, b) => b.fieldPoints - a.fieldPoints),
-      mvp: [...withNames].sort((a, b) => b.points - a.points),
+        .filter((p) => p.catches > 0 || p.runouts > 0 || p.fieldingPoints > 0)
+        .sort(byFieldingPts),
+      mvp: [...withNames].sort(byMvp),
     };
   } catch {
     data = emptyLeaderboard;

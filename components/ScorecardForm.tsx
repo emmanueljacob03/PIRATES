@@ -3,8 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { bestBattingFromSnippet, stripRoleMarkers } from '@/lib/batting-ocr';
+import { bestBattingFromSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet } from '@/lib/bowling-ocr';
+import { findLineForPlayer } from '@/lib/scorecard-ocr-match';
+import { dotOversToTotalBalls, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
   battingPointsContributed,
   bowlingPointsContributed,
@@ -106,6 +108,7 @@ export default function ScorecardForm({
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string>('');
   const [ocrInfo, setOcrInfo] = useState<string>('');
+  const [saveError, setSaveError] = useState<string>('');
 
   const [batting1, setBatting1] = useState<File | null>(null);
   const [batting2, setBatting2] = useState<File | null>(null);
@@ -113,39 +116,58 @@ export default function ScorecardForm({
   const [fielding1, setFielding1] = useState<File | null>(null);
   const [fielding2, setFielding2] = useState<File | null>(null);
 
-  function normalizeName(s: string) {
-    return (s || '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim()
-      .replace(/\s+/g, ' ');
-  }
-
   function extractNumbers(snippet: string) {
     const matches = snippet.match(/\d+\.\d+|\d+/g);
     return matches ? matches.map((n) => Number(n)) : [];
   }
 
-  function findSnippet(text: string, playerName: string) {
-    const t = text.toLowerCase();
-    const name = normalizeName(stripRoleMarkers(playerName));
-    if (!name) return null;
-    const parts = name.split(' ').filter((p) => p.length >= 2);
-    const sortedParts = [...parts].sort((a, b) => b.length - a.length);
-    let idx2 = -1;
-    for (const part of sortedParts) {
-      const j = t.indexOf(part);
-      if (j >= 0) {
-        idx2 = j;
-        break;
-      }
+  const serverStatsKey = useMemo(
+    () =>
+      JSON.stringify(
+        existingStats.map((s) => ({
+          id: s.id,
+          player_id: s.player_id,
+          runs: s.runs,
+          balls: s.balls,
+          fours: s.fours,
+          sixes: s.sixes,
+          overs: s.overs,
+          maidens: s.maidens,
+          wickets: s.wickets,
+          runs_conceded: s.runs_conceded,
+          catches: s.catches,
+          runouts: s.runouts,
+          mvp: s.mvp,
+          include_bat: s.include_bat,
+          include_bowl: s.include_bowl,
+          include_field: s.include_field,
+        })),
+      ),
+    [existingStats],
+  );
+
+  const playersOrderKey = useMemo(() => players.map((p) => `${p.id}:${p.name}`).join('|'), [players]);
+
+  /** Keep section toggles on if that section has non-zero stats (avoids “empty tables” after save). */
+  function normalizeRowForPersist(r: StatRow): StatRow {
+    let include_bat = r.include_bat;
+    let include_bowl = r.include_bowl;
+    let include_field = r.include_field;
+    if (r.runs > 0 || r.balls > 0 || r.fours > 0 || r.sixes > 0) include_bat = true;
+    if (r.overs > 0 || r.maidens > 0 || r.wickets > 0 || r.runs_conceded > 0) include_bowl = true;
+    if (r.catches > 0 || r.runouts > 0) include_field = true;
+    if (!include_bat && !include_bowl && !include_field) {
+      include_bat = true;
+      include_bowl = true;
+      include_field = true;
     }
-    if (idx2 < 0) {
-      const first = parts[0];
-      if (first) idx2 = t.indexOf(first);
-    }
-    if (idx2 < 0) return null;
-    return text.slice(Math.max(0, idx2 - 35), Math.min(text.length, idx2 + 380));
+    return {
+      ...r,
+      overs: normalizeDotOversInput(r.overs),
+      include_bat,
+      include_bowl,
+      include_field,
+    };
   }
 
   function emptyRow(playerId: string): StatRow {
@@ -201,6 +223,21 @@ export default function ScorecardForm({
       const bowlingText = bw || '';
       const fieldingText = [f1, f2].filter(Boolean).join('\n');
 
+      const battingLines = battingText
+        ? battingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
+        : [];
+      const bowlingLines = bowlingText
+        ? bowlingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
+        : [];
+      const fieldingLines = fieldingText
+        ? fieldingText.split(/\n/).map((l) => l.trim()).filter(Boolean)
+        : [];
+
+      const claimedBat = new Set<number>();
+      const claimedBowl = new Set<number>();
+      const claimedField = new Set<number>();
+      const playersBySpecificity = [...players].sort((a, b) => b.name.length - a.name.length);
+
       let fillBat = 0;
       let fillBowl = 0;
       let fillField = 0;
@@ -209,10 +246,19 @@ export default function ScorecardForm({
       setRows((prev) => {
         const map = new Map(prev.map((r) => [r.player_id, { ...r }]));
 
-        for (const p of players) {
-          const batSnippet = hasBat && battingText ? findSnippet(battingText, p.name) : null;
-          const bowlSnippet = hasBowl && bowlingText ? findSnippet(bowlingText, p.name) : null;
-          const fieldSnippet = hasField && fieldingText ? findSnippet(fieldingText, p.name) : null;
+        for (const p of playersBySpecificity) {
+          const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
+          if (batHit) claimedBat.add(batHit.lineIndex);
+          const batSnippet = batHit?.line ?? null;
+
+          const bowlHit = hasBowl && bowlingLines.length ? findLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
+          if (bowlHit) claimedBowl.add(bowlHit.lineIndex);
+          const bowlSnippet = bowlHit?.line ?? null;
+
+          const fieldHit = hasField && fieldingLines.length ? findLineForPlayer(fieldingLines, p.name, claimedField) : null;
+          if (fieldHit) claimedField.add(fieldHit.lineIndex);
+          const fieldSnippet = fieldHit?.line ?? null;
+
           if (!batSnippet && !bowlSnippet && !fieldSnippet) continue;
 
           let row = map.get(p.id);
@@ -244,7 +290,7 @@ export default function ScorecardForm({
               parsed &&
               (parsed.overs > 0 || parsed.wickets > 0 || parsed.runs_conceded > 0 || parsed.maidens > 0)
             ) {
-              row.overs = parsed.overs;
+              row.overs = normalizeDotOversInput(parsed.overs);
               row.maidens = parsed.maidens;
               row.runs_conceded = parsed.runs_conceded;
               row.wickets = parsed.wickets;
@@ -300,24 +346,26 @@ export default function ScorecardForm({
   useEffect(() => {
     const order = new Map(players.map((p, i) => [p.id, i]));
     if (existingStats.length > 0) {
-      const mapped = existingStats.map((s) => ({
-        id: s.id,
-        player_id: s.player_id,
-        runs: s.runs ?? 0,
-        balls: s.balls ?? 0,
-        fours: s.fours ?? 0,
-        sixes: s.sixes ?? 0,
-        overs: s.overs ?? 0,
-        maidens: s.maidens ?? 0,
-        wickets: s.wickets ?? 0,
-        runs_conceded: s.runs_conceded ?? 0,
-        catches: s.catches ?? 0,
-        runouts: s.runouts ?? 0,
-        mvp: s.mvp ?? false,
-        include_bat: s.include_bat !== false,
-        include_bowl: s.include_bowl !== false,
-        include_field: s.include_field !== false,
-      }));
+      const mapped = existingStats.map((s) =>
+        normalizeRowForPersist({
+          id: s.id,
+          player_id: s.player_id,
+          runs: s.runs ?? 0,
+          balls: s.balls ?? 0,
+          fours: s.fours ?? 0,
+          sixes: s.sixes ?? 0,
+          overs: Number(s.overs ?? 0),
+          maidens: s.maidens ?? 0,
+          wickets: s.wickets ?? 0,
+          runs_conceded: s.runs_conceded ?? 0,
+          catches: s.catches ?? 0,
+          runouts: s.runouts ?? 0,
+          mvp: s.mvp ?? false,
+          include_bat: s.include_bat !== false,
+          include_bowl: s.include_bowl !== false,
+          include_field: s.include_field !== false,
+        }),
+      );
       setRows(
         [...mapped].sort(
           (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
@@ -328,7 +376,7 @@ export default function ScorecardForm({
     } else {
       setRows([]);
     }
-  }, [players, existingStats, prefillKey]);
+  }, [serverStatsKey, playersOrderKey, prefillKey]);
 
   function computeMatchMvpFlags(sortedRows: StatRow[]): Map<string, boolean> {
     const m = new Map<string, boolean>();
@@ -350,26 +398,37 @@ export default function ScorecardForm({
 
   async function handleSave() {
     setSaving(true);
+    setSaveError('');
     try {
-      const selectedPlayerIds = new Set(rows.map((r) => r.player_id));
+      const normalized = rows.map((r) => normalizeRowForPersist(r));
+      const selectedPlayerIds = new Set(normalized.map((r) => r.player_id));
       const order = new Map(players.map((p, i) => [p.id, i]));
-      const sortedForMvp = [...rows].sort(
+      const sortedForMvp = [...normalized].sort(
         (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
       );
       const mvpByPlayer = computeMatchMvpFlags(sortedForMvp);
 
-      const { data: existingForMatch } = await supabase
+      const { data: existingForMatch, error: fetchErr } = await supabase
         .from('match_stats')
         .select('id, player_id')
         .eq('match_id', matchId);
 
+      if (fetchErr) {
+        setSaveError(fetchErr.message);
+        return;
+      }
+
       const existingList = (existingForMatch ?? []) as { id: string; player_id: string }[];
       const toDelete = existingList.filter((s) => !selectedPlayerIds.has(s.player_id));
       for (const del of toDelete) {
-        await supabase.from('match_stats').delete().eq('id', del.id);
+        const { error: delErr } = await supabase.from('match_stats').delete().eq('id', del.id);
+        if (delErr) {
+          setSaveError(delErr.message);
+          return;
+        }
       }
 
-      for (const row of rows) {
+      for (const row of normalized) {
         const payload = {
           match_id: matchId,
           player_id: row.player_id,
@@ -390,14 +449,23 @@ export default function ScorecardForm({
         };
         if (row.id) {
           // @ts-expect-error Supabase Insert type may lag schema migrations
-          await supabase.from('match_stats').update(payload).eq('id', row.id);
+          const { error: upErr } = await supabase.from('match_stats').update(payload).eq('id', row.id);
+          if (upErr) {
+            setSaveError(upErr.message);
+            return;
+          }
         } else {
           // @ts-expect-error Supabase Insert type may lag schema migrations
-          await supabase.from('match_stats').upsert(payload, {
+          const { error: upErr } = await supabase.from('match_stats').upsert(payload, {
             onConflict: 'match_id,player_id',
           });
+          if (upErr) {
+            setSaveError(upErr.message);
+            return;
+          }
         }
       }
+      setRows(normalized);
       router.refresh();
     } finally {
       setSaving(false);
@@ -708,10 +776,20 @@ export default function ScorecardForm({
                           min="0"
                           step="0.1"
                           className="input-field w-20 py-1 text-center"
-                          value={r.overs}
+                          title="Dot overs: 1.1 = 1 over + 1 ball (7 balls). 1.5 = 11 balls."
+                          value={formatDotOversForInput(r.overs)}
                           disabled={!isAdmin}
-                          onChange={(e) => updateRow(r.player_id, 'overs', parseFloat(e.target.value) || 0)}
+                          onChange={(e) =>
+                            updateRow(
+                              r.player_id,
+                              'overs',
+                              normalizeDotOversInput(parseFloat(e.target.value) || 0),
+                            )
+                          }
                         />
+                        <p className="text-[10px] text-slate-500 mt-0.5 whitespace-nowrap">
+                          ≈ {dotOversToTotalBalls(r.overs)} balls
+                        </p>
                       </td>
                       <td className="py-2">
                         <input
@@ -807,6 +885,7 @@ export default function ScorecardForm({
           </table>
         </section>
 
+        {saveError && <p className="text-sm text-red-400 mt-4">{saveError}</p>}
         <button
           type="button"
           onClick={handleSave}
