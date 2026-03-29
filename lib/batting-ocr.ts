@@ -2,8 +2,16 @@
  * Heuristics for batting scorecard OCR: column order R, B, 4s, 6s, SR (strike rate).
  */
 
+/** Unicode fullwidth digits → ASCII so \d+ can see them. */
+function normalizeOcrDigitChars(s: string): string {
+  return (s || '').replace(/[\uFF10-\uFF19]/g, (ch) =>
+    String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30),
+  );
+}
+
 export function extractOrderedNumbers(snippet: string): number[] {
-  const m = snippet.match(/\d+\.\d+|\d+/g);
+  const s = normalizeOcrDigitChars(snippet).replace(/\r\n?/g, '\n');
+  const m = s.match(/\d+\.\d+|\d+/g);
   if (!m) return [];
   return m.map((x) => parseFloat(x)).filter((n) => Number.isFinite(n));
 }
@@ -75,6 +83,47 @@ export function parseBattingNumbers(nums: number[]): ParsedBatting | null {
       sixes: Math.max(0, Math.round(nums[3])),
     };
   }
+  if (n === 3) {
+    const a = Math.max(0, Math.round(nums[0]));
+    const b = Math.max(0, Math.round(nums[1]));
+    const t = nums[2];
+    const tInt = Math.max(0, Math.round(t));
+    const variants: ParsedBatting[] = [];
+    const vseen = new Set<string>();
+    const push = (p: ParsedBatting) => {
+      const key = `${p.runs}-${p.balls}-${p.fours}-${p.sixes}`;
+      if (vseen.has(key)) return;
+      vseen.add(key);
+      variants.push(p);
+    };
+    const trySr = (runs: number, balls: number) => {
+      if (balls >= 1 && runs <= 400 && balls <= 200 && t >= 50 && t <= 300) {
+        const expectedSr = (runs / balls) * 100;
+        if (Math.abs(t - expectedSr) <= Math.max(18, expectedSr * 0.12)) {
+          push({ runs, balls, fours: 0, sixes: 0 });
+        }
+      }
+    };
+    trySr(a, b);
+    trySr(b, a);
+    const tryFours = (runs: number, balls: number) => {
+      if (runs <= 400 && balls <= 200 && tInt <= 30) {
+        push({ runs, balls, fours: tInt, sixes: 0 });
+      }
+    };
+    tryFours(a, b);
+    tryFours(b, a);
+    let best3: ParsedBatting | null = null;
+    let bestS3 = Number.NEGATIVE_INFINITY;
+    for (const v of variants) {
+      const s = batScore(v);
+      if (s > bestS3) {
+        bestS3 = s;
+        best3 = v;
+      }
+    }
+    if (best3 && isPlausibleBatting(best3)) return best3;
+  }
   if (n >= 2) {
     return {
       runs: Math.max(0, Math.round(nums[0])),
@@ -113,9 +162,34 @@ function isPlausibleBatting(p: ParsedBatting): boolean {
   return true;
 }
 
+/** Higher = more likely correct R–B–4s–6s for typical scorecards. */
+function batScore(p: ParsedBatting): number {
+  if (!isPlausibleBatting(p)) return Number.NEGATIVE_INFINITY;
+  let s = 0;
+  const boundaryRuns = p.fours * 4 + p.sixes * 6;
+  const nonBoundary = p.runs - boundaryRuns;
+  if (p.balls > 0) {
+    const sr = (p.runs / p.balls) * 100;
+    if (sr >= 35 && sr <= 220) s += 40;
+    else if (sr >= 15 && sr <= 320) s += 20;
+    else s -= 25;
+  }
+  if (nonBoundary >= -2 && nonBoundary <= p.balls + p.fours * 2 + p.sixes * 3) s += 30;
+  else if (nonBoundary >= -15 && nonBoundary <= p.balls * 2 + 20) s += 10;
+  else s -= 35;
+  const bBound = p.fours + p.sixes;
+  if (bBound <= p.balls + 2) s += 24;
+  else if (bBound <= p.balls + 10) s += 8;
+  else s -= (bBound - p.balls) * 8;
+  if (p.sixes * 6 + p.fours * 4 > p.runs + 8) s -= 50;
+  if (p.runs > p.balls * 4 && p.balls > 8) s -= 15;
+  s += Math.min(p.runs, 260) * 0.03;
+  return s;
+}
+
 /**
- * Try every plausible window — jersey / dismissal text often adds extra leading digits;
- * stats are often the last 4–5 numbers on the line.
+ * Batting stats are almost always the last numbers on the line (R B 4s 6s [SR]).
+ * We only consider suffix windows and pick by plausibility score — not raw sum of digits.
  */
 export function findBestBattingFromNumberSeries(nums: number[]): ParsedBatting | null {
   if (!nums.length) return null;
@@ -144,38 +218,58 @@ export function findBestBattingFromNumberSeries(nums: number[]): ParsedBatting |
   };
 
   const repairedAll = repairBattingNumberSequence([...nums]);
-  for (const w of [5, 4, 2]) {
-    for (let i = 0; i + w <= repairedAll.length; i++) {
-      trySlice(repairedAll.slice(i, i + w));
-    }
-  }
-  for (const w of [6, 5, 4]) {
+  for (const w of [6, 5, 4, 3, 2]) {
     if (repairedAll.length >= w) trySlice(repairedAll.slice(-w));
   }
 
   if (!candidates.length) {
     const last = parseBattingNumbers(repairedAll);
-    if (
-      last &&
-      last.runs + last.balls > 0 &&
-      last.runs <= 450 &&
-      last.balls <= 200 &&
-      last.fours <= 50 &&
-      last.sixes <= 40 &&
-      !(last.runs > 0 && last.balls === 0)
-    ) {
-      return last;
-    }
+    if (last && isPlausibleBatting(last)) return last;
     return null;
   }
 
-  candidates.sort((a, b) => {
-    const ta = a.runs + a.balls;
-    const tb = b.runs + b.balls;
-    if (tb !== ta) return tb - ta;
-    return b.runs - a.runs;
-  });
-  return candidates[0] ?? null;
+  let best: ParsedBatting | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const c of candidates) {
+    const sc = batScore(c);
+    if (sc > bestScore) {
+      bestScore = sc;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Many scorecards OCR as: line N = player name (+ dismissal text, few digits), line N+1 = R B 4s 6s SR.
+ * Only lines where a name matched are "claimed"; stats-only lines stay unclaimed — we may append them.
+ */
+export function buildBattingOcrSnippet(
+  allLines: string[],
+  nameLineIndex: number,
+  claimedLineIndices: Set<number>,
+): string {
+  if (nameLineIndex < 0 || nameLineIndex >= allLines.length) return '';
+  const parts: string[] = [allLines[nameLineIndex]];
+  let joinedNums = extractOrderedNumbers(
+    parts.map((p) => cleanBattingLineForOcr(p)).join(' '),
+  ).length;
+  if (joinedNums >= 4) return parts.join('\n');
+
+  const fewDigitsOnNameRow =
+    extractOrderedNumbers(cleanBattingLineForOcr(allLines[nameLineIndex])).length < 2;
+
+  for (let off = 1; off <= 3 && nameLineIndex + off < allLines.length; off++) {
+    const ni = nameLineIndex + off;
+    if (claimedLineIndices.has(ni)) break;
+    parts.push(allLines[ni]);
+    joinedNums = extractOrderedNumbers(
+      parts.map((p) => cleanBattingLineForOcr(p)).join(' '),
+    ).length;
+    if (joinedNums >= 4) break;
+    if (fewDigitsOnNameRow && joinedNums >= 2) break;
+  }
+  return parts.join('\n');
 }
 
 /**

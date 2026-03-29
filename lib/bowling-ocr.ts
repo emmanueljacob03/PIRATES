@@ -54,7 +54,32 @@ function parseBowlingNums(nums: number[]): ParsedBowling | null {
 }
 
 /**
+ * Many sheets OCR as: line N = bowler name (+ figures inline), line N+1 = O M R W (or ER).
+ * Same pattern as batting: claim name lines only; append following unclaimed lines until we have enough digits.
+ */
+export function buildBowlingOcrSnippet(
+  allLines: string[],
+  nameLineIndex: number,
+  claimedLineIndices: Set<number>,
+): string {
+  if (nameLineIndex < 0 || nameLineIndex >= allLines.length) return '';
+  const parts: string[] = [allLines[nameLineIndex]];
+  const joinedCount = () => extractOrderedNumbers(parts.join(' ')).length;
+  if (joinedCount() >= 4) return parts.join('\n');
+  const fewOnName = extractOrderedNumbers(allLines[nameLineIndex]).length < 2;
+  for (let off = 1; off <= 4 && nameLineIndex + off < allLines.length; off++) {
+    const ni = nameLineIndex + off;
+    if (claimedLineIndices.has(ni)) break;
+    parts.push(allLines[ni]);
+    if (joinedCount() >= 4) break;
+    if (fewOnName && joinedCount() >= 2) break;
+  }
+  return parts.join('\n');
+}
+
+/**
  * After player name, expect column order O, M, R, W (ER optional on some sheets).
+ * Uses line-by-line parse first; then trailing number windows so jersey/extra digits on the name row do not swallow O/M/R/W.
  */
 export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
   const lines = snippet.split(/\n/).map((l) => l.trim()).filter(Boolean);
@@ -64,5 +89,10 @@ export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
     if (p) return p;
   }
   const all = extractOrderedNumbers(snippet);
+  for (const w of [6, 5, 4]) {
+    if (all.length < w) continue;
+    const p = parseBowlingNums(all.slice(-w));
+    if (p) return p;
+  }
   return parseBowlingNums(all);
 }

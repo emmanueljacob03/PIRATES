@@ -1,4 +1,4 @@
--- Run once in Supabase SQL Editor if scorecard save fails on missing columns (schema cache).
+-- Run once in Supabase → SQL Editor if scorecard save fails on missing columns / schema cache.
 -- Idempotent: safe to re-run.
 
 ALTER TABLE public.match_stats
@@ -10,3 +10,7 @@ ALTER TABLE public.match_stats
   ADD COLUMN IF NOT EXISTS include_bowl BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS include_field BOOLEAN NOT NULL DEFAULT TRUE,
   ADD COLUMN IF NOT EXISTS maidens INT NOT NULL DEFAULT 0;
+
+-- Ask PostgREST to reload schema (helps clear "schema cache" errors immediately on self-hosted).
+-- On hosted Supabase, columns still appear after a short delay if this has no effect.
+NOTIFY pgrst, 'reload schema';

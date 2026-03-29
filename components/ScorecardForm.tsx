@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { bestBattingFromSnippet } from '@/lib/batting-ocr';
-import { bestBowlingFromSnippet } from '@/lib/bowling-ocr';
+import { bestBattingFromSnippet, buildBattingOcrSnippet } from '@/lib/batting-ocr';
+import { bestBowlingFromSnippet, buildBowlingOcrSnippet } from '@/lib/bowling-ocr';
 import { findLineForPlayer } from '@/lib/scorecard-ocr-match';
 import { formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
@@ -122,6 +122,7 @@ export default function ScorecardForm({
   const [ocrError, setOcrError] = useState<string>('');
   const [ocrInfo, setOcrInfo] = useState<string>('');
   const [saveError, setSaveError] = useState<string>('');
+  const [saveWarning, setSaveWarning] = useState<string>('');
 
   const [batting1, setBatting1] = useState<File | null>(null);
   const [batting2, setBatting2] = useState<File | null>(null);
@@ -217,8 +218,12 @@ export default function ScorecardForm({
 
     setOcrLoading(true);
     try {
-      const { createWorker } = await import('tesseract.js');
+      const { createWorker, PSM } = await import('tesseract.js');
       const worker = await createWorker('eng');
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        user_defined_dpi: '300',
+      });
       const ocrOne = async (f: File | null) => {
         if (!f) return '';
         const res = await worker.recognize(f);
@@ -262,19 +267,25 @@ export default function ScorecardForm({
       const map = new Map(prev.map((r) => [r.player_id, { ...r }]));
 
       for (const p of playersBySpecificity) {
-        const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
-        if (batHit) claimedBat.add(batHit.lineIndex);
-        const batSnippet = batHit?.line ?? null;
+          const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
+          if (batHit) claimedBat.add(batHit.lineIndex);
+          const batSnippet =
+            batHit && hasBat && battingLines.length
+              ? buildBattingOcrSnippet(battingLines, batHit.lineIndex, claimedBat)
+              : null;
 
         const bowlHit = hasBowl && bowlingLines.length ? findLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
         if (bowlHit) claimedBowl.add(bowlHit.lineIndex);
-        const bowlSnippet = bowlHit?.line ?? null;
+        const bowlSnippet =
+          bowlHit && hasBowl && bowlingLines.length
+            ? buildBowlingOcrSnippet(bowlingLines, bowlHit.lineIndex, claimedBowl)
+            : null;
 
         const fieldHit = hasField && fieldingLines.length ? findLineForPlayer(fieldingLines, p.name, claimedField) : null;
         if (fieldHit) claimedField.add(fieldHit.lineIndex);
         const fieldSnippet = fieldHit?.line ?? null;
 
-        if (!batSnippet && !bowlSnippet && !fieldSnippet) continue;
+        if (!batSnippet?.trim() && !bowlSnippet?.trim() && !fieldSnippet) continue;
 
         nameHits += 1;
 
@@ -428,73 +439,45 @@ export default function ScorecardForm({
   async function handleSave() {
     setSaving(true);
     setSaveError('');
+    setSaveWarning('');
     try {
       const normalized = rows.map((r) => normalizeRowForPersist(r));
-      const selectedPlayerIds = new Set(normalized.map((r) => r.player_id));
       const order = new Map(players.map((p, i) => [p.id, i]));
       const sortedForMvp = [...normalized].sort(
         (a, b) => (order.get(a.player_id) ?? 9999) - (order.get(b.player_id) ?? 9999),
       );
       const mvpByPlayer = computeMatchMvpFlags(sortedForMvp);
 
-      const { data: existingForMatch, error: fetchErr } = await supabase
-        .from('match_stats')
-        .select('id, player_id')
-        .eq('match_id', matchId);
+      const rowsPayload = normalized.map((r) => ({
+        ...r,
+        mvp: mvpByPlayer.get(r.player_id) ?? false,
+      }));
 
-      if (fetchErr) {
-        setSaveError(withMatchStatsSchemaHint(fetchErr.message));
+      const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: rowsPayload }),
+      });
+
+      let data: { error?: string; legacyColumnsOnly?: boolean } = {};
+      try {
+        data = await res.json();
+      } catch {
+        /* empty */
+      }
+
+      if (!res.ok) {
+        setSaveError(withMatchStatsSchemaHint(data.error || 'Save failed'));
         return;
       }
 
-      const existingList = (existingForMatch ?? []) as { id: string; player_id: string }[];
-      const toDelete = existingList.filter((s) => !selectedPlayerIds.has(s.player_id));
-      for (const del of toDelete) {
-        const { error: delErr } = await supabase.from('match_stats').delete().eq('id', del.id);
-        if (delErr) {
-          setSaveError(withMatchStatsSchemaHint(delErr.message));
-          return;
-        }
+      if (data.legacyColumnsOnly) {
+        setSaveWarning(
+          'Saved core batting/bowling/fielding numbers only. Fours, sixes, maidens, and Bat/Bowl/Field toggles were not written because those columns are missing or not in PostgREST’s schema cache. Run supabase/alter_match_stats_scorecard_columns_bundle.sql in the Supabase SQL Editor, wait a minute, then save again to persist everything.',
+        );
       }
 
-      for (const row of normalized) {
-        const payload = {
-          match_id: matchId,
-          player_id: row.player_id,
-          runs: row.runs,
-          balls: row.balls,
-          fours: row.fours,
-          sixes: row.sixes,
-          overs: row.overs,
-          maidens: row.maidens,
-          wickets: row.wickets,
-          runs_conceded: row.runs_conceded,
-          catches: row.catches,
-          runouts: row.runouts,
-          mvp: mvpByPlayer.get(row.player_id) ?? false,
-          include_bat: row.include_bat,
-          include_bowl: row.include_bowl,
-          include_field: row.include_field,
-        };
-        if (row.id) {
-          // @ts-expect-error Supabase Insert type may lag schema migrations
-          const { error: upErr } = await supabase.from('match_stats').update(payload).eq('id', row.id);
-          if (upErr) {
-            setSaveError(withMatchStatsSchemaHint(upErr.message));
-            return;
-          }
-        } else {
-          // @ts-expect-error Supabase Insert type may lag schema migrations
-          const { error: upErr } = await supabase.from('match_stats').upsert(payload, {
-            onConflict: 'match_id,player_id',
-          });
-          if (upErr) {
-            setSaveError(withMatchStatsSchemaHint(upErr.message));
-            return;
-          }
-        }
-      }
-      setRows(normalized);
+      setRows(rowsPayload);
       router.refresh();
     } finally {
       setSaving(false);
@@ -911,6 +894,7 @@ export default function ScorecardForm({
           </table>
         </section>
 
+        {saveWarning && <p className="text-sm text-amber-300 mt-4">{saveWarning}</p>}
         {saveError && <p className="text-sm text-red-400 mt-4">{saveError}</p>}
         <button
           type="button"
