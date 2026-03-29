@@ -144,6 +144,10 @@ export interface Database {
           catches: number;
           runouts: number;
           mvp: boolean;
+          include_bat: boolean;
+          include_bowl: boolean;
+          include_field: boolean;
+          maidens: number;
           created_at: string;
         };
         Insert: Omit<Database['public']['Tables']['match_stats']['Row'], 'id' | 'created_at'> & {

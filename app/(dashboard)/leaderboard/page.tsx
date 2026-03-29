@@ -1,9 +1,11 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import LeaderboardView from '@/components/LeaderboardView';
+import { matchStatRowFromDb, sumCategoryPointsAcrossRows } from '@/lib/cricket-points';
 
 type LeaderboardRow = {
   playerId: string;
   name: string;
+  photoUrl: string | null;
   runs: number;
   balls: number;
   wickets: number;
@@ -13,7 +15,6 @@ type LeaderboardRow = {
   runouts: number;
   strikeRate: number;
   economy: number;
-  /** MVP = battingPoints + bowlingPoints + fieldingPoints (season totals). */
   battingPoints: number;
   bowlingPoints: number;
   fieldingPoints: number;
@@ -32,54 +33,73 @@ const emptyLeaderboard: {
   mvp: [],
 };
 
+function economyFromDotOversAgg(oversDotSum: number, runsConcededSum: number): number {
+  if (!oversDotSum || oversDotSum <= 0) return 0;
+  const wholeOvers = Math.floor(oversDotSum);
+  const ballsDigitRaw = Math.round((oversDotSum - wholeOvers) * 10);
+  const ballsDigit = Math.max(0, Math.min(5, ballsDigitRaw));
+  const totalBalls = wholeOvers * 6 + ballsDigit;
+  const realOvers = totalBalls / 6;
+  if (realOvers <= 0) return 0;
+  return runsConcededSum / realOvers;
+}
+
 export default async function LeaderboardPage() {
   let data: typeof emptyLeaderboard = emptyLeaderboard;
   try {
     const supabase = await createServerSupabase();
-    const { data: stats } = await supabase
-      .from('match_stats')
-      .select('player_id, runs, balls, overs, wickets, runs_conceded, catches, runouts');
-    const { data: players } = await supabase.from('players').select('id, name');
+    const { data: stats } = await supabase.from('match_stats').select('*');
+    const { data: players } = await supabase.from('players').select('id, name, photo');
 
-    type PlayerRow = { id: string; name: string };
-    const playerMap = new Map(((players ?? []) as PlayerRow[]).map((p) => [p.id, p.name]));
+    type PlayerRow = { id: string; name: string; photo: string | null };
+    const playerMap = new Map(((players ?? []) as PlayerRow[]).map((p) => [p.id, p]));
 
-    const agg: Record<string, { runs: number; balls: number; overs: number; wickets: number; runs_conceded: number; catches: number; runouts: number }> = {};
-    const statsList = (stats ?? []) as { player_id: string; runs: number; balls: number; overs: number; wickets: number; runs_conceded: number; catches: number; runouts: number }[];
+    type StatRow = Record<string, unknown> & { player_id: string };
+    const statsList = (stats ?? []) as StatRow[];
+
+    const groups = new Map<string, StatRow[]>();
     statsList.forEach((s) => {
       const id = s.player_id;
-      if (!agg[id]) agg[id] = { runs: 0, balls: 0, overs: 0, wickets: 0, runs_conceded: 0, catches: 0, runouts: 0 };
-      agg[id].runs += s.runs ?? 0;
-      agg[id].balls += s.balls ?? 0;
-      agg[id].overs += s.overs ?? 0;
-      agg[id].wickets += s.wickets ?? 0;
-      agg[id].runs_conceded += s.runs_conceded ?? 0;
-      agg[id].catches += s.catches ?? 0;
-      agg[id].runouts += s.runouts ?? 0;
+      const list = groups.get(id) ?? [];
+      list.push(s);
+      groups.set(id, list);
     });
 
-    const withNames = Object.entries(agg).map(([playerId, a]) => ({
-      playerId,
-      name: playerMap.get(playerId) ?? 'Unknown',
-      ...a,
-      strikeRate: a.balls > 0 ? (a.runs / a.balls) * 100 : 0,
-      economy: (() => {
-        // Treat `overs` as cricket dot-overs (e.g. 1.1 = 1 over + 1 ball => 7 balls / 6 = 1.1667 real overs)
-        if (!a.overs || a.overs <= 0) return 0;
-        const wholeOvers = Math.floor(a.overs);
-        const ballsDigitRaw = Math.round((a.overs - wholeOvers) * 10); // expected 0..5
-        const ballsDigit = Math.max(0, Math.min(5, ballsDigitRaw));
-        const totalBalls = wholeOvers * 6 + ballsDigit;
-        const realOvers = totalBalls / 6;
-        if (realOvers <= 0) return 0;
-        return a.runs_conceded / realOvers;
-      })(),
-      battingPoints: Math.floor(a.runs / 10) * 3,
-      bowlingPoints: a.wickets * 2,
-      fieldingPoints: a.catches * 1 + a.runouts * 1,
-      points:
-        Math.floor(a.runs / 10) * 3 + a.wickets * 2 + a.catches * 1 + a.runouts * 1,
-    }));
+    const withNames: LeaderboardRow[] = [];
+    groups.forEach((rows, playerId) => {
+      const p = playerMap.get(playerId);
+      const name = p?.name ?? 'Unknown';
+      const photoUrl = p?.photo ?? null;
+
+      const pointsRows = rows.map((r) => matchStatRowFromDb(r));
+      const pts = sumCategoryPointsAcrossRows(pointsRows);
+
+      const a = rows.reduce(
+        (acc, s) => ({
+          runs: acc.runs + Number(s.runs ?? 0),
+          balls: acc.balls + Number(s.balls ?? 0),
+          overs: acc.overs + Number(s.overs ?? 0),
+          wickets: acc.wickets + Number(s.wickets ?? 0),
+          runs_conceded: acc.runs_conceded + Number(s.runs_conceded ?? 0),
+          catches: acc.catches + Number(s.catches ?? 0),
+          runouts: acc.runouts + Number(s.runouts ?? 0),
+        }),
+        { runs: 0, balls: 0, overs: 0, wickets: 0, runs_conceded: 0, catches: 0, runouts: 0 },
+      );
+
+      withNames.push({
+        playerId,
+        name,
+        photoUrl,
+        ...a,
+        strikeRate: a.balls > 0 ? (a.runs / a.balls) * 100 : 0,
+        economy: economyFromDotOversAgg(a.overs, a.runs_conceded),
+        battingPoints: pts.batting,
+        bowlingPoints: pts.bowling,
+        fieldingPoints: pts.fielding,
+        points: pts.total,
+      });
+    });
 
     data = {
       bestBatsman: [...withNames]

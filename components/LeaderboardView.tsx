@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 
 type Row = {
   playerId: string;
   name: string;
+  photoUrl?: string | null;
   runs: number;
   balls: number;
   wickets: number;
@@ -121,8 +123,8 @@ export default function LeaderboardView({
 
       <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
         <p className="text-slate-400 text-xs mb-2">
-          Total = Bat + Bowl + Field. Bat: 3 pts per 10 runs · Bowl: 2 pts per wicket · Field: 1 pt per catch or
-          run out (all matches combined).
+          Total = sum of fantasy points per match (batting: runs, 4s/6s, milestones; bowling: wickets, maidens,
+          economy; fielding: catches, run outs). Respects Bat/Bowl/Field toggles on each scorecard.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">
@@ -140,7 +142,22 @@ export default function LeaderboardView({
               {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
                 <tr key={p.playerId} className="border-b border-slate-700/50">
                   <td className="py-2">{i + 1}</td>
-                  <td className="py-2">{p.name}</td>
+                  <td className="py-2">
+                    <span className="inline-flex items-center gap-2">
+                      {p.photoUrl ? (
+                        <Image
+                          src={p.photoUrl}
+                          alt=""
+                          width={28}
+                          height={28}
+                          className="rounded-full object-cover shrink-0"
+                        />
+                      ) : (
+                        <span className="w-7 h-7 rounded-full bg-slate-700 shrink-0 inline-block" aria-hidden />
+                      )}
+                      {p.name}
+                    </span>
+                  </td>
                   <td className="py-2">{p.battingPoints}</td>
                   <td className="py-2">{p.bowlingPoints}</td>
                   <td className="py-2">{p.fieldingPoints}</td>

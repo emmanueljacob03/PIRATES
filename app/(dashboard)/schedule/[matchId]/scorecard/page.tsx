@@ -15,11 +15,15 @@ type ExistingStat = {
   fours?: number;
   sixes?: number;
   overs: number;
+  maidens?: number;
   wickets: number;
   runs_conceded: number;
   catches: number;
   runouts: number;
   mvp: boolean;
+  include_bat?: boolean;
+  include_bowl?: boolean;
+  include_field?: boolean;
 };
 
 export default async function ScorecardPage({ params }: { params: Promise<{ matchId: string }> }) {
@@ -117,6 +121,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
                 <th className="pb-2 pr-2">4s</th>
                 <th className="pb-2 pr-2">6s</th>
                 <th className="pb-2 pr-2">Overs</th>
+                <th className="pb-2 pr-2">M</th>
                 <th className="pb-2 pr-2">Wickets</th>
                 <th className="pb-2 pr-2">Runs conc.</th>
                 <th className="pb-2 pr-2">Catches</th>
@@ -127,7 +132,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
             <tbody>
               {sortedExisting.length === 0 ? (
                 <tr>
-                  <td className="py-3 text-slate-500" colSpan={11}>No scorecard data yet.</td>
+                  <td className="py-3 text-slate-500" colSpan={12}>No scorecard data yet.</td>
                 </tr>
               ) : (
                 sortedExisting.map((row) => (
@@ -140,6 +145,7 @@ export default async function ScorecardPage({ params }: { params: Promise<{ matc
                     <td className="py-2 pr-2">{row.fours ?? 0}</td>
                     <td className="py-2 pr-2">{row.sixes ?? 0}</td>
                     <td className="py-2 pr-2">{row.overs ?? 0}</td>
+                    <td className="py-2 pr-2">{row.maidens ?? 0}</td>
                     <td className="py-2 pr-2">{row.wickets ?? 0}</td>
                     <td className="py-2 pr-2">{row.runs_conceded ?? 0}</td>
                     <td className="py-2 pr-2">{row.catches ?? 0}</td>

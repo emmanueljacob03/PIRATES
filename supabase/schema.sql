@@ -190,6 +190,10 @@ CREATE TABLE IF NOT EXISTS public.match_stats (
   catches INT DEFAULT 0,
   runouts INT DEFAULT 0,
   mvp BOOLEAN DEFAULT FALSE,
+  include_bat BOOLEAN NOT NULL DEFAULT TRUE,
+  include_bowl BOOLEAN NOT NULL DEFAULT TRUE,
+  include_field BOOLEAN NOT NULL DEFAULT TRUE,
+  maidens INT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(match_id, player_id)
 );

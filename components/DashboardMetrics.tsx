@@ -1,6 +1,9 @@
 'use client';
 
+import Image from 'next/image';
 import DesiredCollectionCard from '@/components/DesiredCollectionCard';
+
+export type DashboardMvp = { name: string; photoUrl: string | null };
 
 export default function DashboardMetrics({
   totalPlayers,
@@ -12,7 +15,7 @@ export default function DashboardMetrics({
   totalPlayers: number;
   desiredCollectionsInitial: string;
   totalMatches: number;
-  mvp: string;
+  mvp: DashboardMvp | null;
   isAdmin: boolean;
 }) {
   return (
@@ -28,7 +31,24 @@ export default function DashboardMetrics({
       </div>
       <div className="card card-hover-lift">
         <p className="text-slate-400 text-sm">MVP</p>
-        <p className="text-xl font-semibold text-amber-400 mt-1">{mvp}</p>
+        {mvp && mvp.name ? (
+          <div className="flex items-center gap-2 mt-1 min-h-[2rem]">
+            {mvp.photoUrl ? (
+              <Image
+                src={mvp.photoUrl}
+                alt=""
+                width={36}
+                height={36}
+                className="rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <span className="w-9 h-9 rounded-full bg-slate-700 shrink-0 inline-block" aria-hidden />
+            )}
+            <p className="text-xl font-semibold text-amber-400">{mvp.name}</p>
+          </div>
+        ) : (
+          <p className="text-xl font-semibold text-amber-400 mt-1">—</p>
+        )}
       </div>
     </>
   );

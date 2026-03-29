@@ -1,7 +1,8 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
-import DashboardMetrics from '@/components/DashboardMetrics';
+import DashboardMetrics, { type DashboardMvp } from '@/components/DashboardMetrics';
+import { matchStatRowFromDb, sumCategoryPointsAcrossRows } from '@/lib/cricket-points';
 import UmpiringDuties from '@/components/UmpiringDuties';
 import TotalPendingCard from '@/components/TotalPendingCard';
 import Playing11Widget from '@/components/Playing11Widget';
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
 
   let totalPlayers = 0;
   let totalMatches = 0;
-  let mvp = '—';
+  let mvp: DashboardMvp | null = null;
   let desiredCollectionsInitial = '0.00';
   let pendingByPlayer: { name: string; jersey: number; contribution: number; total: number }[] = [];
 
@@ -23,43 +24,40 @@ export default async function DashboardPage() {
     const [playersRes, matchesRes, statsRes, jerseysRes, contribsRes] = await Promise.all([
       (supabase as any).from('players').select('id', { count: 'exact', head: true }),
       (supabase as any).from('matches').select('id', { count: 'exact', head: true }),
-      (supabase as any).from('match_stats').select('player_id, runs, balls, wickets, catches, runouts'),
+      (supabase as any).from('match_stats').select('*'),
       isAdmin ? (supabase as any).from('jerseys').select('player_name, paid') : Promise.resolve({ data: [] }),
       isAdmin ? (supabase as any).from('contributions').select('player_name, amount, paid') : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
     totalMatches = matchesRes.count ?? 0;
-    type StatRow = {
-      player_id: string;
-      runs: number;
-      wickets: number;
-      catches: number;
-      runouts: number;
-    };
+    type StatRow = Record<string, unknown> & { player_id: string };
     const stats = (statsRes.data ?? []) as StatRow[];
-    const agg: Record<string, { runs: number; wickets: number; catches: number; runouts: number }> = {};
+    const groups = new Map<string, StatRow[]>();
     stats.forEach((s) => {
       const id = s.player_id;
-      if (!agg[id]) agg[id] = { runs: 0, wickets: 0, catches: 0, runouts: 0 };
-      agg[id].runs += s.runs ?? 0;
-      agg[id].wickets += s.wickets ?? 0;
-      agg[id].catches += s.catches ?? 0;
-      agg[id].runouts += s.runouts ?? 0;
+      const list = groups.get(id) ?? [];
+      list.push(s);
+      groups.set(id, list);
     });
-    const mvpPoints = (a: { runs: number; wickets: number; catches: number; runouts: number }) =>
-      Math.floor(a.runs / 10) * 3 + a.wickets * 2 + a.catches + a.runouts;
     let topId: string | null = null;
     let topPts = -1;
-    Object.entries(agg).forEach(([id, a]) => {
-      const pts = mvpPoints(a);
+    groups.forEach((rows, id) => {
+      const pts = sumCategoryPointsAcrossRows(rows.map((r) => matchStatRowFromDb(r))).total;
       if (pts > topPts) {
         topPts = pts;
         topId = id;
       }
     });
     if (topId != null && topPts > 0) {
-      const { data: player } = await supabase.from('players').select('name').eq('id', topId).single();
-      mvp = (player as { name?: string } | null)?.name ?? '—';
+      const { data: player } = await supabase
+        .from('players')
+        .select('name, photo')
+        .eq('id', topId)
+        .single();
+      const pl = player as { name?: string; photo?: string | null } | null;
+      if (pl?.name) {
+        mvp = { name: pl.name, photoUrl: pl.photo ?? null };
+      }
     }
     if (isAdmin && jerseysRes.data && contribsRes.data) {
       const jerseyByPerson: Record<string, number> = {};
