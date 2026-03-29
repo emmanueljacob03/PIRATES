@@ -52,7 +52,7 @@ export default function LeaderboardView({
 
   return (
     <div className="grid md:grid-cols-2 gap-8">
-      <Section title="Batting (by fantasy points)" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
+      <Section title="Batting" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
@@ -81,7 +81,7 @@ export default function LeaderboardView({
         </table>
       </Section>
 
-      <Section title="Bowling (by fantasy points)" expanded={!!expand.bowl} onToggle={() => toggle('bowl')}>
+      <Section title="Bowling" expanded={!!expand.bowl} onToggle={() => toggle('bowl')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
@@ -110,7 +110,7 @@ export default function LeaderboardView({
         </table>
       </Section>
 
-      <Section title="Fielding (by fantasy points)" expanded={!!expand.field} onToggle={() => toggle('field')}>
+      <Section title="Fielding" expanded={!!expand.field} onToggle={() => toggle('field')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-600">
@@ -140,10 +140,6 @@ export default function LeaderboardView({
       </Section>
 
       <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
-        <p className="text-slate-400 text-xs mb-2">
-          Total = sum of fantasy points per match (batting, bowling, fielding). Fielding: 3 pts per catch, 3 per run
-          out. Respects Bat/Bowl/Field toggles on each scorecard.
-        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[420px]">
             <thead>

@@ -10,7 +10,7 @@ export type ParsedBowling = {
 
 /**
  * OCR may split dot overs "1.4" into 1, 4 before M, R, W.
- * Do **not** merge when the second digit is 0 — that is almost always M=0 after whole overs (e.g. 4.0 → 4, 0, 20, 2),
+ * Do **not** merge when the second digit is 0 — that is almost always M=0 after whole overs (e.g. 4, 0, 20, 2),
  * not "0 balls" in a partial over.
  */
 export function repairBowlingNumberSequence(nums: number[]): number[] {
@@ -44,16 +44,14 @@ export function repairBowlingNumberSequence(nums: number[]): number[] {
   return nums;
 }
 
-function parseBowlingNums(nums: number[]): ParsedBowling | null {
-  const n = repairBowlingNumberSequence(nums);
-  if (n.length < 4) return null;
-  const overs = normalizeDotOversInput(Math.max(0, n[0]));
-  const maidens = Math.max(0, Math.round(n[1]));
-  const runs_conceded = Math.max(0, Math.round(n[2]));
-  const wickets = Math.max(0, Math.round(n[3]));
-  if (runs_conceded > 400 || wickets > 15 || maidens > 12) return null;
-  if (maidens > Math.ceil(overs + 0.001) + 1) return null;
-  return { overs, maidens, runs_conceded, wickets };
+/** Strip captain markers and column headers so digits line up with O M R W. */
+export function sanitizeBowlingOcrLine(line: string): string {
+  return (line || '')
+    .replace(/\(C\)|\(c\)|\(VC\)|\(vc\)|†|‡/g, ' ')
+    .replace(/\b(bowling|overs?|maidens?|runs?|wickets?|economy|econ|wide|wides|no\s*balls?)\b/gi, ' ')
+    .replace(/\b(O|M|R|W|ER|WD|NB)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function legalOversFromDot(oversDot: number): number {
@@ -65,60 +63,95 @@ function isPlausibleBowling(p: ParsedBowling): boolean {
   if (p.wickets > 15 || p.runs_conceded > 400 || p.maidens > 12) return false;
   if (p.overs <= 0 && p.wickets === 0 && p.runs_conceded === 0 && p.maidens === 0) return false;
   if (p.maidens > Math.ceil(p.overs + 0.001) + 1) return false;
+  if (p.wickets > 0 && p.overs <= 0) return false;
   return true;
 }
 
-/** Prefer candidates whose implied economy matches an optional ER column (O M R W ER WD NB…). */
+/**
+ * At nums[start..] build O/M/R/W candidates:
+ * - Standard: O=a, M=b, R=c, W=d (four consecutive ints).
+ * - Partial over: O=a+b/10 (b=1..5), M=c, R=d, W=e (needs five consecutive).
+ */
+function bowlingCandidatesAt(nums: number[], start: number): ParsedBowling[] {
+  const out: ParsedBowling[] = [];
+  if (start + 4 > nums.length) return out;
+  const a = nums[start];
+  const b = nums[start + 1];
+  const c = nums[start + 2];
+  const d = nums[start + 3];
+
+  const oStd = normalizeDotOversInput(Math.max(0, Number(a)));
+  const mStd = Math.max(0, Math.round(Number(b)));
+  const rStd = Math.max(0, Math.round(Number(c)));
+  const wStd = Math.max(0, Math.round(Number(d)));
+  out.push({ overs: oStd, maidens: mStd, runs_conceded: rStd, wickets: wStd });
+
+  if (start + 5 <= nums.length) {
+    const e = nums[start + 4];
+    const ai = Math.round(Number(a));
+    const bi = Math.round(Number(b));
+    if (Number.isFinite(a) && Number.isFinite(b) && bi >= 1 && bi <= 5 && ai >= 0 && ai <= 30) {
+      const oPart = normalizeDotOversInput(ai + bi / 10);
+      out.push({
+        overs: oPart,
+        maidens: Math.max(0, Math.round(Number(c))),
+        runs_conceded: Math.max(0, Math.round(Number(d))),
+        wickets: Math.max(0, Math.round(Number(e))),
+      });
+    }
+  }
+  return out;
+}
+
+/** Prefer economy-consistent rows when an ER value sits right after W. */
 function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
   if (!isPlausibleBowling(p)) return Number.NEGATIVE_INFINITY;
   let s = 0;
   const leg = legalOversFromDot(p.overs);
   if (leg > 0 && p.runs_conceded >= 0) {
     const er = p.runs_conceded / leg;
-    if (er >= 1 && er <= 24) s += 20;
+    if (er >= 0.5 && er <= 36) s += 28;
     const reported = numsAfterOmrw[0];
-    if (reported != null && Number.isFinite(reported) && reported >= 1 && reported <= 30) {
-      if (Math.abs(reported - er) <= 1.25) s += 45;
-      else if (Math.abs(reported - er) <= 2.5) s += 18;
-      else s -= 8;
+    if (reported != null && Number.isFinite(reported) && reported >= 0 && reported <= 40) {
+      if (Math.abs(reported - er) <= 1.35) s += 55;
+      else if (Math.abs(reported - er) <= 2.8) s += 22;
+      else if (reported >= 1 && reported <= 30) s -= 6;
     }
   }
-  s += Math.min(p.wickets, 15) * 3 + Math.min(p.maidens, 12) * 2;
+  s += Math.min(p.wickets, 15) * 4 + Math.min(p.maidens, 12) * 2;
+  if (p.runs_conceded >= p.wickets && p.runs_conceded <= p.overs * 36 + 60) s += 6;
   return s;
 }
 
 /**
- * Like batting: stats are usually the last numbers on the row; sheets add ER, WD, NB after W.
+ * Slide over the **tail** of the number list (stats are right of the name; junk often leads).
+ * This fixes the bug where we parsed the *first* four numbers of an 8-wide window instead of O/M/R/W.
  */
 export function findBestBowlingFromNumberSeries(nums: number[]): ParsedBowling | null {
-  if (!nums.length) return null;
-  const repairedAll = repairBowlingNumberSequence([...nums]);
+  if (nums.length < 4) return null;
+  const TAIL = 26;
+  const from = Math.max(0, nums.length - TAIL);
   const candidates: { p: ParsedBowling; score: number }[] = [];
   const seen = new Set<string>();
 
-  for (const w of [8, 7, 6, 5, 4]) {
-    if (repairedAll.length < w) continue;
-    const slice = repairedAll.slice(-w);
-    const p = parseBowlingNums(slice);
-    if (!p || !isPlausibleBowling(p)) continue;
-    const key = `${p.overs}-${p.maidens}-${p.runs_conceded}-${p.wickets}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const afterOmrw = slice.slice(4);
-    candidates.push({ p, score: bowlScore(p, afterOmrw) });
+  for (let start = from; start <= nums.length - 4; start++) {
+    const following = nums.slice(start + 4, start + 12);
+    for (const p of bowlingCandidatesAt(nums, start)) {
+      if (!isPlausibleBowling(p)) continue;
+      const key = `${p.overs}-${p.maidens}-${p.runs_conceded}-${p.wickets}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push({ p, score: bowlScore(p, following) });
+    }
   }
 
-  if (!candidates.length) {
-    const last = parseBowlingNums(repairedAll);
-    return last && isPlausibleBowling(last) ? last : null;
-  }
+  if (!candidates.length) return null;
   candidates.sort((a, b) => b.score - a.score);
   return candidates[0]!.p;
 }
 
 /**
- * Many sheets OCR as: line N = bowler name (+ figures inline), line N+1 = O M R W (or ER).
- * Same pattern as batting: claim name lines only; append following unclaimed lines until we have enough digits.
+ * Many sheets OCR as: line N = bowler name + stats, or stats on the next line.
  */
 export function buildBowlingOcrSnippet(
   allLines: string[],
@@ -127,32 +160,25 @@ export function buildBowlingOcrSnippet(
 ): string {
   if (nameLineIndex < 0 || nameLineIndex >= allLines.length) return '';
   const parts: string[] = [allLines[nameLineIndex]];
-  const joinedCount = () => extractOrderedNumbers(parts.join(' ')).length;
-  /** O M R W + ER + WD + NB → need enough digits to score with ER hint */
-  if (joinedCount() >= 7) return parts.join('\n');
-  const fewOnName = extractOrderedNumbers(allLines[nameLineIndex]).length < 2;
+  const joinedCount = () => extractOrderedNumbers(parts.map((p) => sanitizeBowlingOcrLine(p)).join(' ')).length;
+  if (joinedCount() >= 4) return parts.join('\n');
+  const fewOnName = extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
   for (let off = 1; off <= 5 && nameLineIndex + off < allLines.length; off++) {
     const ni = nameLineIndex + off;
     if (claimedLineIndices.has(ni)) break;
     parts.push(allLines[ni]);
-    if (joinedCount() >= 7) break;
-    if (fewOnName && joinedCount() >= 4) break;
-    if (!fewOnName && joinedCount() >= 5) break;
+    if (joinedCount() >= 4) break;
+    if (fewOnName && joinedCount() >= 2) break;
   }
   return parts.join('\n');
 }
 
 /**
- * After player name, expect column order O, M, R, W (ER optional on some sheets).
- * Uses line-by-line parse first; then trailing number windows so jersey/extra digits on the name row do not swallow O/M/R/W.
+ * One snippet = one player’s block (name line + optional continuation). Join lines so O M R W stay in order.
  */
 export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
   const lines = snippet.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    const nums = extractOrderedNumbers(line);
-    const p = findBestBowlingFromNumberSeries(nums);
-    if (p) return p;
-  }
-  const all = extractOrderedNumbers(snippet);
-  return findBestBowlingFromNumberSeries(all);
+  if (!lines.length) return null;
+  const combined = extractOrderedNumbers(lines.map(sanitizeBowlingOcrLine).join(' '));
+  return findBestBowlingFromNumberSeries(combined);
 }
