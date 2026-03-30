@@ -324,7 +324,7 @@ export function buildBowlingOcrSnippet(
   if (joinedNums >= 4) return parts.join('\n');
 
   /** Pull continuation until we have O/M/R/W digits — never stop at 2 numbers (that drops real stat columns). */
-  for (let off = 1; off <= 5 && nameLineIndex + off < allLines.length; off++) {
+  for (let off = 1; off <= 8 && nameLineIndex + off < allLines.length; off++) {
     const ni = nameLineIndex + off;
     if (claimedLineIndices.has(ni)) break;
     parts.push(allLines[ni]);

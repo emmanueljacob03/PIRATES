@@ -215,6 +215,7 @@ export default function ScorecardForm({
     setOcrLoading(true);
     try {
       const { createWorker, PSM } = await import('tesseract.js');
+      const { upscaleImageBlobForOcr } = await import('@/lib/ocr-image-prep');
       const worker = await createWorker('eng');
       const ocrOne = async (f: File | null) => {
         if (!f) return '';
@@ -222,26 +223,44 @@ export default function ScorecardForm({
         return (res?.data?.text ?? '').toString();
       };
       /**
-       * Read bowling first (column mode: decimals stay readable). Then batting in block mode.
-       * Order avoids worker/queue quirks when both sheets are uploaded.
+       * Bowling: upscale image (clearer decimals), then multi-PSM read (column + block + sparse).
+       * Batting stays single-block on originals.
        */
       let bw = '';
+      let bowlingFileForOcr: File = bowling1!;
       if (bowling1) {
+        try {
+          const blob = await upscaleImageBlobForOcr(bowling1);
+          bowlingFileForOcr = new File([blob], `${bowling1.name.replace(/\.[^.]+$/, '')}-ocr.png`, {
+            type: 'image/png',
+          });
+        } catch {
+          bowlingFileForOcr = bowling1;
+        }
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
-          user_defined_dpi: '300',
+          user_defined_dpi: '400',
+          preserve_interword_spaces: '1',
         });
-        const bwCol = await ocrOne(bowling1);
+        const bwCol = await ocrOne(bowlingFileForOcr);
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-          user_defined_dpi: '300',
+          user_defined_dpi: '400',
+          preserve_interword_spaces: '1',
         });
-        const bwBlock = await ocrOne(bowling1);
-        bw = [bwCol.trim(), bwBlock.trim()].filter(Boolean).join('\n');
+        const bwBlock = await ocrOne(bowlingFileForOcr);
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+          user_defined_dpi: '400',
+          preserve_interword_spaces: '1',
+        });
+        const bwSparse = await ocrOne(bowlingFileForOcr);
+        bw = [bwCol.trim(), bwBlock.trim(), bwSparse.trim()].filter(Boolean).join('\n');
       }
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        user_defined_dpi: '300',
+        user_defined_dpi: '360',
+        preserve_interword_spaces: '1',
       });
       const [b1, b2] = await Promise.all([ocrOne(batting1), ocrOne(batting2)]);
       await worker.terminate();
@@ -539,6 +558,10 @@ export default function ScorecardForm({
 
             <div>
               <p className="text-sm text-slate-300 font-medium mb-2">Bowling</p>
+              <p className="text-xs text-slate-500 mb-1.5">
+                Use a close-up or crop so overs decimals (e.g. 4.2) and O·M·R·W columns are readable — the reader
+                also zooms the image automatically.
+              </p>
               <input
                 type="file"
                 accept="image/*"

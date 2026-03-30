@@ -10,7 +10,12 @@ function normalizeOcrDigitChars(s: string): string {
 }
 
 export function extractOrderedNumbers(snippet: string): number[] {
-  const s = normalizeOcrDigitChars(snippet).replace(/\r\n?/g, '\n');
+  let s = normalizeOcrDigitChars(snippet).replace(/\r\n?/g, '\n');
+  /** Decimal comma (EU) only when a single digit follows — avoids "1,000". Spaced dot for split decimals. */
+  s = s
+    .replace(/(\d+)\s*,\s*(\d)(?=\D|$)/g, '$1.$2')
+    .replace(/(\d)\s*\.\s*(\d)/g, '$1.$2')
+    .replace(/(\d)\s*·\s*(\d)/g, '$1.$2');
   const m = s.match(/\d+\.\d+|\d+/g);
   if (!m) return [];
   return m.map((x) => parseFloat(x)).filter((n) => Number.isFinite(n));
