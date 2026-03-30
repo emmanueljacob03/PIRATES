@@ -60,11 +60,11 @@ export default async function DashboardLayout({
               {modeLabel}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-700 pb-4 mb-6 pr-20 w-full justify-between gap-y-3">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 pb-4 mb-6 w-full min-h-[2.75rem]">
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
               <DashboardNav />
             </div>
-            <div className="flex-shrink-0 ml-auto sm:ml-0">
+            <div className="flex-shrink-0 ml-auto -mr-1">
               <TeamChatNavButton />
             </div>
           </div>

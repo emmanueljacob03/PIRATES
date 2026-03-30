@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS public.team_chat_messages (
 
 CREATE INDEX IF NOT EXISTS team_chat_messages_created_at_idx ON public.team_chat_messages (created_at);
 
+-- Helps realtime broadcast full row on UPDATE/DELETE for other clients
+ALTER TABLE public.team_chat_messages REPLICA IDENTITY FULL;
+
 ALTER TABLE public.team_chat_messages ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "team_chat_read" ON public.team_chat_messages;
@@ -27,6 +30,25 @@ CREATE POLICY "team_chat_insert" ON public.team_chat_messages
       OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
     )
   );
+
+DROP POLICY IF EXISTS "team_chat_update" ON public.team_chat_messages;
+CREATE POLICY "team_chat_update" ON public.team_chat_messages
+  FOR UPDATE TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (
+    user_id = auth.uid()
+    AND char_length(trim(body)) > 0
+    AND char_length(body) <= 4000
+    AND (
+      is_alert = FALSE
+      OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+    )
+  );
+
+DROP POLICY IF EXISTS "team_chat_delete" ON public.team_chat_messages;
+CREATE POLICY "team_chat_delete" ON public.team_chat_messages
+  FOR DELETE TO authenticated
+  USING (user_id = auth.uid());
 
 -- Realtime: Dashboard → Database → Replication → enable for team_chat_messages
 -- Or (if your project allows):

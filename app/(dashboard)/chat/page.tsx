@@ -38,8 +38,8 @@ export default async function ChatPage() {
       <div>
         <h2 className="text-xl font-semibold text-[var(--pirate-yellow)]">Team chat</h2>
         <p className="text-sm text-slate-400 mt-1">
-          Squad messages in one place. Admins can post <span className="text-red-400">alerts</span> (red, highlighted) or
-          normal messages — choose before you send.
+          Everyone sees all messages here. Admins can send an <span className="text-red-400">alert message</span> (highlighted)
+          or a normal message — pick before you send. You can edit or delete your own messages.
         </p>
       </div>
       <TeamChatClient
