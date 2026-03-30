@@ -48,6 +48,24 @@ function similarityRatio(a: string, b: string): number {
   return 1 - d / Math.max(a.length, b.length);
 }
 
+/** True if roster token is present in OCR text or close to some OCR word (1↔l, short typos). */
+function rosterTokenAppearsInOcrText(token: string, ocr: string, oWords: string[]): boolean {
+  if (token.length < 2) return false;
+  if (ocr.includes(token)) return true;
+  const thresh = token.length <= 4 ? 0.72 : 0.82;
+  for (const w of oWords) {
+    if (w.length < 2) continue;
+    if (similarityRatio(token, w) >= thresh) return true;
+    if (token.length >= 4 && w.includes(token)) return true;
+    if (w.length >= 4 && token.includes(w) && w.length + 1 >= token.length) return true;
+  }
+  return false;
+}
+
+function lettersOnly(s: string): string {
+  return normalizeScorecardName(s).replace(/\s+/g, '');
+}
+
 function isJunkBowlingNamePrefix(norm: string): boolean {
   if (!norm || norm.replace(/[^a-z]/gi, '').length < 2) return true;
   const n = norm.replace(/\s+/g, ' ').trim();
@@ -78,6 +96,24 @@ export function scoreRosterNameAgainstBowlingOcrPrefix(
 
   const rParts = roster.split(' ').filter((t) => t.length > 0);
   const oParts = ocr.split(' ').filter((t) => t.length > 0);
+
+  const cR = lettersOnly(roster);
+  const cO = lettersOnly(ocr);
+  if (cR.length >= 5 && cO.length >= 4) {
+    if (cO.includes(cR) || cR.includes(cO)) bump(93);
+    const csim = similarityRatio(cR, cO);
+    if (csim >= 0.78) bump(100 * csim - 1);
+    else if (csim >= 0.72 && cR.length >= 8) bump(100 * csim - 6);
+  }
+
+  const firstT = rParts[0];
+  const lastT = rParts[rParts.length - 1];
+  if (firstT?.length >= 3 && rosterTokenAppearsInOcrText(firstT, ocr, oParts)) {
+    bump(74);
+    if (lastT && lastT !== firstT && lastT.length >= 3 && rosterTokenAppearsInOcrText(lastT, ocr, oParts)) {
+      bump(95);
+    }
+  }
   if (rParts[0]?.length >= 3 && ocr.includes(rParts[0])) {
     bump(72);
     const last = rParts[rParts.length - 1];
@@ -93,26 +129,41 @@ export function scoreRosterNameAgainstBowlingOcrPrefix(
     if (sim >= 0.88) bump(100 * sim);
     else if (sim >= 0.78 && alias.length >= 4) bump(100 * sim - 2);
     else if (sim >= 0.72 && alias.length >= 6) bump(100 * sim - 6);
+    if (alias.length >= 4) {
+      const aCompact = lettersOnly(alias);
+      if (aCompact.length >= 5 && (cO.includes(aCompact) || similarityRatio(aCompact, cO) >= 0.76)) {
+        bump(89);
+      }
+    }
   }
 
   if (rParts.length >= 2) {
     const longToks = rParts.filter((t) => t.length >= 3);
-    const hit = longToks.filter((t) => ocr.includes(t)).length;
+    const hitExact = longToks.filter((t) => ocr.includes(t)).length;
+    const hitFuzzy = longToks.filter((t) => rosterTokenAppearsInOcrText(t, ocr, oParts)).length;
+    const hit = Math.max(hitExact, hitFuzzy);
     const need =
-      longToks.length <= 1 ? 1 : Math.max(2, Math.ceil(longToks.length * 0.5));
+      longToks.length <= 1
+        ? 1
+        : Math.max(2, Math.ceil(longToks.length * 0.5));
+    const relaxedNeed = Math.max(1, Math.ceil(longToks.length * 0.45));
     if (longToks.length > 0 && hit >= need) bump(76 + hit * 5);
+    else if (longToks.length >= 2 && hitFuzzy >= relaxedNeed && hitFuzzy >= 2) bump(73 + hitFuzzy * 4);
   }
 
   if (oParts.length >= 2 && rParts.length >= 2) {
-    const olap = oParts.filter((t) => t.length >= 3 && roster.includes(t)).length;
+    const olap = oParts.filter(
+      (t) => t.length >= 3 && rosterTokenAppearsInOcrText(t, roster, rParts),
+    ).length;
     if (olap >= 2) bump(80 + olap * 6);
   }
 
   return Math.min(100, Math.round(best * 10) / 10);
 }
 
-/** Slightly below strict alias match so one OCR typo still pairs with the right row. */
+/** High-confidence row ↔ player edges; second pass uses RELAXED for anyone still unmatched. */
 const BOWLING_GREEDY_MIN_SCORE = 72;
+const BOWLING_GREEDY_RELAXED_MIN_SCORE = 58;
 const BOWLING_FALLBACK_MIN_SCORE = 52;
 
 type GreedyBowlingPair = {
@@ -121,9 +172,31 @@ type GreedyBowlingPair = {
   score: number;
 };
 
+function applyGreedyPairs(
+  pairs: GreedyBowlingPair[],
+  lines: string[],
+  usedPlayers: Set<string>,
+  usedLines: Set<number>,
+  out: Map<string, BowlingLineHit>,
+): void {
+  const sorted = [...pairs].sort((a, b) => b.score - a.score);
+  for (const p of sorted) {
+    if (usedPlayers.has(p.playerId) || usedLines.has(p.lineIndex)) continue;
+    usedPlayers.add(p.playerId);
+    usedLines.add(p.lineIndex);
+    out.set(p.playerId, {
+      line: lines[p.lineIndex]!,
+      lineIndex: p.lineIndex,
+      claimExtra: [],
+    });
+  }
+}
+
 /**
  * Parse each OCR row into (name prefix, stats) and **globally** assign lines to squad players
  * (highest confidence first, one line per player) so row order gaps do not mis-attach stats.
+ * Uses two score thresholds so everyone who clearly appears (e.g. Anil Kumar Chandu) still gets a row
+ * after stronger matches (e.g. Emmanuel) claim their lines first.
  */
 export function matchBowlingStatLinesToPlayersGreedy(
   lines: string[],
@@ -141,31 +214,25 @@ export function matchBowlingStatLinesToPlayersGreedy(
     statIndices.push(i);
   }
 
-  const pairs: GreedyBowlingPair[] = [];
+  const usedLines = new Set<number>();
+  const usedPlayers = new Set<string>();
+
+  const pairsStrict: GreedyBowlingPair[] = [];
+  const pairsRelaxed: GreedyBowlingPair[] = [];
   for (const lineIndex of statIndices) {
     const prefix = extractBowlingNamePrefixBeforeStats(lines[lineIndex]!);
     for (const pl of players) {
       const score = scoreRosterNameAgainstBowlingOcrPrefix(pl.name, prefix);
       if (score >= BOWLING_GREEDY_MIN_SCORE) {
-        pairs.push({ playerId: pl.id, lineIndex, score });
+        pairsStrict.push({ playerId: pl.id, lineIndex, score });
+      } else if (score >= BOWLING_GREEDY_RELAXED_MIN_SCORE) {
+        pairsRelaxed.push({ playerId: pl.id, lineIndex, score });
       }
     }
   }
 
-  pairs.sort((a, b) => b.score - a.score);
-  const usedLines = new Set<number>();
-  const usedPlayers = new Set<string>();
-
-  for (const p of pairs) {
-    if (usedPlayers.has(p.playerId) || usedLines.has(p.lineIndex)) continue;
-    usedPlayers.add(p.playerId);
-    usedLines.add(p.lineIndex);
-    out.set(p.playerId, {
-      line: lines[p.lineIndex]!,
-      lineIndex: p.lineIndex,
-      claimExtra: [],
-    });
-  }
+  applyGreedyPairs(pairsStrict, lines, usedPlayers, usedLines, out);
+  applyGreedyPairs(pairsRelaxed, lines, usedPlayers, usedLines, out);
 
   return out;
 }
@@ -246,6 +313,16 @@ export function aliasesForScorecardName(name: string): string[] {
   if (parts.length >= 3) {
     add(parts.slice(0, 2).join(' '));
   }
+  /** Pairs of significant tokens (e.g. anil+chandu, kumar+chandu) for OCR that drops a middle name. */
+  const sig = parts.filter((p) => p.length >= 3);
+  for (let i = 0; i < sig.length; i++) {
+    for (let j = i + 1; j < sig.length; j++) {
+      add(`${sig[i]} ${sig[j]}`);
+    }
+  }
+  for (const p of sig) {
+    if (p.length >= 4) add(p);
+  }
   if (parts.length >= 1) {
     add(parts[0]);
   }
@@ -307,7 +384,7 @@ export function findLineForPlayer(
     }
   }
 
-  /** Token overlap when OCR mangles spacing / order of words */
+  /** Token overlap when OCR mangles spacing / order / a few characters */
   const tokens = parts.filter((t) => t.length >= 2);
   if (tokens.length > 0) {
     const need = tokens.length === 1 ? 1 : Math.max(2, Math.ceil(tokens.length / 2));
@@ -315,9 +392,20 @@ export function findLineForPlayer(
     let bestScore = -1;
     for (let i = 0; i < lines.length; i++) {
       if (claimed.has(i)) continue;
-      const line = lowerLines[i];
-      const score = tokens.reduce((acc, t) => acc + (line.includes(t) ? t.length : 0), 0);
-      const hitCount = tokens.filter((t) => line.includes(t)).length;
+      const lineRaw = lines[i];
+      const lineNorm = normalizeScorecardName(lineRaw);
+      const oWords = lineNorm.split(' ').filter(Boolean);
+      const hitCount = tokens.filter(
+        (t) =>
+          lineRaw.toLowerCase().includes(t) ||
+          (t.length >= 3 && rosterTokenAppearsInOcrText(t, lineNorm, oWords)),
+      ).length;
+      const score = tokens.reduce((acc, t) => {
+        const hit =
+          lineRaw.toLowerCase().includes(t) ||
+          (t.length >= 3 && rosterTokenAppearsInOcrText(t, lineNorm, oWords));
+        return acc + (hit ? t.length : 0);
+      }, 0);
       if (hitCount >= need && score > bestScore) {
         bestScore = score;
         bestI = i;
