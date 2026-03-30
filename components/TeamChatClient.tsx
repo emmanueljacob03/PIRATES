@@ -11,6 +11,8 @@ const db = supabase as unknown as SupabaseClient<any>;
 
 type Row = TeamChatMessage;
 
+const EDIT_WINDOW_MS = 20 * 60 * 1000;
+
 export default function TeamChatClient({
   initialMessages,
   userId,
@@ -34,6 +36,8 @@ export default function TeamChatClient({
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** Re-render so edit/delete buttons hide when the 20-minute window passes. */
+  const [, setTimeTick] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
@@ -41,6 +45,11 @@ export default function TeamChatClient({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setTimeTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (isDemo || !userId) return;
@@ -70,6 +79,13 @@ export default function TeamChatClient({
   }, [isDemo, userId]);
 
   const canPost = !!userId && !isDemo;
+
+  function canModify(m: Row): boolean {
+    if (!userId || isDemo) return false;
+    if (isAdmin) return true;
+    if (m.user_id !== userId) return false;
+    return Date.now() - new Date(m.created_at).getTime() <= EDIT_WINDOW_MS;
+  }
 
   async function send() {
     const body = text.trim();
@@ -125,46 +141,59 @@ export default function TeamChatClient({
     const id = editingId;
     const body = editText.trim();
     if (!id || !body || !canPost) return;
+    const editedRow = messages.find((m) => m.id === id);
+    const nameForUpdate =
+      editedRow && isAdmin && editedRow.user_id !== userId ? editedRow.sender_name : senderName;
+
     setSavingEdit(true);
     setError('');
-    const { data, error: updErr } = await db
-      .from('team_chat_messages')
-      .update({ body, sender_name: senderName })
-      .eq('id', id)
-      .select()
-      .single();
-    setSavingEdit(false);
-    if (updErr) {
-      setError(
-        updErr.message.includes('row-level security')
-          ? 'Could not update (run the latest team_chat_messages.sql policies, or refresh and try again).'
-          : updErr.message,
-      );
-      return;
+    try {
+      const res = await fetch('/api/team-chat', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id, body, sender_name: nameForUpdate }),
+      });
+      const json = (await res.json()) as { data?: Row; error?: string };
+
+      if (!res.ok) {
+        setError(json.error || 'Could not update message');
+        return;
+      }
+      if (json.data) {
+        const row = json.data;
+        setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
+      }
+      cancelEdit();
+    } catch {
+      setError('Network error — try again');
+    } finally {
+      setSavingEdit(false);
     }
-    if (data) {
-      const row = data as Row;
-      setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
-    }
-    cancelEdit();
   }
 
   async function removeMessage(id: string) {
     if (!canPost || !window.confirm('Delete this message for everyone?')) return;
     setDeletingId(id);
     setError('');
-    const { error: delErr } = await db.from('team_chat_messages').delete().eq('id', id);
-    setDeletingId(null);
-    if (delErr) {
-      setError(
-        delErr.message.includes('row-level security')
-          ? 'Could not delete (you can only delete your own messages).'
-          : delErr.message,
-      );
-      return;
+    try {
+      const res = await fetch(`/api/team-chat?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+
+      if (!res.ok) {
+        setError(json.error || 'Could not delete message');
+        return;
+      }
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      if (editingId === id) cancelEdit();
+    } catch {
+      setError('Network error — try again');
+    } finally {
+      setDeletingId(null);
     }
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    if (editingId === id) cancelEdit();
   }
 
   const sorted = useMemo(() => [...messages].sort((a, b) => a.created_at.localeCompare(b.created_at)), [messages]);
@@ -215,8 +244,8 @@ export default function TeamChatClient({
                         : 'bg-[#202c33] text-slate-100 rounded-bl-sm border border-slate-700/60'
                   }`}
                 >
-                  {mine && !isEditing && (
-                    <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  {canModify(m) && !isEditing && (
+                    <div className="absolute -top-1 -right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-[5]">
                       <button
                         type="button"
                         onClick={() => startEdit(m)}

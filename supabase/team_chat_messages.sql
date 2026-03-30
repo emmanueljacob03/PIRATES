@@ -31,24 +31,37 @@ CREATE POLICY "team_chat_insert" ON public.team_chat_messages
     )
   );
 
+-- Update: profile admins — any time, any row. Others — own row only within 20 minutes.
 DROP POLICY IF EXISTS "team_chat_update" ON public.team_chat_messages;
 CREATE POLICY "team_chat_update" ON public.team_chat_messages
   FOR UPDATE TO authenticated
-  USING (user_id = auth.uid())
+  USING (
+    (
+      user_id = auth.uid()
+      AND created_at > NOW() - INTERVAL '20 minutes'
+    )
+    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  )
   WITH CHECK (
-    user_id = auth.uid()
-    AND char_length(trim(body)) > 0
+    char_length(trim(body)) > 0
     AND char_length(body) <= 4000
     AND (
-      is_alert = FALSE
-      OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+      EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+      OR (user_id = auth.uid() AND is_alert = FALSE)
     )
   );
 
+-- Delete: same window for non-admins; profile admins — any message.
 DROP POLICY IF EXISTS "team_chat_delete" ON public.team_chat_messages;
 CREATE POLICY "team_chat_delete" ON public.team_chat_messages
   FOR DELETE TO authenticated
-  USING (user_id = auth.uid());
+  USING (
+    (
+      user_id = auth.uid()
+      AND created_at > NOW() - INTERVAL '20 minutes'
+    )
+    OR EXISTS (SELECT 1 FROM public.profiles p WHERE p.id = auth.uid() AND p.role = 'admin')
+  );
 
 -- Alert messages: POST /api/team-chat with is_alert uses the service role (see app code) so team-code
 -- admins (cookie) still work; set SUPABASE_SERVICE_ROLE_KEY in env. Normal messages use the user client + RLS.
