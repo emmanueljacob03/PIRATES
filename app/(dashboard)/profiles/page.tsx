@@ -2,10 +2,13 @@ import { createServerSupabase } from '@/lib/supabase-server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import ProfilePageClient from '@/components/ProfilePageClient';
+import ModeAccessBadge from '@/components/ModeAccessBadge';
 
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
+  const isAdminCode = cookieStore.get('pirates_admin')?.value === 'true';
+  const modeLabel = isAdminCode ? 'ADMIN: READ & WRITE' : 'VIEWER';
 
   let profile: {
     name: string | null;
@@ -30,9 +33,12 @@ export default async function ProfilesPage() {
   if (demo) {
     return (
       <div>
-        <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--pirate-yellow)' }}>
-          My Profile
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--pirate-yellow)' }}>
+            My Profile
+          </h2>
+          <ModeAccessBadge label={modeLabel} />
+        </div>
         <div className="card max-w-2xl">
           <p className="text-slate-400">
             You are in demo mode. Log in with an account to see and edit your profile.
@@ -175,9 +181,12 @@ export default async function ProfilesPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--pirate-yellow)' }}>
-        My Profile
-      </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="text-2xl font-bold" style={{ color: 'var(--pirate-yellow)' }}>
+          My Profile
+        </h2>
+        <ModeAccessBadge label={modeLabel} />
+      </div>
       <ProfilePageClient
         initialProfile={profile}
         contributionTotal={contributionTotal}

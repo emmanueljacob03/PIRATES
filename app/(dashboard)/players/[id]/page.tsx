@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { scorecardDisplayName } from '@/lib/player-display-name';
+import ModeAccessBadge from '@/components/ModeAccessBadge';
 
 export default async function PlayerProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,6 +17,7 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
   } | null = null;
   let displayName = '';
   let profileContact: { name: string | null; email: string; phone: string | null } | null = null;
+  let rosterAccessLabel: string | null = null;
   let totals = { runs: 0, balls: 0, overs: 0, wickets: 0, runs_conceded: 0, catches: 0, runouts: 0, mvpAwards: 0 };
   let matchesPlayed = 0;
   let highestScore = 0;
@@ -38,12 +40,13 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
     if (player.profile_id) {
       const { data: pr } = await supabase
         .from('profiles')
-        .select('name, email, phone')
+        .select('name, email, phone, role')
         .eq('id', player.profile_id)
         .maybeSingle();
       if (pr) {
-        const p = pr as { name: string | null; email: string; phone: string | null };
+        const p = pr as { name: string | null; email: string; phone: string | null; role?: string };
         profileContact = p;
+        rosterAccessLabel = p.role === 'admin' ? 'ADMIN: READ & WRITE' : 'VIEWER';
         displayName = scorecardDisplayName(player.name, p.name, player.profile_id);
       } else {
         displayName = scorecardDisplayName(player.name, null, player.profile_id);
@@ -84,7 +87,12 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
 
   return (
     <div>
-      <Link href="/players" className="text-amber-400 hover:underline text-sm mb-4 inline-block">← Back to Players</Link>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <Link href="/players" className="text-amber-400 hover:underline text-sm inline-block">
+          ← Back to Players
+        </Link>
+        {rosterAccessLabel && <ModeAccessBadge label={rosterAccessLabel} />}
+      </div>
       <div className="card max-w-2xl">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 relative rounded-lg overflow-hidden bg-slate-700 flex-shrink-0">

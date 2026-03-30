@@ -16,11 +16,13 @@ export default async function ChatPage() {
 
   let initialMessages: TeamChatMessage[] = [];
   let senderName = 'Member';
+  let isAdmin = false;
 
   if (user && !demo) {
-    const { data: profileRow } = await supabase.from('profiles').select('name').eq('id', user.id).maybeSingle();
-    const profile = profileRow as Pick<Profile, 'name'> | null;
+    const { data: profileRow } = await supabase.from('profiles').select('name, role').eq('id', user.id).maybeSingle();
+    const profile = profileRow as Pick<Profile, 'name' | 'role'> | null;
     senderName = profile?.name?.trim() || user.email?.split('@')[0] || 'Member';
+    isAdmin = profile?.role === 'admin';
 
     const { data: rows, error: chatErr } = await supabase
       .from('team_chat_messages')
@@ -36,6 +38,7 @@ export default async function ChatPage() {
       initialMessages={initialMessages}
       userId={user?.id ?? null}
       senderName={senderName}
+      isAdmin={isAdmin}
       isDemo={demo}
     />
   );

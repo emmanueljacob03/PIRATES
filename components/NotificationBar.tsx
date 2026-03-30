@@ -88,9 +88,11 @@ export default function NotificationBar() {
 
   if (!mounted || !loaded) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 bg-slate-800/80 text-slate-400 text-sm">
-        <span aria-hidden>🔔</span>
-        Loading notifications…
+      <div
+        className="flex items-center justify-center w-10 h-10 rounded-lg border border-slate-600 bg-slate-800/80 text-slate-400 text-lg shrink-0"
+        aria-hidden
+      >
+        🔔
       </div>
     );
   }
@@ -100,13 +102,19 @@ export default function NotificationBar() {
       <button
         type="button"
         onClick={handleReopen}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--pirate-yellow)]/50 text-[var(--pirate-yellow)] hover:bg-[var(--pirate-navy)] flex-shrink-0 whitespace-nowrap max-w-[92vw]"
-        aria-label="Reopen notifications"
+        className="relative flex items-center justify-center w-10 h-10 rounded-lg border border-[var(--pirate-yellow)]/50 text-[var(--pirate-yellow)] hover:bg-[var(--pirate-navy)] flex-shrink-0"
+        aria-label={
+          items.length > 0 ? `Notifications (${items.length})` : 'Open notifications'
+        }
       >
-        <span className="text-lg">🔔</span>
-        <span className="text-sm">
-          Notifications{items.length > 0 ? ` (${items.length})` : ''}
+        <span className="text-xl leading-none" aria-hidden>
+          🔔
         </span>
+        {items.length > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[1.1rem] px-1 rounded-full bg-amber-500 text-slate-900 text-[10px] font-bold leading-tight text-center">
+            {items.length}
+          </span>
+        )}
       </button>
     );
   }
