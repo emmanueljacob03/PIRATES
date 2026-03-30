@@ -65,6 +65,14 @@ Open **http://localhost:4000** (or the port shown in the terminal). Sign up, the
 - **Players** – Grid of player cards (photo, name, jersey, role); click for full profile with stats from scorecards.
 - **Scorecards** – From Schedule, “Add / Edit scorecard” per match; enter runs, balls, overs, wickets, etc. Stats feed leaderboard and player profiles.
 
+### Scorecard OCR — bowling and points
+
+- **Fantasy bowling points** are implemented in `lib/cricket-points.ts` (`bowlingPointsFromRow`): **7 points per wicket**, maidens/economy bonuses on top — not the old “wickets × 20” shorthand.
+- **Tesseract** on phone screenshots often merges table cells, e.g. **4.0 → 40**, **5.00 → 500**, **1.0 → 170**, **12.50 → 1250**. The bowling parser in `lib/bowling-ocr.ts` normalises those patterns where it can.
+- **Pipeline order** (after line extraction): implicit maiden insert when **M=0** is missing → **repairOcrTenTimesOvers** (×10 overs glue, with guards so real **runs** like 20 are not turned into 2.0 overs) → **squashEconomyOcrGluedDigits** (ER×100 style tokens) → **repairBowlingNumberSequence** (split dot overs).
+- The scorecard form only persists **O, M, R, W** from bowling OCR (not wides/no-balls columns). Bowling images are read with **column-friendly** page segmentation where possible (`ScorecardForm` + Tesseract `SINGLE_COLUMN`).
+- **Split names** across two OCR lines (e.g. surname on the next line) can still miss stats; a sharper or zoomed crop of the table helps.
+
 ## Roles (RLS)
 
 - **Admin** – Create matches, edit jerseys, upload scorecards, manage budget/expenses, add players.
