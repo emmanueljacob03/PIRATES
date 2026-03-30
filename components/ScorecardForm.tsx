@@ -5,7 +5,11 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet, buildBattingOcrSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet, buildBowlingOcrSnippet } from '@/lib/bowling-ocr';
-import { findBowlingLineForPlayer, findLineForPlayer } from '@/lib/scorecard-ocr-match';
+import {
+  findBowlingLineForPlayer,
+  findLineForPlayer,
+  preprocessBowlingOcrLines,
+} from '@/lib/scorecard-ocr-match';
 import { dotOversFromNumberInput, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
   battingPointsContributed,
@@ -227,7 +231,13 @@ export default function ScorecardForm({
           tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
           user_defined_dpi: '300',
         });
-        bw = await ocrOne(bowling1);
+        const bwCol = await ocrOne(bowling1);
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+          user_defined_dpi: '300',
+        });
+        const bwBlock = await ocrOne(bowling1);
+        bw = [bwCol.trim(), bwBlock.trim()].filter(Boolean).join('\n');
       }
       await worker.setParameters({
         tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
@@ -246,7 +256,7 @@ export default function ScorecardForm({
       };
 
       const battingLines = hasBat ? toLines(battingText) : [];
-      const bowlingLines = hasBowl ? toLines(bowlingText) : [];
+      const bowlingLines = hasBowl ? preprocessBowlingOcrLines(toLines(bowlingText)) : [];
 
       const claimedBat = new Set<number>();
       const claimedBowl = new Set<number>();

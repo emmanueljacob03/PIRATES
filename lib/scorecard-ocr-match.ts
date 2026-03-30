@@ -3,10 +3,58 @@ import { sanitizeBowlingOcrLine } from '@/lib/bowling-ocr';
 
 export function normalizeScorecardName(s: string): string {
   return (s || '')
+    .normalize('NFKC')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
+}
+
+/**
+ * Merge mobile/table OCR rows so each bowler is one line: (1) name-only + numeric row,
+ * (2) stats row + bare surname. Otherwise findLineForPlayer often misses "Emmanuel"/"Anil"
+ * or anchors on a line with no digits.
+ */
+export function preprocessBowlingOcrLines(rawLines: string[]): string[] {
+  const lines = rawLines.map((l) => l.trim()).filter(Boolean);
+  const digitCount = (s: string) => extractOrderedNumbers(sanitizeBowlingOcrLine(s)).length;
+
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const cur = lines[i];
+    if (/^bowling[\s:,-]*o[\s:,-]*m[\s:,-]*r/i.test(cur) && digitCount(cur) < 2) {
+      continue;
+    }
+
+    const next = lines[i + 1];
+    if (next !== undefined) {
+      const d0 = digitCount(cur);
+      const d1 = digitCount(next);
+      if (d0 < 2 && d1 >= 4) {
+        out.push(`${cur} ${next}`.replace(/\s+/g, ' ').trim());
+        i++;
+        continue;
+      }
+
+      const nextTrim = next.trim();
+      const looksLikeBareSurname =
+        d0 >= 4 &&
+        d1 === 0 &&
+        nextTrim.length >= 4 &&
+        nextTrim.length <= 40 &&
+        /^[A-Za-z][A-Za-z\s.'-]*[A-Za-z]$/.test(nextTrim) &&
+        !/\d/.test(nextTrim);
+
+      if (looksLikeBareSurname) {
+        out.push(`${cur} ${nextTrim}`.replace(/\s+/g, ' ').trim());
+        i++;
+        continue;
+      }
+    }
+
+    out.push(cur);
+  }
+  return out;
 }
 
 /**
