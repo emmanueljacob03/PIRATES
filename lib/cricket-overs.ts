@@ -18,6 +18,29 @@ export function totalBallsToDotOvers(totalBalls: number): number {
   return Math.round((whole + rem / 10) * 100) / 100;
 }
 
+/**
+ * Map HTML number input / spinner value to dot-overs given the previous value.
+ * Browsers step by 0.1 in “real” decimals (2.0 → 1.9). Normalising 1.9 as cricket
+ * overs treats .9 as 9 balls and carries to 2.3 — overs go up instead of down.
+ * When the float dropped but implied balls increased and the tenths digit is 7–9
+ * (invalid as a single ball count 0–5), step one ball down instead.
+ */
+export function dotOversFromNumberInput(prevDot: number, rawFloat: number): number {
+  if (!Number.isFinite(rawFloat) || rawFloat < 0) return 0;
+  const norm = normalizeDotOversInput(rawFloat);
+  const prevBalls = dotOversToTotalBalls(prevDot);
+  const candBalls = dotOversToTotalBalls(norm);
+  const whole = Math.floor(rawFloat + 1e-9);
+  const ballDigit = Math.round((rawFloat - whole) * 10 + 1e-9);
+  if (rawFloat < prevDot - 1e-6 && candBalls > prevBalls && ballDigit >= 7 && ballDigit <= 9) {
+    return totalBallsToDotOvers(Math.max(0, prevBalls - 1));
+  }
+  if (rawFloat > prevDot + 1e-6 && candBalls < prevBalls) {
+    return totalBallsToDotOvers(prevBalls + 1);
+  }
+  return norm;
+}
+
 /** Carry ball digit into overs when user types e.g. 1.7 → 2.1 */
 export function normalizeDotOversInput(raw: number): number {
   if (!Number.isFinite(raw) || raw < 0) return 0;

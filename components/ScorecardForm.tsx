@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet, buildBattingOcrSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet, buildBowlingOcrSnippet } from '@/lib/bowling-ocr';
 import { findLineForPlayer } from '@/lib/scorecard-ocr-match';
-import { formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
+import { dotOversFromNumberInput, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
   battingPointsContributed,
   bowlingPointsContributed,
@@ -740,7 +740,7 @@ export default function ScorecardForm({
                             updateRow(
                               r.player_id,
                               'overs',
-                              normalizeDotOversInput(parseFloat(e.target.value) || 0),
+                              dotOversFromNumberInput(r.overs, parseFloat(e.target.value) || 0),
                             )
                           }
                         />

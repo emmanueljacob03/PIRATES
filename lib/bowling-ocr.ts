@@ -172,7 +172,7 @@ function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
 }
 
 export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowling | null {
-  const expanded = insertImplicitMaidenAfterOvers(numsRaw);
+  const expanded = insertImplicitMaidenAfterOvers(repairBowlingNumberSequence(numsRaw));
   const nums = expanded;
   if (nums.length < 4) return null;
   const TAIL = 28;
@@ -210,15 +210,23 @@ export function buildBowlingOcrSnippet(
 ): string {
   if (nameLineIndex < 0 || nameLineIndex >= allLines.length) return '';
   const parts: string[] = [allLines[nameLineIndex]];
-  const joinedCount = () => extractOrderedNumbers(parts.map((p) => sanitizeBowlingOcrLine(p)).join(' ')).length;
-  if (joinedCount() >= 4) return parts.join('\n');
-  const fewOnName = extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
-  for (let off = 1; off <= 5 && nameLineIndex + off < allLines.length; off++) {
+  let joinedNums = extractOrderedNumbers(
+    parts.map((p) => sanitizeBowlingOcrLine(p)).join(' '),
+  ).length;
+  if (joinedNums >= 4) return parts.join('\n');
+
+  const fewDigitsOnNameRow =
+    extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
+
+  for (let off = 1; off <= 3 && nameLineIndex + off < allLines.length; off++) {
     const ni = nameLineIndex + off;
     if (claimedLineIndices.has(ni)) break;
     parts.push(allLines[ni]);
-    if (joinedCount() >= 4) break;
-    if (fewOnName && joinedCount() >= 2) break;
+    joinedNums = extractOrderedNumbers(
+      parts.map((p) => sanitizeBowlingOcrLine(p)).join(' '),
+    ).length;
+    if (joinedNums >= 4) break;
+    if (fewDigitsOnNameRow && joinedNums >= 2) break;
   }
   return parts.join('\n');
 }
@@ -226,6 +234,11 @@ export function buildBowlingOcrSnippet(
 export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
   const lines = snippet.split(/\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return null;
+  for (const line of lines) {
+    const nums = extractOrderedNumbers(sanitizeBowlingOcrLine(line));
+    const p = findBestBowlingFromNumberSeries(nums);
+    if (p && isPlausibleBowling(p)) return p;
+  }
   const combined = extractOrderedNumbers(lines.map(sanitizeBowlingOcrLine).join(' '));
   return findBestBowlingFromNumberSeries(combined);
 }
