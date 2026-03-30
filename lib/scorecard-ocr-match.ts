@@ -1,6 +1,174 @@
 import { extractOrderedNumbers, stripRoleMarkers } from '@/lib/batting-ocr';
 import { sanitizeBowlingOcrLine } from '@/lib/bowling-ocr';
 
+export type BowlingLineHit = {
+  line: string;
+  lineIndex: number;
+  /** Line indices to mark claimed (e.g. bare surname row below the stats line). */
+  claimExtra: number[];
+};
+
+/** Text before the first digit on a bowling row — separates name cells from O·M·R·W stats. */
+export function extractBowlingNamePrefixBeforeStats(line: string): string {
+  const raw = (line || '').trim();
+  if (!raw) return '';
+  const idx = raw.search(/\d/);
+  if (idx < 0) return raw.replace(/[\s.|\-–—:_]+$/g, '').trim();
+  if (idx === 0) return '';
+  return raw
+    .slice(0, idx)
+    .replace(/[\s.|\-–—:_]+$/g, '')
+    .trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (n === 0) return m;
+  if (m === 0) return n;
+  const dp = new Array<number>(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0]!;
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j]!;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[j] = Math.min(dp[j]! + 1, dp[j - 1]! + 1, prev + cost);
+      prev = tmp;
+    }
+  }
+  return dp[n]!;
+}
+
+function similarityRatio(a: string, b: string): number {
+  if (a === b) return 1;
+  if (!a.length || !b.length) return 0;
+  const d = levenshtein(a, b);
+  return 1 - d / Math.max(a.length, b.length);
+}
+
+function isJunkBowlingNamePrefix(norm: string): boolean {
+  if (!norm || norm.replace(/[^a-z]/gi, '').length < 2) return true;
+  const n = norm.replace(/\s+/g, ' ').trim();
+  if (/^(o\s*m\s*r|o\s*m\s*r\s*w|bowling|econ|economy|wides?)\b/i.test(n)) return true;
+  if (/^(wkts?|maid)\b/i.test(n)) return true;
+  return false;
+}
+
+/**
+ * How well roster `playerName` matches the OCR fragment before stats (typos, missing middle names).
+ * Returns 0–100; use with a threshold for auto-fill so missing players stay empty.
+ */
+export function scoreRosterNameAgainstBowlingOcrPrefix(
+  playerName: string,
+  ocrNamePrefix: string,
+): number {
+  const ocr = normalizeScorecardName(ocrNamePrefix);
+  const roster = normalizeScorecardName(stripRoleMarkers(playerName));
+  if (isJunkBowlingNamePrefix(ocr) || ocr.length < 2 || roster.length < 2) return 0;
+
+  let best = 0;
+  const bump = (x: number) => {
+    if (x > best) best = x;
+  };
+
+  if (roster.includes(ocr) && ocr.length >= 4) bump(88 + Math.min(ocr.length, 10) * 0.4);
+  if (ocr.includes(roster) && roster.length >= 5) bump(91);
+
+  const rParts = roster.split(' ').filter((t) => t.length > 0);
+  const oParts = ocr.split(' ').filter((t) => t.length > 0);
+  if (rParts[0]?.length >= 3 && ocr.includes(rParts[0])) {
+    bump(72);
+    const last = rParts[rParts.length - 1];
+    if (last && last.length >= 4 && ocr.includes(last)) bump(94);
+  }
+
+  for (const alias of aliasesForScorecardName(playerName)) {
+    if (alias.length < 3) continue;
+    if (ocr === alias) bump(100);
+    if (ocr.includes(alias)) bump(93 + Math.min(alias.length, 12) * 0.25);
+    if (alias.includes(ocr) && ocr.length >= 5) bump(87);
+    const sim = similarityRatio(alias, ocr);
+    if (sim >= 0.88) bump(100 * sim);
+    else if (sim >= 0.78 && alias.length >= 4) bump(100 * sim - 2);
+    else if (sim >= 0.72 && alias.length >= 6) bump(100 * sim - 6);
+  }
+
+  if (rParts.length >= 2) {
+    const longToks = rParts.filter((t) => t.length >= 3);
+    const hit = longToks.filter((t) => ocr.includes(t)).length;
+    const need =
+      longToks.length <= 1 ? 1 : Math.max(2, Math.ceil(longToks.length * 0.5));
+    if (longToks.length > 0 && hit >= need) bump(76 + hit * 5);
+  }
+
+  if (oParts.length >= 2 && rParts.length >= 2) {
+    const olap = oParts.filter((t) => t.length >= 3 && roster.includes(t)).length;
+    if (olap >= 2) bump(80 + olap * 6);
+  }
+
+  return Math.min(100, Math.round(best * 10) / 10);
+}
+
+const BOWLING_GREEDY_MIN_SCORE = 76;
+const BOWLING_FALLBACK_MIN_SCORE = 52;
+
+type GreedyBowlingPair = {
+  playerId: string;
+  lineIndex: number;
+  score: number;
+};
+
+/**
+ * Parse each OCR row into (name prefix, stats) and **globally** assign lines to squad players
+ * (highest confidence first, one line per player) so row order gaps do not mis-attach stats.
+ */
+export function matchBowlingStatLinesToPlayersGreedy(
+  lines: string[],
+  players: { id: string; name: string }[],
+): Map<string, BowlingLineHit> {
+  const out = new Map<string, BowlingLineHit>();
+  const digitsOnLine = (s: string) => extractOrderedNumbers(sanitizeBowlingOcrLine(s)).length;
+
+  const statIndices: number[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (digitsOnLine(lines[i]!) < 4) continue;
+    const prefix = extractBowlingNamePrefixBeforeStats(lines[i]!);
+    if (isJunkBowlingNamePrefix(normalizeScorecardName(prefix))) continue;
+    if (prefix.replace(/[^A-Za-z]/g, '').length < 2) continue;
+    statIndices.push(i);
+  }
+
+  const pairs: GreedyBowlingPair[] = [];
+  for (const lineIndex of statIndices) {
+    const prefix = extractBowlingNamePrefixBeforeStats(lines[lineIndex]!);
+    for (const pl of players) {
+      const score = scoreRosterNameAgainstBowlingOcrPrefix(pl.name, prefix);
+      if (score >= BOWLING_GREEDY_MIN_SCORE) {
+        pairs.push({ playerId: pl.id, lineIndex, score });
+      }
+    }
+  }
+
+  pairs.sort((a, b) => b.score - a.score);
+  const usedLines = new Set<number>();
+  const usedPlayers = new Set<string>();
+
+  for (const p of pairs) {
+    if (usedPlayers.has(p.playerId) || usedLines.has(p.lineIndex)) continue;
+    usedPlayers.add(p.playerId);
+    usedLines.add(p.lineIndex);
+    out.set(p.playerId, {
+      line: lines[p.lineIndex]!,
+      lineIndex: p.lineIndex,
+      claimExtra: [],
+    });
+  }
+
+  return out;
+}
+
 export function normalizeScorecardName(s: string): string {
   return (s || '')
     .normalize('NFKC')
@@ -162,13 +330,6 @@ export function findLineForPlayer(
   return null;
 }
 
-export type BowlingLineHit = {
-  line: string;
-  lineIndex: number;
-  /** Line indices to mark claimed (e.g. bare surname row below the stats line). */
-  claimExtra: number[];
-};
-
 /**
  * Like findLineForPlayer, but fixes common bowling-sheet layouts:
  * - Stats on one line, **surname alone** on the next (e.g. "Emmanuel Jacob 1.0 …" then "Kanagala").
@@ -188,6 +349,11 @@ export function findBowlingLineForPlayer(
   const claimExtra: number[] = [];
 
   if (digitsOnLine(line) >= 2) {
+    const sc = scoreRosterNameAgainstBowlingOcrPrefix(
+      playerDisplayName,
+      extractBowlingNamePrefixBeforeStats(line),
+    );
+    if (sc < BOWLING_FALLBACK_MIN_SCORE) return null;
     return { line, lineIndex, claimExtra };
   }
 
@@ -208,11 +374,21 @@ export function findBowlingLineForPlayer(
     if (prevI >= 0 && !claimed.has(prevI)) {
       const prevLine = lines[prevI];
       if (prevLine.toLowerCase().includes(first) && digitsOnLine(prevLine) >= 2) {
+        const combined = `${extractBowlingNamePrefixBeforeStats(prevLine)} ${line.trim()}`
+          .replace(/\s+/g, ' ')
+          .trim();
+        const sc = scoreRosterNameAgainstBowlingOcrPrefix(playerDisplayName, combined);
+        if (sc < BOWLING_FALLBACK_MIN_SCORE - 4) return null;
         claimExtra.push(lineIndex);
         return { line: prevLine, lineIndex: prevI, claimExtra };
       }
     }
   }
 
+  const weak = scoreRosterNameAgainstBowlingOcrPrefix(
+    playerDisplayName,
+    extractBowlingNamePrefixBeforeStats(line),
+  );
+  if (weak < BOWLING_FALLBACK_MIN_SCORE - 8) return null;
   return { line, lineIndex, claimExtra };
 }

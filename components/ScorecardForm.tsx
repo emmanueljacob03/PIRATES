@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet, buildBattingOcrSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet, buildBowlingOcrSnippet } from '@/lib/bowling-ocr';
 import {
+  type BowlingLineHit,
   findBowlingLineForPlayer,
   findLineForPlayer,
+  matchBowlingStatLinesToPlayersGreedy,
   preprocessBowlingOcrLines,
 } from '@/lib/scorecard-ocr-match';
 import { dotOversFromNumberInput, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
@@ -281,6 +283,15 @@ export default function ScorecardForm({
       const claimedBowl = new Set<number>();
       const playersBySpecificity = [...players].sort((a, b) => b.name.length - a.name.length);
 
+      const greedyBowlingHits =
+        hasBowl && bowlingLines.length
+          ? matchBowlingStatLinesToPlayersGreedy(bowlingLines, players)
+          : new Map<string, BowlingLineHit>();
+      for (const h of Array.from(greedyBowlingHits.values())) {
+        claimedBowl.add(h.lineIndex);
+        for (const ix of h.claimExtra) claimedBowl.add(ix);
+      }
+
       let fillBat = 0;
       let fillBowl = 0;
       let nameHits = 0;
@@ -297,7 +308,10 @@ export default function ScorecardForm({
               ? buildBattingOcrSnippet(battingLines, batHit.lineIndex, claimedBat)
               : null;
 
-        const bowlHit = hasBowl && bowlingLines.length ? findBowlingLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
+        let bowlHit = greedyBowlingHits.get(p.id) ?? null;
+        if (!bowlHit && hasBowl && bowlingLines.length) {
+          bowlHit = findBowlingLineForPlayer(bowlingLines, p.name, claimedBowl);
+        }
         if (bowlHit) {
           claimedBowl.add(bowlHit.lineIndex);
           for (const ix of bowlHit.claimExtra) claimedBowl.add(ix);
