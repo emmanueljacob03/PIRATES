@@ -146,6 +146,25 @@ function legalOversFromDot(oversDot: number): number {
   return balls / 6;
 }
 
+function repairBowlingOcrNums(numsRaw: number[]): number[] {
+  return repairBowlingNumberSequence(
+    squashEconomyOcrGluedDigits(
+      repairOcrTenTimesOvers(insertImplicitMaidenAfterOvers([...numsRaw])),
+    ),
+  );
+}
+
+/** When strict plausibility rejects everything (noisy OCR), still pick a row-like tuple. */
+function isLooselyOkBowling(p: ParsedBowling): boolean {
+  if (p.wickets > 12 || p.maidens > 12 || p.runs_conceded > 350) return false;
+  if (p.overs <= 0 && p.wickets === 0 && p.runs_conceded === 0 && p.maidens === 0) return false;
+  if (p.wickets > 0 && p.overs <= 0) return false;
+  const leg = legalOversFromDot(p.overs);
+  if (leg <= 0 || leg > 18) return false;
+  if (leg > 0 && p.runs_conceded / leg > 55) return false;
+  return true;
+}
+
 /** Club scorecard row: single spell rarely exceeds ~12 legal overs; stricter O weeds out R,W shifted into O,M. */
 function isPlausibleBowling(p: ParsedBowling): boolean {
   if (p.wickets > 15 || p.runs_conceded > 400 || p.maidens > 12) return false;
@@ -225,13 +244,18 @@ function erFitScore(p: ParsedBowling, following: number[]): number {
   return best;
 }
 
-function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
-  if (!isPlausibleBowling(p)) return Number.NEGATIVE_INFINITY;
+function bowlScore(p: ParsedBowling, numsAfterOmrw: number[], relaxed: boolean): number {
+  if (relaxed) {
+    if (!isLooselyOkBowling(p)) return Number.NEGATIVE_INFINITY;
+  } else if (!isPlausibleBowling(p)) {
+    return Number.NEGATIVE_INFINITY;
+  }
   let s = 0;
   const leg = legalOversFromDot(p.overs);
   if (leg > 0 && p.runs_conceded >= 0) {
     const er = p.runs_conceded / leg;
     if (er >= 0.5 && er <= 36) s += 28;
+    else if (relaxed && er > 36 && er <= 55) s += 8;
     const reported = numsAfterOmrw[0];
     if (reported != null && Number.isFinite(reported) && reported >= 0 && reported <= 45) {
       if (Math.abs(reported - er) <= 1.25) s += 70;
@@ -244,35 +268,42 @@ function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
   return s;
 }
 
-export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowling | null {
-  const nums = repairBowlingNumberSequence(
-    squashEconomyOcrGluedDigits(
-      repairOcrTenTimesOvers(insertImplicitMaidenAfterOvers([...numsRaw])),
-    ),
-  );
-  if (nums.length < 4) return null;
+function collectBowlingCandidates(
+  nums: number[],
+  strict: boolean,
+): { p: ParsedBowling; erFit: number; score: number }[] {
   const TAIL = 28;
   const from = Math.max(0, nums.length - TAIL);
   const candidates: { p: ParsedBowling; erFit: number; score: number }[] = [];
   const seen = new Set<string>();
+  const ok = strict ? isPlausibleBowling : isLooselyOkBowling;
 
   for (let start = from; start <= nums.length - 4; start++) {
     const following = nums.slice(start + 4, start + 14);
     for (const p0 of bowlingCandidatesAt(nums, start)) {
       const p = alignRunsToReportedEconomy(p0, following);
-      if (!isPlausibleBowling(p)) continue;
+      if (!ok(p)) continue;
       const key = `${p.overs}-${p.maidens}-${p.runs_conceded}-${p.wickets}`;
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push({
         p,
         erFit: erFitScore(p, following),
-        score: bowlScore(p, following),
+        score: bowlScore(p, following, !strict) - (strict ? 0 : 50),
       });
     }
   }
+  return candidates;
+}
 
+export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowling | null {
+  const nums = repairBowlingOcrNums(numsRaw);
+  if (nums.length < 4) return null;
+
+  let candidates = collectBowlingCandidates(nums, true);
+  if (!candidates.length) candidates = collectBowlingCandidates(nums, false);
   if (!candidates.length) return null;
+
   candidates.sort((a, b) => {
     if (b.erFit !== a.erFit) return b.erFit - a.erFit;
     return b.score - a.score;
@@ -292,10 +323,8 @@ export function buildBowlingOcrSnippet(
   ).length;
   if (joinedNums >= 4) return parts.join('\n');
 
-  const fewDigitsOnNameRow =
-    extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
-
-  for (let off = 1; off <= 3 && nameLineIndex + off < allLines.length; off++) {
+  /** Pull continuation until we have O/M/R/W digits — never stop at 2 numbers (that drops real stat columns). */
+  for (let off = 1; off <= 5 && nameLineIndex + off < allLines.length; off++) {
     const ni = nameLineIndex + off;
     if (claimedLineIndices.has(ni)) break;
     parts.push(allLines[ni]);
@@ -303,7 +332,6 @@ export function buildBowlingOcrSnippet(
       parts.map((p) => sanitizeBowlingOcrLine(p)).join(' '),
     ).length;
     if (joinedNums >= 4) break;
-    if (fewDigitsOnNameRow && joinedNums >= 2) break;
   }
   return parts.join('\n');
 }
@@ -314,7 +342,7 @@ export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
   for (const line of lines) {
     const nums = extractOrderedNumbers(sanitizeBowlingOcrLine(line));
     const p = findBestBowlingFromNumberSeries(nums);
-    if (p && isPlausibleBowling(p)) return p;
+    if (p) return p;
   }
   const combined = extractOrderedNumbers(lines.map(sanitizeBowlingOcrLine).join(' '));
   return findBestBowlingFromNumberSeries(combined);
