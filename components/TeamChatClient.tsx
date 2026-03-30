@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { TeamChatMessage, TeamChatMessageInsert } from '@/types/database';
+import type { TeamChatMessage } from '@/types/database';
 import { format } from 'date-fns';
 
 /** Manual Database shape lacks full GenericSchema; PostgREST insert types resolve to `never` without this. */
@@ -76,30 +76,37 @@ export default function TeamChatClient({
     if (!body || !canPost) return;
     setSending(true);
     setError('');
-    const row: TeamChatMessageInsert = {
-      user_id: userId,
-      sender_name: senderName,
-      body,
-      is_alert: isAdmin && postAsAlert,
-    };
-    const { data, error: insErr } = await db.from('team_chat_messages').insert(row).select().single();
+    const isAlert = isAdmin && postAsAlert;
 
-    setSending(false);
-    if (insErr) {
-      setError(
-        insErr.message.includes('row-level security')
-          ? 'Could not send (run team_chat_messages.sql in Supabase, or alerts require admin profile role).'
-          : insErr.message,
-      );
-      return;
+    try {
+      const res = await fetch('/api/team-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          body: text,
+          sender_name: senderName,
+          is_alert: isAlert,
+        }),
+      });
+      const json = (await res.json()) as { data?: TeamChatMessage; error?: string };
+
+      if (!res.ok) {
+        setError(json.error || 'Could not send message');
+        return;
+      }
+      if (json.data) {
+        const inserted = json.data as TeamChatMessage;
+        setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
+      }
+      setText('');
+      setPostAsAlert(false);
+      inputRef.current?.focus();
+    } catch {
+      setError('Network error — try again');
+    } finally {
+      setSending(false);
     }
-    if (data) {
-      const inserted = data as TeamChatMessage;
-      setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
-    }
-    setText('');
-    setPostAsAlert(false);
-    inputRef.current?.focus();
   }
 
   function startEdit(m: Row) {

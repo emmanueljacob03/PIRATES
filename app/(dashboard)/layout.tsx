@@ -13,8 +13,6 @@ import NotificationBar from '@/components/NotificationBar';
 import ExpenseApprovalNotification from '@/components/ExpenseApprovalNotification';
 import SignupApprovalRequests from '@/components/SignupApprovalRequests';
 import ProfileIcon from '@/components/ProfileIcon';
-import { isDashboardAdmin } from '@/lib/admin-request';
-
 export default async function DashboardLayout({
   children,
 }: {
@@ -23,14 +21,20 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
-  const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
-  const showAdminTools = isAdmin || (await isDashboardAdmin());
+  const isAdminCookie = cookieStore.get('pirates_admin')?.value === 'true';
 
   let hasSession = false;
+  let showAdminTools = isAdminCookie;
   try {
     const supabase = await createServerSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     hasSession = !!session;
+    if (!showAdminTools && session?.user) {
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
+      showAdminTools = (prof as { role?: string } | null)?.role === 'admin';
+    }
   } catch {
     // ignore
   }
@@ -54,7 +58,7 @@ export default async function DashboardLayout({
           </div>
         </header>
         <main className="px-4 py-6 max-w-6xl mx-auto relative">
-          <div className="absolute top-0 right-4 sm:right-0 z-10 flex flex-col items-end">
+          <div className="absolute top-2 right-4 sm:right-0 z-10 flex flex-col items-end">
             <TeamChatNavButton />
           </div>
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 pb-4 mb-6 w-full min-h-[2.75rem] pr-16 sm:pr-20">

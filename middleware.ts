@@ -21,7 +21,6 @@ export const config = {
   matcher: [
     '/',
     '/achievements',
-    '/login',
     '/auth/callback',
     '/api/birthdays-today',
     '/api/team-code-handoff',

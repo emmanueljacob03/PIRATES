@@ -50,6 +50,9 @@ CREATE POLICY "team_chat_delete" ON public.team_chat_messages
   FOR DELETE TO authenticated
   USING (user_id = auth.uid());
 
+-- Alert messages: POST /api/team-chat with is_alert uses the service role (see app code) so team-code
+-- admins (cookie) still work; set SUPABASE_SERVICE_ROLE_KEY in env. Normal messages use the user client + RLS.
+
 -- Realtime: Dashboard → Database → Replication → enable for team_chat_messages
 -- Or (if your project allows):
 -- ALTER PUBLICATION supabase_realtime ADD TABLE public.team_chat_messages;
