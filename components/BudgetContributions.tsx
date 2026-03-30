@@ -133,6 +133,27 @@ export default function BudgetContributions({
     if (data?.id) setRows((prev) => prev.map((r) => (r.id === id ? data : r)));
   }
 
+  async function handleDeleteContribution(id: string) {
+    const ok = window.confirm('Are you sure you want to delete this record? This cannot be undone.');
+    if (!ok) return;
+    const res = await fetch('/api/contributions', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      alert((data as { error?: string } | null)?.error ?? 'Delete failed');
+      return;
+    }
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    if (editingId === id) {
+      setEditingId(null);
+      setEditAmount('');
+    }
+    router.refresh();
+  }
+
   const showViewerTable = viewerMode && !isAdmin;
 
   return (
@@ -159,18 +180,48 @@ export default function BudgetContributions({
             <tr key={r.id} className="border-b border-slate-700/50">
               <td className="py-2">{r.player_name}</td>
               <td className="py-2">
-                {editingId === r.id ? (
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field w-24 py-1 text-sm"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                    autoFocus
-                  />
-                ) : (
-                  `$${Number(r.amount).toFixed(2)}`
-                )}
+                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                  {editingId === r.id ? (
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input-field w-24 py-1 text-sm"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      autoFocus
+                    />
+                  ) : (
+                    <span>${Number(r.amount).toFixed(2)}</span>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteContribution(r.id)}
+                      className="inline-flex items-center justify-center p-0.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-950/40"
+                      title="Delete this record"
+                      aria-label="Delete contribution"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        <line x1="10" x2="10" y1="11" y2="17" />
+                        <line x1="14" x2="14" y1="11" y2="17" />
+                      </svg>
+                    </button>
+                  )}
+                </span>
               </td>
               {showViewerTable ? (
                 <td className="py-2 text-slate-300 max-w-[200px]">
