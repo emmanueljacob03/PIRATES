@@ -221,7 +221,15 @@ export default function ScorecardForm({
         const res = await worker.recognize(f);
         return (res?.data?.text ?? '').toString();
       };
-      const [b1, b2, bw] = await Promise.all([ocrOne(batting1), ocrOne(batting2), ocrOne(bowling1)]);
+      const [b1, b2] = await Promise.all([ocrOne(batting1), ocrOne(batting2)]);
+      let bw = '';
+      if (bowling1) {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
+          user_defined_dpi: '300',
+        });
+        bw = await ocrOne(bowling1);
+      }
       await worker.terminate();
       const battingText = [b1, b2].filter(Boolean).join('\n');
       const bowlingText = bw || '';

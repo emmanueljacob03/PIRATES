@@ -44,13 +44,8 @@ export function repairBowlingNumberSequence(nums: number[]): number[] {
 }
 
 /**
- * Many scorecard apps print **M=0** as a blank or OCR drops it → "4 20 2 5" instead of "4 0 20 2 5".
- * Insert a maiden 0 when O is spell-sized and the next token looks like runs (not a maiden count).
- */
-/**
- * OCR merges "4.0", "3.0" style overs into 40, 30 (no decimal). When M=0 and R looks
- * like runs bowled, treat as X.0 overs for 10≤X≤12 (and 13 in long spells).
- * Also: "1.0" sometimes becomes 170 (1 glue + 70); treat as 1.0 when spell-sized.
+ * OCR merges "4.0"/"3.0" into 40/30, or "1.0" into 170. Do **not** treat (20,0,20) as overs after a
+ * row has already started (O, M=0) — that pattern is **runs**, not 2.0 overs.
  */
 export function repairOcrTenTimesOvers(nums: number[]): number[] {
   const out = [...nums];
@@ -60,6 +55,18 @@ export function repairOcrTenTimesOvers(nums: number[]): number[] {
     const c = Number(out[i + 2]);
     if (b !== 0) continue;
     if (!Number.isFinite(c) || c < 0 || c > 400) continue;
+    /**
+     * After normalising leading overs (e.g. 170→1), the tuple is O,M,R,W,…
+     * A triple (20,0,20) here is **R then W then ER**, not "20→2.0 overs".
+     * Skip ×10 repair when the two cells before i already look like O + M=0.
+     */
+    if (i >= 2) {
+      const prevO = Number(out[i - 2]);
+      const prevM = Math.round(Number(out[i - 1]));
+      if (Number.isFinite(prevO) && prevO >= 0 && prevO <= 13 && prevM === 0) {
+        continue;
+      }
+    }
     if (a >= 10 && a <= 120 && a % 10 === 0) {
       out[i] = a / 10;
       continue;
@@ -90,6 +97,10 @@ export function squashEconomyOcrGluedDigits(nums: number[]): number[] {
   });
 }
 
+/**
+ * Many scorecard apps print **M=0** as a blank or OCR drops it → "4 20 2 5" instead of "4 0 20 2 5".
+ * Insert a maiden 0 when O is spell-sized and the next token looks like runs (not a maiden count).
+ */
 export function insertImplicitMaidenAfterOvers(nums: number[]): number[] {
   const out = [...nums];
   let i = 0;
@@ -148,6 +159,25 @@ function isPlausibleBowling(p: ParsedBowling): boolean {
   if (p.wickets > 10) return false;
   if (leg > 0 && p.runs_conceded / leg > 40) return false;
   return true;
+}
+
+/**
+ * OCR drops a trailing zero on runs (2 vs 20) while ER column is often clean.
+ * If runs 1–9 but ER×legal_overs ≈ runs×10, trust implied runs from ER.
+ */
+function alignRunsToReportedEconomy(p: ParsedBowling, following: number[]): ParsedBowling {
+  const leg = legalOversFromDot(p.overs);
+  if (leg <= 0) return p;
+  const erRep = following[0];
+  if (erRep == null || !Number.isFinite(erRep) || erRep < 2 || erRep > 45) return p;
+  const implied = erRep * leg;
+  const rc = p.runs_conceded;
+  if (rc < 1 || rc > 9) return p;
+  if (implied < 10) return p;
+  if (Math.abs(implied - rc * 10) <= Math.max(2.5, implied * 0.08)) {
+    return { ...p, runs_conceded: Math.round(implied) };
+  }
+  return p;
 }
 
 function bowlingCandidatesAt(nums: number[], start: number): ParsedBowling[] {
@@ -228,7 +258,8 @@ export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowlin
 
   for (let start = from; start <= nums.length - 4; start++) {
     const following = nums.slice(start + 4, start + 14);
-    for (const p of bowlingCandidatesAt(nums, start)) {
+    for (const p0 of bowlingCandidatesAt(nums, start)) {
+      const p = alignRunsToReportedEconomy(p0, following);
       if (!isPlausibleBowling(p)) continue;
       const key = `${p.overs}-${p.maidens}-${p.runs_conceded}-${p.wickets}`;
       if (seen.has(key)) continue;
