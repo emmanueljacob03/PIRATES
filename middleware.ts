@@ -36,5 +36,6 @@ export const config = {
     '/leaderboard',
     '/players/:path*',
     '/profiles',
+    '/chat',
   ],
 };

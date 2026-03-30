@@ -156,6 +156,28 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['match_stats']['Insert']>;
       };
+      team_chat_messages: {
+        Row: {
+          id: string;
+          user_id: string;
+          sender_name: string;
+          body: string;
+          is_alert: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          sender_name: string;
+          body: string;
+          is_alert?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<{
+          body: string;
+          is_alert: boolean;
+        }>;
+      };
     };
   };
 }
@@ -168,3 +190,5 @@ export type Match = Database['public']['Tables']['matches']['Row'];
 export type MatchMedia = Database['public']['Tables']['match_media']['Row'];
 export type Player = Database['public']['Tables']['players']['Row'];
 export type MatchStat = Database['public']['Tables']['match_stats']['Row'];
+export type TeamChatMessage = Database['public']['Tables']['team_chat_messages']['Row'];
+export type TeamChatMessageInsert = Database['public']['Tables']['team_chat_messages']['Insert'];

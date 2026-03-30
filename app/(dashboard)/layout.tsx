@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 import DashboardNav from '@/components/DashboardNav';
+import TeamChatNavButton from '@/components/TeamChatNavButton';
 import LogoutButton from '@/components/LogoutButton';
 import PiratesHeader from '@/components/PiratesHeader';
 import MatchNotification from '@/components/MatchNotification';
@@ -59,8 +60,13 @@ export default async function DashboardLayout({
               {modeLabel}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-700 pb-4 mb-6 pr-20">
-            <DashboardNav />
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-700 pb-4 mb-6 pr-20 w-full justify-between gap-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <DashboardNav />
+            </div>
+            <div className="flex-shrink-0 ml-auto sm:ml-0">
+              <TeamChatNavButton />
+            </div>
           </div>
           {children}
         </main>
