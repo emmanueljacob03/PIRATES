@@ -55,17 +55,15 @@ export default async function DashboardLayout({
           </div>
         </header>
         <main className="px-4 py-6 max-w-6xl mx-auto relative">
-          <div className="absolute top-0 right-4 sm:right-0 z-10">
+          <div className="absolute top-0 right-4 sm:right-0 z-10 flex flex-col items-end gap-2">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-slate-700 text-slate-200">
               {modeLabel}
             </span>
+            <TeamChatNavButton />
           </div>
-          <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 pb-4 mb-6 w-full min-h-[2.75rem]">
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 pb-4 mb-6 w-full min-h-[2.75rem] pr-14 sm:pr-16">
             <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
               <DashboardNav />
-            </div>
-            <div className="flex-shrink-0 ml-auto -mr-1">
-              <TeamChatNavButton />
             </div>
           </div>
           {children}

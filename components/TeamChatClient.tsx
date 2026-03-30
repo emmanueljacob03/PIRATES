@@ -165,31 +165,23 @@ export default function TeamChatClient({
 
   if (isDemo || !userId) {
     return (
-      <div className="rounded-xl border border-slate-600 bg-slate-800/50 p-8 text-center text-slate-300">
-        <p className="text-lg font-medium text-[var(--pirate-yellow)] mb-2">Team chat</p>
-        <p className="text-sm max-w-md mx-auto">
-          Sign in with your team account (not demo mode) to read and post. Everyone sees all messages here. Ask an admin if
-          you need access.
-        </p>
+      <div className="rounded-2xl border border-slate-600 bg-slate-800/50 p-10 text-center text-slate-300 max-w-5xl mx-auto min-h-[50vh] flex flex-col items-center justify-center">
+        <p className="text-lg font-semibold text-emerald-400 mb-2">Pirates chat</p>
+        <p className="text-sm max-w-md">Sign in (not demo mode) to open chat.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl max-w-3xl mx-auto h-[min(78vh,720px)]">
+    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl w-full max-w-5xl mx-auto h-[min(88vh,920px)]">
       <div
         className="flex-shrink-0 px-4 py-3 flex items-center gap-3 border-b border-slate-800"
         style={{ background: 'linear-gradient(180deg, #1f2c34 0%, #111b21 100%)' }}
       >
-        <div className="w-10 h-10 rounded-full bg-emerald-700 flex items-center justify-center text-lg font-bold text-emerald-100">
+        <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold text-white">
           P
         </div>
-        <div>
-          <h1 className="text-slate-100 font-semibold text-sm">Team chat</h1>
-          <p className="text-xs text-emerald-400/90">
-            {sorted.length} message{sorted.length !== 1 ? 's' : ''} · visible to all members
-          </p>
-        </div>
+        <h1 className="text-emerald-400 font-semibold text-base tracking-tight">Pirates chat</h1>
       </div>
 
       <div
@@ -304,37 +296,22 @@ export default function TeamChatClient({
       </div>
 
       <div
-        className="flex-shrink-0 p-2 border-t border-slate-800 flex flex-col gap-2"
+        className="flex-shrink-0 border-t border-slate-800 relative"
         style={{ background: '#1f2c34' }}
       >
-        {error && <p className="text-xs text-red-400 px-2">{error}</p>}
+        {error && <p className="text-xs text-red-400 px-3 pt-2">{error}</p>}
         {isAdmin && (
-          <div className="flex items-center gap-2 px-1 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wide text-slate-500 w-full sm:w-auto">Send as:</span>
-            <button
-              type="button"
-              onClick={() => setPostAsAlert(false)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
-                !postAsAlert ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-              }`}
-            >
-              Normal message
-            </button>
-            <button
-              type="button"
-              onClick={() => setPostAsAlert(true)}
-              className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
-                postAsAlert ? 'bg-red-900/90 border-red-500 text-red-100' : 'border-red-700/50 text-red-400 hover:bg-red-950/50'
-              }`}
-            >
-              Alert message
-            </button>
-            {postAsAlert && (
-              <span className="text-[10px] text-red-400">Everyone sees this highlighted in red.</span>
-            )}
-          </div>
+          <label className="absolute top-2 right-3 z-10 flex items-center gap-2 cursor-pointer select-none rounded-md bg-[#111b21]/90 border border-slate-600/80 px-2 py-1">
+            <input
+              type="checkbox"
+              checked={postAsAlert}
+              onChange={(e) => setPostAsAlert(e.target.checked)}
+              className="rounded border-slate-500 text-red-600 focus:ring-red-500"
+            />
+            <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
+          </label>
         )}
-        <div className="flex items-end gap-2">
+        <div className={`flex items-end gap-2 p-2 ${isAdmin ? 'pt-9' : ''}`}>
           <input
             ref={inputRef}
             type="text"
@@ -355,7 +332,7 @@ export default function TeamChatClient({
             type="button"
             onClick={() => void send()}
             disabled={!canPost || sending || !text.trim()}
-            className="rounded-full p-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white shadow-lg"
+            className="rounded-full p-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white shadow-lg shrink-0"
             aria-label="Send"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">

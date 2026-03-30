@@ -34,21 +34,12 @@ export default async function ChatPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-semibold text-[var(--pirate-yellow)]">Team chat</h2>
-        <p className="text-sm text-slate-400 mt-1">
-          Everyone sees all messages here. Admins can send an <span className="text-red-400">alert message</span> (highlighted)
-          or a normal message — pick before you send. You can edit or delete your own messages.
-        </p>
-      </div>
-      <TeamChatClient
-        initialMessages={initialMessages}
-        userId={user?.id ?? null}
-        senderName={senderName}
-        isAdmin={isAdmin}
-        isDemo={demo}
-      />
-    </div>
+    <TeamChatClient
+      initialMessages={initialMessages}
+      userId={user?.id ?? null}
+      senderName={senderName}
+      isAdmin={isAdmin}
+      isDemo={demo}
+    />
   );
 }
