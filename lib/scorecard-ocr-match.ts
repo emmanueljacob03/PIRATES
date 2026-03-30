@@ -1,4 +1,5 @@
-import { stripRoleMarkers } from '@/lib/batting-ocr';
+import { extractOrderedNumbers, stripRoleMarkers } from '@/lib/batting-ocr';
+import { sanitizeBowlingOcrLine } from '@/lib/bowling-ocr';
 
 export function normalizeScorecardName(s: string): string {
   return (s || '')
@@ -111,4 +112,59 @@ export function findLineForPlayer(
   }
 
   return null;
+}
+
+export type BowlingLineHit = {
+  line: string;
+  lineIndex: number;
+  /** Line indices to mark claimed (e.g. bare surname row below the stats line). */
+  claimExtra: number[];
+};
+
+/**
+ * Like findLineForPlayer, but fixes common bowling-sheet layouts:
+ * - Stats on one line, **surname alone** on the next (e.g. "Emmanuel Jacob 1.0 …" then "Kanagala").
+ *   A plain last-name match would anchor on the empty "Kanagala" row; use the **previous** line instead.
+ */
+export function findBowlingLineForPlayer(
+  lines: string[],
+  playerDisplayName: string,
+  claimed: Set<number>,
+): BowlingLineHit | null {
+  const hit = findLineForPlayer(lines, playerDisplayName, claimed);
+  if (!hit) return null;
+
+  const digitsOnLine = (s: string) => extractOrderedNumbers(sanitizeBowlingOcrLine(s)).length;
+  let line = hit.line;
+  let lineIndex = hit.lineIndex;
+  const claimExtra: number[] = [];
+
+  if (digitsOnLine(line) >= 2) {
+    return { line, lineIndex, claimExtra };
+  }
+
+  const parts = normalizeScorecardName(stripRoleMarkers(playerDisplayName)).split(' ').filter(Boolean);
+  const last = parts[parts.length - 1];
+  const first = parts[0];
+  const compact = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+  const lineComp = compact(line);
+
+  const looksLikeBareSurname =
+    last &&
+    last.length >= 3 &&
+    first &&
+    (lineComp === compact(last) || line.toLowerCase().trim() === last.toLowerCase());
+
+  if (looksLikeBareSurname) {
+    const prevI = lineIndex - 1;
+    if (prevI >= 0 && !claimed.has(prevI)) {
+      const prevLine = lines[prevI];
+      if (prevLine.toLowerCase().includes(first) && digitsOnLine(prevLine) >= 2) {
+        claimExtra.push(lineIndex);
+        return { line: prevLine, lineIndex: prevI, claimExtra };
+      }
+    }
+  }
+
+  return { line, lineIndex, claimExtra };
 }

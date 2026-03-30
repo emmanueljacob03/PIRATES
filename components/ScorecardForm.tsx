@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { bestBattingFromSnippet, buildBattingOcrSnippet } from '@/lib/batting-ocr';
 import { bestBowlingFromSnippet, buildBowlingOcrSnippet } from '@/lib/bowling-ocr';
-import { findLineForPlayer } from '@/lib/scorecard-ocr-match';
+import { findBowlingLineForPlayer, findLineForPlayer } from '@/lib/scorecard-ocr-match';
 import { dotOversFromNumberInput, formatDotOversForInput, normalizeDotOversInput } from '@/lib/cricket-overs';
 import {
   battingPointsContributed,
@@ -212,17 +212,15 @@ export default function ScorecardForm({
     try {
       const { createWorker, PSM } = await import('tesseract.js');
       const worker = await createWorker('eng');
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        user_defined_dpi: '300',
-      });
       const ocrOne = async (f: File | null) => {
         if (!f) return '';
         const res = await worker.recognize(f);
         return (res?.data?.text ?? '').toString();
       };
-      /** Bowling tables read cleaner in column mode (1.0/5.00 stay parsed; less 40/500 glue). */
-      const [b1, b2] = await Promise.all([ocrOne(batting1), ocrOne(batting2)]);
+      /**
+       * Read bowling first (column mode: decimals stay readable). Then batting in block mode.
+       * Order avoids worker/queue quirks when both sheets are uploaded.
+       */
       let bw = '';
       if (bowling1) {
         await worker.setParameters({
@@ -231,6 +229,11 @@ export default function ScorecardForm({
         });
         bw = await ocrOne(bowling1);
       }
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        user_defined_dpi: '300',
+      });
+      const [b1, b2] = await Promise.all([ocrOne(batting1), ocrOne(batting2)]);
       await worker.terminate();
       const battingText = [b1, b2].filter(Boolean).join('\n');
       const bowlingText = bw || '';
@@ -265,8 +268,11 @@ export default function ScorecardForm({
               ? buildBattingOcrSnippet(battingLines, batHit.lineIndex, claimedBat)
               : null;
 
-        const bowlHit = hasBowl && bowlingLines.length ? findLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
-        if (bowlHit) claimedBowl.add(bowlHit.lineIndex);
+        const bowlHit = hasBowl && bowlingLines.length ? findBowlingLineForPlayer(bowlingLines, p.name, claimedBowl) : null;
+        if (bowlHit) {
+          claimedBowl.add(bowlHit.lineIndex);
+          for (const ix of bowlHit.claimExtra) claimedBowl.add(ix);
+        }
         const bowlSnippet =
           bowlHit && hasBowl && bowlingLines.length
             ? buildBowlingOcrSnippet(bowlingLines, bowlHit.lineIndex, claimedBowl)
@@ -288,20 +294,6 @@ export default function ScorecardForm({
 
         let appliedHere = false;
 
-        if (batSnippet) {
-          const parsed = bestBattingFromSnippet(batSnippet);
-          if (parsed && (parsed.runs > 0 || parsed.balls > 0)) {
-            row.runs = parsed.runs;
-            row.balls = parsed.balls;
-            row.fours = parsed.fours;
-            row.sixes = parsed.sixes;
-            row.include_bat = true;
-            fillBat += 1;
-            statsApplied = true;
-            appliedHere = true;
-          }
-        }
-
         if (bowlSnippet) {
           const parsed = bestBowlingFromSnippet(bowlSnippet);
           if (
@@ -314,6 +306,20 @@ export default function ScorecardForm({
             row.wickets = parsed.wickets;
             row.include_bowl = true;
             fillBowl += 1;
+            statsApplied = true;
+            appliedHere = true;
+          }
+        }
+
+        if (batSnippet) {
+          const parsed = bestBattingFromSnippet(batSnippet);
+          if (parsed && (parsed.runs > 0 || parsed.balls > 0)) {
+            row.runs = parsed.runs;
+            row.balls = parsed.balls;
+            row.fours = parsed.fours;
+            row.sixes = parsed.sixes;
+            row.include_bat = true;
+            fillBat += 1;
             statsApplied = true;
             appliedHere = true;
           }

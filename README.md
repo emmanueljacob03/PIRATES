@@ -71,7 +71,8 @@ Open **http://localhost:4000** (or the port shown in the terminal). Sign up, the
 - **Tesseract** on phone screenshots often merges table cells, e.g. **4.0 → 40**, **5.00 → 500**, **1.0 → 170**, **12.50 → 1250**. The bowling parser in `lib/bowling-ocr.ts` normalises those patterns where it can.
 - **Pipeline order** (after line extraction): implicit maiden insert when **M=0** is missing → **repairOcrTenTimesOvers** (×10 overs glue, with guards so real **runs** like 20 are not turned into 2.0 overs) → **squashEconomyOcrGluedDigits** (ER×100 style tokens) → **repairBowlingNumberSequence** (split dot overs).
 - The scorecard form only persists **O, M, R, W** from bowling OCR (not wides/no-balls columns). Bowling images are read with **column-friendly** page segmentation where possible (`ScorecardForm` + Tesseract `SINGLE_COLUMN`).
-- **Split names** across two OCR lines (e.g. surname on the next line) can still miss stats; a sharper or zoomed crop of the table helps.
+- **Split names** across two OCR lines (e.g. surname-only row under “Emmanuel Jacob … 1.0 0 20…”) are handled by **`findBowlingLineForPlayer`**: it uses the stats line when the match would otherwise anchor on an empty surname row.
+- **Read order** on “Read”: bowling image is OCR’d **first** (column mode), then batting (block mode), so both uploads stay accurate.
 
 ## Roles (RLS)
 
