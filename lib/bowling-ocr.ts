@@ -44,60 +44,6 @@ export function repairBowlingNumberSequence(nums: number[]): number[] {
 }
 
 /**
- * OCR merges "4.0"/"3.0" into 40/30, or "1.0" into 170. Do **not** treat (20,0,20) as overs after a
- * row has already started (O, M=0) — that pattern is **runs**, not 2.0 overs.
- */
-export function repairOcrTenTimesOvers(nums: number[]): number[] {
-  const out = [...nums];
-  for (let i = 0; i < out.length - 2; i++) {
-    const a = Math.round(Number(out[i]));
-    const b = Math.round(Number(out[i + 1]));
-    const c = Number(out[i + 2]);
-    if (b !== 0) continue;
-    if (!Number.isFinite(c) || c < 0 || c > 400) continue;
-    /**
-     * After normalising leading overs (e.g. 170→1), the tuple is O,M,R,W,…
-     * A triple (20,0,20) here is **R then W then ER**, not "20→2.0 overs".
-     * Skip ×10 repair when the two cells before i already look like O + M=0.
-     */
-    if (i >= 2) {
-      const prevO = Number(out[i - 2]);
-      const prevM = Math.round(Number(out[i - 1]));
-      if (Number.isFinite(prevO) && prevO >= 0 && prevO <= 13 && prevM === 0) {
-        continue;
-      }
-    }
-    if (a >= 10 && a <= 120 && a % 10 === 0) {
-      out[i] = a / 10;
-      continue;
-    }
-    if (a >= 121 && a <= 130 && a % 10 === 0) {
-      out[i] = a / 10;
-      continue;
-    }
-    if (a > 120 && a <= 220 && a % 10 === 0 && a / 10 > 13) {
-      out[i] = Math.floor(a / 100);
-      continue;
-    }
-  }
-  return out;
-}
-
-/**
- * Economy "5.00" / "12.50" often OCR as 500 / 1250 (decimal dropped).
- */
-export function squashEconomyOcrGluedDigits(nums: number[]): number[] {
-  return nums.map((n) => {
-    if (!Number.isFinite(n)) return n;
-    const x = Math.round(Number(n));
-    if (x < 300 || x > 20000 || x % 50 !== 0) return n;
-    const er = x / 100;
-    if (er >= 0.5 && er <= 45) return er;
-    return n;
-  });
-}
-
-/**
  * Many scorecard apps print **M=0** as a blank or OCR drops it → "4 20 2 5" instead of "4 0 20 2 5".
  * Insert a maiden 0 when O is spell-sized and the next token looks like runs (not a maiden count).
  */
@@ -159,25 +105,6 @@ function isPlausibleBowling(p: ParsedBowling): boolean {
   if (p.wickets > 10) return false;
   if (leg > 0 && p.runs_conceded / leg > 40) return false;
   return true;
-}
-
-/**
- * OCR drops a trailing zero on runs (2 vs 20) while ER column is often clean.
- * If runs 1–9 but ER×legal_overs ≈ runs×10, trust implied runs from ER.
- */
-function alignRunsToReportedEconomy(p: ParsedBowling, following: number[]): ParsedBowling {
-  const leg = legalOversFromDot(p.overs);
-  if (leg <= 0) return p;
-  const erRep = following[0];
-  if (erRep == null || !Number.isFinite(erRep) || erRep < 2 || erRep > 45) return p;
-  const implied = erRep * leg;
-  const rc = p.runs_conceded;
-  if (rc < 1 || rc > 9) return p;
-  if (implied < 10) return p;
-  if (Math.abs(implied - rc * 10) <= Math.max(2.5, implied * 0.08)) {
-    return { ...p, runs_conceded: Math.round(implied) };
-  }
-  return p;
 }
 
 function bowlingCandidatesAt(nums: number[], start: number): ParsedBowling[] {
@@ -245,11 +172,8 @@ function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
 }
 
 export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowling | null {
-  const nums = repairBowlingNumberSequence(
-    squashEconomyOcrGluedDigits(
-      repairOcrTenTimesOvers(insertImplicitMaidenAfterOvers([...numsRaw])),
-    ),
-  );
+  const expanded = insertImplicitMaidenAfterOvers(numsRaw);
+  const nums = expanded;
   if (nums.length < 4) return null;
   const TAIL = 28;
   const from = Math.max(0, nums.length - TAIL);
@@ -258,8 +182,7 @@ export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowlin
 
   for (let start = from; start <= nums.length - 4; start++) {
     const following = nums.slice(start + 4, start + 14);
-    for (const p0 of bowlingCandidatesAt(nums, start)) {
-      const p = alignRunsToReportedEconomy(p0, following);
+    for (const p of bowlingCandidatesAt(nums, start)) {
       if (!isPlausibleBowling(p)) continue;
       const key = `${p.overs}-${p.maidens}-${p.runs_conceded}-${p.wickets}`;
       if (seen.has(key)) continue;
@@ -287,23 +210,15 @@ export function buildBowlingOcrSnippet(
 ): string {
   if (nameLineIndex < 0 || nameLineIndex >= allLines.length) return '';
   const parts: string[] = [allLines[nameLineIndex]];
-  let joinedNums = extractOrderedNumbers(
-    parts.map((p) => sanitizeBowlingOcrLine(p)).join(' '),
-  ).length;
-  if (joinedNums >= 4) return parts.join('\n');
-
-  const fewDigitsOnNameRow =
-    extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
-
-  for (let off = 1; off <= 3 && nameLineIndex + off < allLines.length; off++) {
+  const joinedCount = () => extractOrderedNumbers(parts.map((p) => sanitizeBowlingOcrLine(p)).join(' ')).length;
+  if (joinedCount() >= 4) return parts.join('\n');
+  const fewOnName = extractOrderedNumbers(sanitizeBowlingOcrLine(allLines[nameLineIndex])).length < 2;
+  for (let off = 1; off <= 5 && nameLineIndex + off < allLines.length; off++) {
     const ni = nameLineIndex + off;
     if (claimedLineIndices.has(ni)) break;
     parts.push(allLines[ni]);
-    joinedNums = extractOrderedNumbers(
-      parts.map((p) => sanitizeBowlingOcrLine(p)).join(' '),
-    ).length;
-    if (joinedNums >= 4) break;
-    if (fewDigitsOnNameRow && joinedNums >= 2) break;
+    if (joinedCount() >= 4) break;
+    if (fewOnName && joinedCount() >= 2) break;
   }
   return parts.join('\n');
 }
@@ -311,11 +226,6 @@ export function buildBowlingOcrSnippet(
 export function bestBowlingFromSnippet(snippet: string): ParsedBowling | null {
   const lines = snippet.split(/\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return null;
-  for (const line of lines) {
-    const nums = extractOrderedNumbers(sanitizeBowlingOcrLine(line));
-    const p = findBestBowlingFromNumberSeries(nums);
-    if (p && isPlausibleBowling(p)) return p;
-  }
   const combined = extractOrderedNumbers(lines.map(sanitizeBowlingOcrLine).join(' '));
   return findBestBowlingFromNumberSeries(combined);
 }
