@@ -61,7 +61,7 @@ Open **http://localhost:4000** (or the port shown in the terminal). Sign up, the
 - **Team Budget** – Player contributions and expenses with auto totals.
 - **Match Schedule** – List and calendar; add matches; weather via OpenWeather with advisories (hot/cold/rain).
 - **Match Media** – Per-match folders; add photos/videos/highlights (links, e.g. Supabase Storage or Google Drive).
-- **Leaderboard** – Best batsman, best bowler, best fielder, MVP (points = runs + wickets×20 + catches×10 + runouts×10).
+- **Leaderboard** – Best batsman, best bowler, best fielder, MVP (points use the same fantasy rules as the scorecard: batting tiers, **7 per wicket** + maidens/economy for bowling, **3 per catch/run-out** for fielding).
 - **Players** – Grid of player cards (photo, name, jersey, role); click for full profile with stats from scorecards.
 - **Scorecards** – From Schedule, “Add / Edit scorecard” per match; enter runs, balls, overs, wickets, etc. Stats feed leaderboard and player profiles.
 

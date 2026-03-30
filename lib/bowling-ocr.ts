@@ -47,6 +47,49 @@ export function repairBowlingNumberSequence(nums: number[]): number[] {
  * Many scorecard apps print **M=0** as a blank or OCR drops it → "4 20 2 5" instead of "4 0 20 2 5".
  * Insert a maiden 0 when O is spell-sized and the next token looks like runs (not a maiden count).
  */
+/**
+ * OCR merges "4.0", "3.0" style overs into 40, 30 (no decimal). When M=0 and R looks
+ * like runs bowled, treat as X.0 overs for 10≤X≤12 (and 13 in long spells).
+ * Also: "1.0" sometimes becomes 170 (1 glue + 70); treat as 1.0 when spell-sized.
+ */
+export function repairOcrTenTimesOvers(nums: number[]): number[] {
+  const out = [...nums];
+  for (let i = 0; i < out.length - 2; i++) {
+    const a = Math.round(Number(out[i]));
+    const b = Math.round(Number(out[i + 1]));
+    const c = Number(out[i + 2]);
+    if (b !== 0) continue;
+    if (!Number.isFinite(c) || c < 0 || c > 400) continue;
+    if (a >= 10 && a <= 120 && a % 10 === 0) {
+      out[i] = a / 10;
+      continue;
+    }
+    if (a >= 121 && a <= 130 && a % 10 === 0) {
+      out[i] = a / 10;
+      continue;
+    }
+    if (a > 120 && a <= 220 && a % 10 === 0 && a / 10 > 13) {
+      out[i] = Math.floor(a / 100);
+      continue;
+    }
+  }
+  return out;
+}
+
+/**
+ * Economy "5.00" / "12.50" often OCR as 500 / 1250 (decimal dropped).
+ */
+export function squashEconomyOcrGluedDigits(nums: number[]): number[] {
+  return nums.map((n) => {
+    if (!Number.isFinite(n)) return n;
+    const x = Math.round(Number(n));
+    if (x < 300 || x > 20000 || x % 50 !== 0) return n;
+    const er = x / 100;
+    if (er >= 0.5 && er <= 45) return er;
+    return n;
+  });
+}
+
 export function insertImplicitMaidenAfterOvers(nums: number[]): number[] {
   const out = [...nums];
   let i = 0;
@@ -172,8 +215,11 @@ function bowlScore(p: ParsedBowling, numsAfterOmrw: number[]): number {
 }
 
 export function findBestBowlingFromNumberSeries(numsRaw: number[]): ParsedBowling | null {
-  const expanded = insertImplicitMaidenAfterOvers(repairBowlingNumberSequence(numsRaw));
-  const nums = expanded;
+  const nums = repairBowlingNumberSequence(
+    squashEconomyOcrGluedDigits(
+      repairOcrTenTimesOvers(insertImplicitMaidenAfterOvers([...numsRaw])),
+    ),
+  );
   if (nums.length < 4) return null;
   const TAIL = 28;
   const from = Math.max(0, nums.length - TAIL);
