@@ -15,21 +15,17 @@ export default function TeamChatClient({
   initialMessages,
   userId,
   senderName,
-  isAdmin,
   isDemo,
 }: {
   initialMessages: Row[];
   userId: string | null;
   senderName: string;
-  isAdmin: boolean;
   isDemo: boolean;
 }) {
   const [messages, setMessages] = useState<Row[]>(initialMessages);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  /** Admin: true = next send is alert; false = normal (visible to everyone). */
-  const [postAsAlert, setPostAsAlert] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -76,12 +72,11 @@ export default function TeamChatClient({
     if (!body || !canPost) return;
     setSending(true);
     setError('');
-    const isAlert = isAdmin && postAsAlert;
     const row: TeamChatMessageInsert = {
       user_id: userId,
       sender_name: senderName,
       body,
-      is_alert: isAlert,
+      is_alert: false,
     };
     const { data, error: insErr } = await db.from('team_chat_messages').insert(row).select().single();
 
@@ -89,7 +84,7 @@ export default function TeamChatClient({
     if (insErr) {
       setError(
         insErr.message.includes('row-level security')
-          ? 'Could not send (run team_chat_messages.sql in Supabase, or sign in as admin for alerts).'
+          ? 'Could not send (run team_chat_messages.sql in Supabase).'
           : insErr.message,
       );
       return;
@@ -99,7 +94,6 @@ export default function TeamChatClient({
       setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
     }
     setText('');
-    setPostAsAlert(false);
     inputRef.current?.focus();
   }
 
@@ -295,23 +289,9 @@ export default function TeamChatClient({
         <div ref={endRef} />
       </div>
 
-      <div
-        className="flex-shrink-0 border-t border-slate-800 relative"
-        style={{ background: '#1f2c34' }}
-      >
+      <div className="flex-shrink-0 border-t border-slate-800" style={{ background: '#1f2c34' }}>
         {error && <p className="text-xs text-red-400 px-3 pt-2">{error}</p>}
-        {isAdmin && (
-          <label className="absolute top-2 right-3 z-10 flex items-center gap-2 cursor-pointer select-none rounded-md bg-[#111b21]/90 border border-slate-600/80 px-2 py-1">
-            <input
-              type="checkbox"
-              checked={postAsAlert}
-              onChange={(e) => setPostAsAlert(e.target.checked)}
-              className="rounded border-slate-500 text-red-600 focus:ring-red-500"
-            />
-            <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
-          </label>
-        )}
-        <div className={`flex items-end gap-2 p-2 ${isAdmin ? 'pt-9' : ''}`}>
+        <div className="flex items-end gap-2 p-2">
           <input
             ref={inputRef}
             type="text"
