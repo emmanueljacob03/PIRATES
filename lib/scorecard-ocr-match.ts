@@ -111,7 +111,8 @@ export function scoreRosterNameAgainstBowlingOcrPrefix(
   return Math.min(100, Math.round(best * 10) / 10);
 }
 
-const BOWLING_GREEDY_MIN_SCORE = 76;
+/** Slightly below strict alias match so one OCR typo still pairs with the right row. */
+const BOWLING_GREEDY_MIN_SCORE = 72;
 const BOWLING_FALLBACK_MIN_SCORE = 52;
 
 type GreedyBowlingPair = {
