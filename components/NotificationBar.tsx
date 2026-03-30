@@ -119,21 +119,24 @@ export default function NotificationBar() {
     );
   }
 
+  const closeButtonClass =
+    'absolute top-1.5 right-1.5 z-20 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-500 bg-slate-900/95 text-base font-light leading-none text-slate-100 shadow-md hover:bg-slate-800 hover:text-white';
+
   if (items.length === 0) {
     return (
-      <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-md max-w-[92vw] flex-shrink-0">
-        <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden>
-          🔔
-        </span>
+      <div className="relative flex items-start gap-3 overflow-visible rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 pl-3 pr-10 pt-2 pb-2 max-w-md max-w-[92vw] flex-shrink-0">
         <button
           type="button"
           onClick={handleClose}
-          className="absolute top-1 right-1 flex-shrink-0 text-slate-400 hover:text-white p-1"
+          className={closeButtonClass}
           aria-label="Close notifications"
         >
           ×
         </button>
-        <div className="flex-1 min-w-0 text-sm text-slate-400 space-y-1">
+        <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden>
+          🔔
+        </span>
+        <div className="flex-1 min-w-0 text-sm text-slate-400 space-y-1 pr-1">
           <p>
             No upcoming matches.{' '}
             <Link href="/schedule" className="text-[var(--pirate-yellow)] hover:underline">
@@ -147,11 +150,19 @@ export default function NotificationBar() {
   }
 
   return (
-    <div className="relative flex items-start gap-3 overflow-hidden rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 px-3 py-2 max-w-2xl max-w-[92vw] flex-shrink-0">
+    <div className="relative flex items-start gap-3 overflow-visible rounded-lg border border-[var(--pirate-green)]/50 bg-[var(--pirate-navy)]/95 pl-3 pr-10 pt-2 pb-2 max-w-2xl max-w-[92vw] flex-shrink-0">
+      <button
+        type="button"
+        onClick={handleClose}
+        className={closeButtonClass}
+        aria-label="Close notifications"
+      >
+        ×
+      </button>
       <span className="text-xl flex-shrink-0 mt-0.5" aria-hidden>
         🔔
       </span>
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
+      <div className="flex-1 min-w-0 flex flex-col gap-1 pr-1">
         <p className="text-[11px] text-slate-500">
           CST now: {centralClock} · next {REMINDER_WINDOW_HOURS}h
         </p>
@@ -176,14 +187,6 @@ export default function NotificationBar() {
           ))}
         </div>
       </div>
-      <button
-        type="button"
-        onClick={handleClose}
-        className="absolute top-2 right-2 flex-shrink-0 text-slate-400 hover:text-white p-1"
-        aria-label="Close notifications"
-      >
-        ×
-      </button>
     </div>
   );
 }
