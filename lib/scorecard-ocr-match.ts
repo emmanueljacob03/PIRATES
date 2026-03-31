@@ -161,10 +161,40 @@ export function scoreRosterNameAgainstBowlingOcrPrefix(
   return Math.min(100, Math.round(best * 10) / 10);
 }
 
+/** Letters left after stripping digits — rescues matches when OCR puts a digit inside the name (bad prefix cut). */
+function bowlingOcrNameBlobFromLine(line: string): string {
+  const s = sanitizeBowlingOcrLine(line).replace(/\d+\.?\d*/g, ' ');
+  return normalizeScorecardName(s).replace(/\s+/g, ' ').trim();
+}
+
+function bowlingLineLooksLikeStatRow(line: string, digitCount: number): boolean {
+  if (digitCount >= 4) return true;
+  if (digitCount < 3) return false;
+  const pre = extractBowlingNamePrefixBeforeStats(line);
+  const preLetters = pre.replace(/[^A-Za-z]/g, '').length;
+  const blobLetters = bowlingOcrNameBlobFromLine(line).replace(/[^a-z]/gi, '').length;
+  return preLetters >= 4 || blobLetters >= 6;
+}
+
+/**
+ * Match against both “text before first digit” and the whole line with numbers removed (OCR often splits names wrong).
+ */
+export function scoreRosterAgainstFullBowlingLine(playerName: string, line: string): number {
+  const prefix = extractBowlingNamePrefixBeforeStats(line);
+  const fromPrefix = scoreRosterNameAgainstBowlingOcrPrefix(playerName, prefix);
+  const blob = bowlingOcrNameBlobFromLine(line);
+  if (!blob || blob.length < 3 || isJunkBowlingNamePrefix(blob)) return fromPrefix;
+  const fromBlob = scoreRosterNameAgainstBowlingOcrPrefix(playerName, blob);
+  return Math.min(100, Math.round(Math.max(fromPrefix, fromBlob) * 10) / 10);
+}
+
 /** High-confidence row ↔ player edges; second pass uses RELAXED for anyone still unmatched. */
 const BOWLING_GREEDY_MIN_SCORE = 72;
-const BOWLING_GREEDY_RELAXED_MIN_SCORE = 58;
-const BOWLING_FALLBACK_MIN_SCORE = 52;
+const BOWLING_GREEDY_RELAXED_MIN_SCORE = 50;
+/** Last chance: line must “prefer” this player clearly over other unmatched candidates. */
+const BOWLING_GREEDY_WEAK_MIN_SCORE = 44;
+const BOWLING_WEAK_MARGIN = 7;
+const BOWLING_FALLBACK_MIN_SCORE = 48;
 
 type GreedyBowlingPair = {
   playerId: string;
@@ -198,6 +228,35 @@ function applyGreedyPairs(
  * Uses two score thresholds so everyone who clearly appears (e.g. Anil Kumar Chandu) still gets a row
  * after stronger matches (e.g. Emmanuel) claim their lines first.
  */
+function applyWeakUniqueLinePairs(
+  lines: string[],
+  players: { id: string; name: string }[],
+  statIndices: number[],
+  usedPlayers: Set<string>,
+  usedLines: Set<number>,
+  out: Map<string, BowlingLineHit>,
+): void {
+  for (const lineIndex of statIndices) {
+    if (usedLines.has(lineIndex)) continue;
+    const line = lines[lineIndex]!;
+    type Sc = { id: string; score: number };
+    const scored: Sc[] = [];
+    for (const pl of players) {
+      if (usedPlayers.has(pl.id)) continue;
+      const score = scoreRosterAgainstFullBowlingLine(pl.name, line);
+      if (score >= BOWLING_GREEDY_WEAK_MIN_SCORE) scored.push({ id: pl.id, score });
+    }
+    if (scored.length === 0) continue;
+    scored.sort((x, y) => y.score - x.score);
+    const top = scored[0]!;
+    const second = scored[1]?.score ?? -1;
+    if (top.score - second < BOWLING_WEAK_MARGIN) continue;
+    usedPlayers.add(top.id);
+    usedLines.add(lineIndex);
+    out.set(top.id, { line, lineIndex, claimExtra: [] });
+  }
+}
+
 export function matchBowlingStatLinesToPlayersGreedy(
   lines: string[],
   players: { id: string; name: string }[],
@@ -207,10 +266,19 @@ export function matchBowlingStatLinesToPlayersGreedy(
 
   const statIndices: number[] = [];
   for (let i = 0; i < lines.length; i++) {
-    if (digitsOnLine(lines[i]!) < 4) continue;
+    const d = digitsOnLine(lines[i]!);
+    if (!bowlingLineLooksLikeStatRow(lines[i]!, d)) continue;
     const prefix = extractBowlingNamePrefixBeforeStats(lines[i]!);
-    if (isJunkBowlingNamePrefix(normalizeScorecardName(prefix))) continue;
-    if (prefix.replace(/[^A-Za-z]/g, '').length < 2) continue;
+    const prefixNorm = normalizeScorecardName(prefix);
+    if (isJunkBowlingNamePrefix(prefixNorm)) {
+      const blob = bowlingOcrNameBlobFromLine(lines[i]!);
+      if (blob.replace(/[^a-z]/gi, '').length < 3) continue;
+    } else if (
+      prefix.replace(/[^A-Za-z]/g, '').length < 2 &&
+      bowlingOcrNameBlobFromLine(lines[i]!).replace(/[^a-z]/gi, '').length < 4
+    ) {
+      continue;
+    }
     statIndices.push(i);
   }
 
@@ -220,9 +288,9 @@ export function matchBowlingStatLinesToPlayersGreedy(
   const pairsStrict: GreedyBowlingPair[] = [];
   const pairsRelaxed: GreedyBowlingPair[] = [];
   for (const lineIndex of statIndices) {
-    const prefix = extractBowlingNamePrefixBeforeStats(lines[lineIndex]!);
+    const line = lines[lineIndex]!;
     for (const pl of players) {
-      const score = scoreRosterNameAgainstBowlingOcrPrefix(pl.name, prefix);
+      const score = scoreRosterAgainstFullBowlingLine(pl.name, line);
       if (score >= BOWLING_GREEDY_MIN_SCORE) {
         pairsStrict.push({ playerId: pl.id, lineIndex, score });
       } else if (score >= BOWLING_GREEDY_RELAXED_MIN_SCORE) {
@@ -233,6 +301,7 @@ export function matchBowlingStatLinesToPlayersGreedy(
 
   applyGreedyPairs(pairsStrict, lines, usedPlayers, usedLines, out);
   applyGreedyPairs(pairsRelaxed, lines, usedPlayers, usedLines, out);
+  applyWeakUniqueLinePairs(lines, players, statIndices, usedPlayers, usedLines, out);
 
   return out;
 }
@@ -438,10 +507,7 @@ export function findBowlingLineForPlayer(
   const claimExtra: number[] = [];
 
   if (digitsOnLine(line) >= 2) {
-    const sc = scoreRosterNameAgainstBowlingOcrPrefix(
-      playerDisplayName,
-      extractBowlingNamePrefixBeforeStats(line),
-    );
+    const sc = scoreRosterAgainstFullBowlingLine(playerDisplayName, line);
     if (sc < BOWLING_FALLBACK_MIN_SCORE) return null;
     return { line, lineIndex, claimExtra };
   }
@@ -466,7 +532,10 @@ export function findBowlingLineForPlayer(
         const combined = `${extractBowlingNamePrefixBeforeStats(prevLine)} ${line.trim()}`
           .replace(/\s+/g, ' ')
           .trim();
-        const sc = scoreRosterNameAgainstBowlingOcrPrefix(playerDisplayName, combined);
+        const sc = Math.max(
+          scoreRosterNameAgainstBowlingOcrPrefix(playerDisplayName, combined),
+          scoreRosterAgainstFullBowlingLine(playerDisplayName, prevLine),
+        );
         if (sc < BOWLING_FALLBACK_MIN_SCORE - 4) return null;
         claimExtra.push(lineIndex);
         return { line: prevLine, lineIndex: prevI, claimExtra };
@@ -474,10 +543,7 @@ export function findBowlingLineForPlayer(
     }
   }
 
-  const weak = scoreRosterNameAgainstBowlingOcrPrefix(
-    playerDisplayName,
-    extractBowlingNamePrefixBeforeStats(line),
-  );
+  const weak = scoreRosterAgainstFullBowlingLine(playerDisplayName, line);
   if (weak < BOWLING_FALLBACK_MIN_SCORE - 8) return null;
   return { line, lineIndex, claimExtra };
 }

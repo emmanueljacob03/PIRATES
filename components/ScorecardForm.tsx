@@ -248,9 +248,18 @@ export default function ScorecardForm({
       const claimedBowl = new Set<number>();
       const playersBySpecificity = [...players].sort((a, b) => b.name.length - a.name.length);
 
+      /** Only Playing XI + extras from this match — skip OCR for the rest of the roster. */
+      const ocrPlayerPool =
+        prefillPlayerIds && prefillPlayerIds.length > 0
+          ? players.filter((p) => prefillPlayerIds.includes(p.id))
+          : players;
+      const ocrPlayerPoolSorted = [...ocrPlayerPool].sort((a, b) => b.name.length - a.name.length);
+      const ocrEligibleIds =
+        prefillPlayerIds && prefillPlayerIds.length > 0 ? new Set(prefillPlayerIds) : null;
+
       const greedyBowlingHits =
         hasBowl && bowlingLines.length
-          ? matchBowlingStatLinesToPlayersGreedy(bowlingLines, players)
+          ? matchBowlingStatLinesToPlayersGreedy(bowlingLines, ocrPlayerPoolSorted)
           : new Map<string, BowlingLineHit>();
       for (const h of Array.from(greedyBowlingHits.values())) {
         claimedBowl.add(h.lineIndex);
@@ -266,15 +275,20 @@ export default function ScorecardForm({
       const map = new Map(prev.map((r) => [r.player_id, { ...r }]));
 
       for (const p of playersBySpecificity) {
-          const batHit = hasBat && battingLines.length ? findLineForPlayer(battingLines, p.name, claimedBat) : null;
-          if (batHit) claimedBat.add(batHit.lineIndex);
-          const batSnippet =
-            batHit && hasBat && battingLines.length
-              ? buildBattingOcrSnippet(battingLines, batHit.lineIndex, claimedBat)
-              : null;
+        const canOcrRow = !ocrEligibleIds || ocrEligibleIds.has(p.id);
 
-        let bowlHit = greedyBowlingHits.get(p.id) ?? null;
-        if (!bowlHit && hasBowl && bowlingLines.length) {
+        const batHit =
+          canOcrRow && hasBat && battingLines.length
+            ? findLineForPlayer(battingLines, p.name, claimedBat)
+            : null;
+        if (batHit) claimedBat.add(batHit.lineIndex);
+        const batSnippet =
+          batHit && hasBat && battingLines.length
+            ? buildBattingOcrSnippet(battingLines, batHit.lineIndex, claimedBat)
+            : null;
+
+        let bowlHit = canOcrRow ? (greedyBowlingHits.get(p.id) ?? null) : null;
+        if (!bowlHit && canOcrRow && hasBowl && bowlingLines.length) {
           bowlHit = findBowlingLineForPlayer(bowlingLines, p.name, claimedBowl);
         }
         if (bowlHit) {
