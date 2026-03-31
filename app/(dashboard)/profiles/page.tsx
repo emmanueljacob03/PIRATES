@@ -4,6 +4,14 @@ import { cookies } from 'next/headers';
 import ProfilePageClient from '@/components/ProfilePageClient';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 
+function normalizeNameForMatch(s: string | null | undefined): string {
+  return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function compactNameForMatch(s: string | null | undefined): string {
+  return normalizeNameForMatch(s).replace(/[^a-z0-9]/g, '');
+}
+
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
@@ -89,10 +97,14 @@ export default async function ProfilesPage() {
     if (!profile.name) profile.name = user.email ?? 'User';
 
     // Linked roster card (profile_id) — exact; auto-create once so Players page shows them
-    type Linked = { id: string; photo: string | null };
+    type Linked = { id: string; photo: string | null; name: string | null };
     let linkedPlayer: Linked | null = null;
     {
-      const { data } = await supabase.from('players').select('id, photo').eq('profile_id', user.id).maybeSingle();
+      const { data } = await supabase
+        .from('players')
+        .select('id, photo, name')
+        .eq('profile_id', user.id)
+        .maybeSingle();
       linkedPlayer = (data as Linked | null) ?? null;
     }
 
@@ -106,17 +118,17 @@ export default async function ProfilesPage() {
           profile_id: user.id,
           role: 'Player',
         })
-        .select('id, photo')
+        .select('id, photo, name')
         .single();
       if (!createErr && created) {
-        linkedPlayer = created as { id: string; photo: string | null };
+        linkedPlayer = created as { id: string; photo: string | null; name: string | null };
       } else if (createErr) {
         const { data: again } = await supabase
           .from('players')
-          .select('id, photo')
+          .select('id, photo, name')
           .eq('profile_id', user.id)
           .maybeSingle();
-        if (again) linkedPlayer = again as { id: string; photo: string | null };
+        if (again) linkedPlayer = again as { id: string; photo: string | null; name: string | null };
       }
     }
 
@@ -133,12 +145,28 @@ export default async function ProfilesPage() {
     }
 
     // Contributions and pending amounts
+    const nameVariants = new Set<string>();
+    const addVariant = (v: string | null | undefined) => {
+      const n = normalizeNameForMatch(v);
+      if (n) nameVariants.add(n);
+      const c = compactNameForMatch(v);
+      if (c) nameVariants.add(c);
+    };
+    addVariant(profile.name);
+    addVariant(linkedPlayer?.name ?? null);
+
+    const nameMatchesSelf = (playerName: string | null | undefined): boolean => {
+      const n = normalizeNameForMatch(playerName);
+      const c = compactNameForMatch(playerName);
+      return (!!n && nameVariants.has(n)) || (!!c && nameVariants.has(c));
+    };
+
     const { data: contribs } = await supabase
       .from('contributions')
-      .select('player_name, amount, paid');
+      .select('player_name, amount, paid, submitted_by_id');
     const byName = (contribs ?? []).filter(
-      (c: { player_name?: string }) =>
-        (c.player_name ?? '').toLowerCase() === (profile.name ?? '').toLowerCase(),
+      (c: { player_name?: string; submitted_by_id?: string | null }) =>
+        c.submitted_by_id === user.id || nameMatchesSelf(c.player_name),
     );
     contributionTotal = byName.reduce(
       (s: number, c: { amount: number }) => s + Number(c.amount),
@@ -150,7 +178,7 @@ export default async function ProfilesPage() {
       .select('player_name, paid');
     const myJerseys = (jerseyRows ?? []).filter(
       (j: { player_name?: string }) =>
-        (j.player_name ?? '').toLowerCase() === (profile.name ?? '').toLowerCase(),
+        nameMatchesSelf(j.player_name),
     );
     const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
     pendingJersey = unpaidJerseys.length * 50;
