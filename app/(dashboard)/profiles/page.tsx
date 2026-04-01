@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import ProfilePageClient from '@/components/ProfilePageClient';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
+import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
 
 function normalizeNameForMatch(s: string | null | undefined): string {
   return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -63,11 +64,18 @@ export default async function ProfilesPage() {
     if (!user) redirect('/dashboard');
 
     profile.email = user.email ?? '';
-    let { data: profileRow } = await supabase
+    type ProfileRowLite = {
+      name: string | null;
+      avatar_url: string | null;
+      phone: string | null;
+      date_of_birth: string | null;
+    };
+    const firstRow = await supabase
       .from('profiles')
       .select('name, avatar_url, phone, date_of_birth')
       .eq('id', user.id)
       .single();
+    let profileRow: ProfileRowLite | null = (firstRow.data as ProfileRowLite | null) ?? null;
 
     // Auto-create profile row if trigger didn't run (e.g. account created before trigger existed)
     if (!profileRow && user) {
@@ -79,16 +87,30 @@ export default async function ProfilesPage() {
           { onConflict: 'id' },
         );
       const res = await supabase.from('profiles').select('name, avatar_url, phone, date_of_birth').eq('id', user.id).single();
-      profileRow = res.data;
+      profileRow = (res.data as ProfileRowLite | null) ?? null;
     }
 
     if (profileRow) {
-      const r = profileRow as {
-        name: string | null;
-        avatar_url: string | null;
-        phone: string | null;
-        date_of_birth: string | null;
-      };
+      const r0 = profileRow;
+      const patch = profilePatchFromAuthMetadata(
+        { name: r0.name, phone: r0.phone, date_of_birth: r0.date_of_birth },
+        user.user_metadata as Record<string, unknown>,
+      );
+      if (patch) {
+        const { error: syncErr } = await (supabase as any)
+          .from('profiles')
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq('id', user.id);
+        if (!syncErr) {
+          const res = await (supabase as any)
+            .from('profiles')
+            .select('name, avatar_url, phone, date_of_birth')
+            .eq('id', user.id)
+            .single();
+          if (res.data) profileRow = res.data as ProfileRowLite;
+        }
+      }
+      const r = profileRow;
       profile.name = r.name;
       profile.avatar_url = r.avatar_url;
       profile.phone = r.phone;

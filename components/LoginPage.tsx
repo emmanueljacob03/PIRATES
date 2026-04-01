@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { submitTeamCodeAndGoDashboard } from '@/lib/team-code-submit';
+import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
 
 type Step = 'credentials' | 'code' | 'waiting_approval' | 'rejected';
 
@@ -29,7 +30,6 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [dob, setDob] = useState('');
   const [phone, setPhone] = useState('');
-  const [profilePic, setProfilePic] = useState<File | null>(null);
   const [teamCode, setTeamCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -61,6 +61,28 @@ export default function LoginPage() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (session?.user) {
+          const { data: row } = await supabase
+            .from('profiles')
+            .select('name, phone, date_of_birth')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          const patch = profilePatchFromAuthMetadata(
+            {
+              name: (row as { name?: string | null } | null)?.name ?? null,
+              phone: (row as { phone?: string | null } | null)?.phone ?? null,
+              date_of_birth: (row as { date_of_birth?: string | null } | null)?.date_of_birth ?? null,
+            },
+            session.user.user_metadata as Record<string, unknown>,
+          );
+          if (patch) {
+            await (supabase as any)
+              .from('profiles')
+              .update({ ...patch, updated_at: new Date().toISOString() })
+              .eq('id', session.user.id);
+          }
+        }
         if (cancelled) return;
         if (!session) {
           setStep('credentials');
@@ -177,25 +199,23 @@ export default function LoginPage() {
           }
           throw error;
         }
-        let avatarUrl: string | null = null;
-        if (profilePic && data.user) {
-          const ext = profilePic.name.split('.').pop();
-          const path = `${data.user.id}/avatar.${ext}`;
-          const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, profilePic, { upsert: true });
-          if (!uploadErr) {
-            const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-            avatarUrl = urlData.publicUrl;
-          }
-        }
+        let profileUpdateErrMsg: string | null = null;
         if (data.user) {
           // @ts-expect-error Supabase client generic inference
-          await supabase.from('profiles').update({
+          const { error: profileErr } = await supabase.from('profiles').update({
             name: name || null,
             date_of_birth: dob.trim() || null,
             phone: phone || null,
-            avatar_url: avatarUrl,
             updated_at: new Date().toISOString(),
           }).eq('id', data.user.id);
+          if (profileErr) profileUpdateErrMsg = profileErr.message;
+        }
+        if (data.session && profileUpdateErrMsg) {
+          setMessage({
+            type: 'err',
+            text: `Profile could not be saved: ${profileUpdateErrMsg}`,
+          });
+          return;
         }
         if (data.session) {
           const approval = await loadApprovalStatus(data.session.user.id);
@@ -212,9 +232,12 @@ export default function LoginPage() {
             setStep('code');
           }
         } else {
+          const extra = profileUpdateErrMsg
+            ? ' After you confirm email and sign in, missing profile fields will sync from your signup (add a photo anytime under Profile).'
+            : '';
           setMessage({
             type: 'ok',
-            text: 'Check your email to confirm your account. After you sign in, an admin must approve you before you can use the portal.',
+            text: `Check your email to confirm your account. After you sign in, an admin must approve you before you can use the portal.${extra}`,
           });
           setStep('credentials');
         }
@@ -245,6 +268,27 @@ export default function LoginPage() {
         if (!s2?.user) {
           setMessage({ type: 'err', text: 'Session missing. Try again.' });
           return;
+        }
+        {
+          const { data: row } = await supabase
+            .from('profiles')
+            .select('name, phone, date_of_birth')
+            .eq('id', s2.user.id)
+            .maybeSingle();
+          const patch = profilePatchFromAuthMetadata(
+            {
+              name: (row as { name?: string | null } | null)?.name ?? null,
+              phone: (row as { phone?: string | null } | null)?.phone ?? null,
+              date_of_birth: (row as { date_of_birth?: string | null } | null)?.date_of_birth ?? null,
+            },
+            s2.user.user_metadata as Record<string, unknown>,
+          );
+          if (patch) {
+            await (supabase as any)
+              .from('profiles')
+              .update({ ...patch, updated_at: new Date().toISOString() })
+              .eq('id', s2.user.id);
+          }
         }
         const approval = await loadApprovalStatus(s2.user.id);
         if (approval === 'pending') {
@@ -455,18 +499,9 @@ export default function LoginPage() {
                       Required. On a teammate’s birthday, everyone sees one team birthday slide that day (Central Time).
                     </p>
                   </div>
-                  <div>
-                    <label htmlFor="photo" className="block text-slate-300 text-sm font-medium mb-1">
-                      Photo (optional)
-                    </label>
-                    <input
-                      id="photo"
-                      type="file"
-                      accept="image/*"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white text-sm file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-amber-500 file:text-slate-900"
-                      onChange={(e) => setProfilePic(e.target.files?.[0] ?? null)}
-                    />
-                  </div>
+                  <p className="text-slate-500 text-xs">
+                    Add your profile photo after you sign in — open Profile.
+                  </p>
                   <div>
                     <label htmlFor="password" className="block text-slate-300 text-sm font-medium mb-1">
                       Password
