@@ -93,9 +93,9 @@ export default function PlayerPhotoUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
+        accept="image/*,.heic,.heif"
+        className="sr-only absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0"
+        aria-label="Choose profile image from device"
         onChange={onFileSelected}
       />
       {message && !compact ? (

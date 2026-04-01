@@ -59,11 +59,11 @@ export default function MatchMediaClient({ matchId, canUpload = false }: { match
         <input
           ref={fileInputRef}
           type="file"
-          accept={type === 'video' ? 'video/*' : 'image/*'}
-          capture="environment"
+          accept={type === 'video' ? 'video/*,.mov,.mp4' : 'image/*,.heic,.heif'}
           className="input-field"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
+        <p className="text-slate-500 text-xs">On phone: opens Photos, Files, or camera—pick what your device offers.</p>
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Uploading...' : 'Upload'}
         </button>

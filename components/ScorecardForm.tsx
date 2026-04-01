@@ -534,15 +534,13 @@ export default function ScorecardForm({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,.heic,.heif"
                   className="input-field text-xs"
                   onChange={(e) => setBatting1(e.target.files?.[0] ?? null)}
                 />
                 <input
                   type="file"
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,.heic,.heif"
                   className="input-field text-xs"
                   onChange={(e) => setBatting2(e.target.files?.[0] ?? null)}
                 />
@@ -557,8 +555,7 @@ export default function ScorecardForm({
               </p>
               <input
                 type="file"
-                accept="image/*"
-                capture="environment"
+                accept="image/*,.heic,.heif"
                 className="input-field text-xs"
                 onChange={(e) => setBowling1(e.target.files?.[0] ?? null)}
               />

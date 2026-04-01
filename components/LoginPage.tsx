@@ -58,12 +58,10 @@ export default function LoginPage() {
 
   function authErrorUserMessage(raw: string): string {
     if (isAuthRateLimitMessage(raw)) {
-      return [
-        'Sign-in is temporarily limited for your internet connection.',
-        'People on the same Wi‑Fi or office network share one limit—even if devices are different.',
-        'Try mobile data or another network, wait a few minutes, then try once.',
-        'Team admins can raise limits in Supabase → Authentication → Rate Limits for the project.',
-      ].join(' ');
+      return (
+        'Too many sign-in or sign-up attempts in a short time. Please wait a few minutes and try again once. ' +
+        'For team events, the project owner can raise limits in the Supabase dashboard under Authentication → Rate Limits.'
+      );
     }
     return raw;
   }

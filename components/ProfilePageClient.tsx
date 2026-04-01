@@ -258,12 +258,11 @@ export default function ProfilePageClient({
               <input className="input-field" placeholder="Photo URL" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
               <input
                 type="file"
-                accept="image/*"
-                capture="environment"
+                accept="image/*,.heic,.heif"
                 className="input-field"
                 onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
               />
-              <p className="text-slate-500 text-xs">Pick a photo from your computer or phone gallery. URL still works too.</p>
+              <p className="text-slate-500 text-xs">Choose a photo from your device (library or files). URL still works too.</p>
               <p className="text-slate-500 text-xs">Email cannot be changed here.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={handleSave} className="btn-primary text-sm" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
