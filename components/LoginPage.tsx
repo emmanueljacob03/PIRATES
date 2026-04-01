@@ -18,6 +18,13 @@ async function loadApprovalStatus(userId: string): Promise<'pending' | 'approved
 }
 
 const WELCOME_GATE_STORAGE = 'pirates_welcome_gate_done';
+/** Throttle profile metadata sync on /login so repeat visits don’t spam updates. */
+const LOGIN_META_SYNC_KEY = 'pirates_login_meta_sync_v1';
+const LOGIN_META_SYNC_TTL_MS = 5 * 60_000;
+/** Minimum gap between sign-in / sign-up requests (same tab) to avoid double-submit bursts. */
+const MIN_MS_BETWEEN_CREDENTIALS_ATTEMPTS = 2800;
+/** After Supabase returns a rate limit, wait locally before allowing another attempt. */
+const LOCAL_COOLDOWN_AFTER_RATE_LIMIT_MS = 90_000;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,15 +43,27 @@ export default function LoginPage() {
   const [codeError, setCodeError] = useState('');
   const teamCodeSubmitLock = useRef(false);
   const credentialsSubmitLock = useRef(false);
+  const lastCredentialAuthAtRef = useRef(0);
+  const credentialCooldownUntilRef = useRef(0);
 
-  function authErrorUserMessage(raw: string): string {
+  function isAuthRateLimitMessage(raw: string): boolean {
     const lower = raw.toLowerCase();
-    if (
+    return (
       lower.includes('rate limit') ||
       lower.includes('too many requests') ||
-      lower.includes('too many') && lower.includes('email')
-    ) {
-      return 'Too many sign-in attempts from this network. Please wait 5–15 minutes and try again, or use another connection. (Supabase protects accounts from brute-force logins.)';
+      (lower.includes('too many') && lower.includes('email')) ||
+      lower.includes('429')
+    );
+  }
+
+  function authErrorUserMessage(raw: string): string {
+    if (isAuthRateLimitMessage(raw)) {
+      return [
+        'Sign-in is temporarily limited for your internet connection.',
+        'People on the same Wi‑Fi or office network share one limit—even if devices are different.',
+        'Try mobile data or another network, wait a few minutes, then try once.',
+        'Team admins can raise limits in Supabase → Authentication → Rate Limits for the project.',
+      ].join(' ');
     }
     return raw;
   }
@@ -62,25 +81,46 @@ export default function LoginPage() {
           data: { session },
         } = await supabase.auth.getSession();
         if (cancelled) return;
-        if (session?.user) {
-          const { data: row } = await supabase
-            .from('profiles')
-            .select('name, phone, date_of_birth')
-            .eq('id', session.user.id)
-            .maybeSingle();
-          const patch = profilePatchFromAuthMetadata(
-            {
-              name: (row as { name?: string | null } | null)?.name ?? null,
-              phone: (row as { phone?: string | null } | null)?.phone ?? null,
-              date_of_birth: (row as { date_of_birth?: string | null } | null)?.date_of_birth ?? null,
-            },
-            session.user.user_metadata as Record<string, unknown>,
-          );
-          if (patch) {
-            await (supabase as any)
+        if (session?.user && typeof window !== 'undefined') {
+          let skipMetaSync = false;
+          try {
+            const raw = sessionStorage.getItem(LOGIN_META_SYNC_KEY);
+            const parsed = raw ? (JSON.parse(raw) as { uid: string; t: number }) : null;
+            const now = Date.now();
+            if (parsed?.uid === session.user.id && now - parsed.t < LOGIN_META_SYNC_TTL_MS) {
+              skipMetaSync = true;
+            }
+          } catch {
+            /* ignore */
+          }
+          if (!skipMetaSync) {
+            const { data: row } = await supabase
               .from('profiles')
-              .update({ ...patch, updated_at: new Date().toISOString() })
-              .eq('id', session.user.id);
+              .select('name, phone, date_of_birth')
+              .eq('id', session.user.id)
+              .maybeSingle();
+            const patch = profilePatchFromAuthMetadata(
+              {
+                name: (row as { name?: string | null } | null)?.name ?? null,
+                phone: (row as { phone?: string | null } | null)?.phone ?? null,
+                date_of_birth: (row as { date_of_birth?: string | null } | null)?.date_of_birth ?? null,
+              },
+              session.user.user_metadata as Record<string, unknown>,
+            );
+            if (patch) {
+              await (supabase as any)
+                .from('profiles')
+                .update({ ...patch, updated_at: new Date().toISOString() })
+                .eq('id', session.user.id);
+            }
+            try {
+              sessionStorage.setItem(
+                LOGIN_META_SYNC_KEY,
+                JSON.stringify({ uid: session.user.id, t: Date.now() }),
+              );
+            } catch {
+              /* ignore */
+            }
           }
         }
         if (cancelled) return;
@@ -167,6 +207,23 @@ export default function LoginPage() {
   async function handleCredentials(e: React.FormEvent) {
     e.preventDefault();
     if (credentialsSubmitLock.current) return;
+    const nowMs = Date.now();
+    if (nowMs < credentialCooldownUntilRef.current) {
+      const waitSec = Math.ceil((credentialCooldownUntilRef.current - nowMs) / 1000);
+      setMessage({
+        type: 'err',
+        text: `Too many attempts. Wait ${waitSec} seconds, then try again once.`,
+      });
+      return;
+    }
+    if (nowMs - lastCredentialAuthAtRef.current < MIN_MS_BETWEEN_CREDENTIALS_ATTEMPTS) {
+      setMessage({
+        type: 'err',
+        text: 'Please wait a moment before submitting again.',
+      });
+      return;
+    }
+    lastCredentialAuthAtRef.current = nowMs;
     credentialsSubmitLock.current = true;
     setLoading(true);
     setMessage(null);
@@ -193,7 +250,8 @@ export default function LoginPage() {
             setMessage({ type: 'err', text: 'This email is already registered. Use Log in instead.' });
             return;
           }
-          if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many requests')) {
+          if (isAuthRateLimitMessage(msg)) {
+            credentialCooldownUntilRef.current = Date.now() + LOCAL_COOLDOWN_AFTER_RATE_LIMIT_MS;
             setMessage({ type: 'err', text: authErrorUserMessage(msg) });
             return;
           }
@@ -255,7 +313,8 @@ export default function LoginPage() {
             setMessage({ type: 'err', text: 'Please confirm your email first. Check your inbox and click the link, then try again.' });
             return;
           }
-          if (raw.toLowerCase().includes('rate limit') || raw.toLowerCase().includes('too many requests')) {
+          if (isAuthRateLimitMessage(raw)) {
+            credentialCooldownUntilRef.current = Date.now() + LOCAL_COOLDOWN_AFTER_RATE_LIMIT_MS;
             setMessage({ type: 'err', text: authErrorUserMessage(raw) });
             return;
           }
@@ -309,12 +368,12 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : 'Something went wrong.';
+      if (typeof raw === 'string' && isAuthRateLimitMessage(raw)) {
+        credentialCooldownUntilRef.current = Date.now() + LOCAL_COOLDOWN_AFTER_RATE_LIMIT_MS;
+      }
       setMessage({
         type: 'err',
-        text:
-          typeof raw === 'string' && (raw.toLowerCase().includes('rate limit') || raw.toLowerCase().includes('too many requests'))
-            ? authErrorUserMessage(raw)
-            : raw,
+        text: typeof raw === 'string' && isAuthRateLimitMessage(raw) ? authErrorUserMessage(raw) : raw,
       });
     } finally {
       setLoading(false);
