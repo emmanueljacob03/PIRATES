@@ -495,9 +495,6 @@ export default function LoginPage() {
                       required
                       autoComplete="bday"
                     />
-                    <p className="text-slate-500 text-xs mt-1">
-                      Required. On a teammate’s birthday, everyone sees one team birthday slide that day (Central Time).
-                    </p>
                   </div>
                   <p className="text-slate-500 text-xs">
                     Add your profile photo after you sign in — open Profile.
