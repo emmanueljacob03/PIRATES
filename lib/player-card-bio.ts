@@ -133,7 +133,8 @@ const ENTRIES: Array<{ test: (displayName: string) => boolean; back: PlayerCardB
     },
   },
   {
-    test: (dn) => /prashanth/i.test(dn),
+    /** Prasanth Dharavathu: surname required so other Prashanths are not matched. */
+    test: (dn) => /dharavathu/i.test(dn) && /pras(h)?anth/i.test(dn),
     back: {
       role: 'Bowler',
       records: [{ text: 'Match Turner', tier: 'accent' }],
