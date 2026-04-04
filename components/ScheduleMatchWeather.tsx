@@ -14,7 +14,7 @@ type WeatherState = {
 export default function ScheduleMatchWeather({ match }: { match: Match }) {
   const [weather, setWeather] = useState<WeatherState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -32,13 +32,23 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
       return;
     }
     setLoading(true);
-    setError(false);
+    setLoadError(null);
     const city = match.ground?.trim() || 'London';
-    fetch(`/api/weather?city=${encodeURIComponent(city)}`)
-      .then((r) => r.json())
-      .then((d: { error?: string; temp?: number; description?: string; main?: string; advisory?: string }) => {
-        if (d.error) {
-          setError(true);
+    fetch(`/api/weather?city=${encodeURIComponent(city)}`, { credentials: 'same-origin' })
+      .then(async (r) => {
+        const d = (await r.json()) as {
+          error?: string;
+          reason?: string;
+          temp?: number;
+          description?: string;
+          main?: string | null;
+        };
+        if (!r.ok || d.error) {
+          const hint =
+            r.status === 503 || d.reason === 'missing_env'
+              ? 'Set OPENWEATHER_API_KEY in Vercel → Environment Variables (Production), redeploy, or add it to .env.local for local dev. Name must match exactly.'
+              : d.error || `Weather request failed (${r.status}).`;
+          setLoadError(hint);
           return;
         }
         setWeather({
@@ -48,7 +58,9 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           advisory: weatherAdvisoryFromConditions(d.temp ?? null, d.main ?? null) || null,
         });
       })
-      .catch(() => setError(true))
+      .catch(() =>
+        setLoadError('Could not reach weather service. Check connection or try again.'),
+      )
       .finally(() => setLoading(false));
   }, [match.ground, match.id, stored?.temp, stored?.description, stored?.main]);
 
@@ -94,9 +106,12 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
     );
   }
 
-  if (error && !weather) {
+  if (loadError && !weather) {
     return (
-      <p className="text-slate-500 text-sm mt-1">Weather unavailable (check OPENWEATHER_API_KEY).</p>
+      <p className="text-slate-500 text-sm mt-1 max-w-md leading-snug" role="alert">
+        <span className="text-amber-300/90">Weather unavailable.</span>{' '}
+        {loadError}
+      </p>
     );
   }
 

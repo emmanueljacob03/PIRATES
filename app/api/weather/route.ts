@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { weatherAdvisoryFromConditions } from '@/lib/weather-advisory';
 
-const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
-
 export async function GET(req: NextRequest) {
   const lat = req.nextUrl.searchParams.get('lat');
   const lon = req.nextUrl.searchParams.get('lon');
   const city = req.nextUrl.searchParams.get('city');
-  if (!OPENWEATHER_API_KEY) {
-    return NextResponse.json({ error: 'Weather not configured' }, { status: 503 });
+  const apiKey = process.env.OPENWEATHER_API_KEY?.trim();
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: 'Weather not configured', reason: 'missing_env' as const },
+      { status: 503 },
+    );
   }
-  let url = `https://api.openweathermap.org/data/2.5/weather?appid=${OPENWEATHER_API_KEY}&units=imperial`;
+  let url = `https://api.openweathermap.org/data/2.5/weather?appid=${apiKey}&units=imperial`;
   if (lat && lon) {
     url += `&lat=${lat}&lon=${lon}`;
   } else if (city) {
@@ -19,14 +21,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Provide lat/lon or city' }, { status: 400 });
   }
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.cod !== 200) {
-      return NextResponse.json({ error: data.message || 'Weather fetch failed' }, { status: 400 });
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = (await res.json()) as {
+      cod?: number | string;
+      message?: string;
+      main?: { temp?: number };
+      weather?: Array<{ description?: string; main?: string }>;
+    };
+    // OpenWeather returns cod as number 200 or string "200" on success.
+    const cod = data.cod;
+    const ok = cod === 200 || cod === '200';
+    if (!ok) {
+      const msg =
+        typeof data.message === 'string' ? data.message : 'Weather fetch failed';
+      return NextResponse.json({ error: msg, code: cod }, { status: 400 });
     }
     const temp = data.main?.temp ?? null;
     const desc = data.weather?.[0]?.description ?? null;
     const main = data.weather?.[0]?.main ?? null;
+    if (temp == null || !Number.isFinite(Number(temp))) {
+      return NextResponse.json({ error: 'Weather response missing temperature' }, { status: 502 });
+    }
     const advisory = weatherAdvisoryFromConditions(temp, main) || null;
     return NextResponse.json({
       temp,

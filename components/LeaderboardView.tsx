@@ -24,6 +24,31 @@ type Row = {
 
 const INITIAL = 5;
 
+const MEDALS: readonly string[] = ['🥇', '🥈', '🥉'];
+
+function medalEmoji(rankIndex: number): string {
+  return rankIndex >= 0 && rankIndex < 3 ? MEDALS[rankIndex] : '';
+}
+
+/** Full-row podium styling (rank 0 = 1st). */
+function podiumRowClass(rankIndex: number): string {
+  if (rankIndex === 0) {
+    return 'border-b border-amber-400/60 bg-gradient-to-r from-amber-600/45 via-amber-500/30 to-amber-600/40 text-slate-50 shadow-[inset_0_1px_0_rgba(254,243,199,0.12)]';
+  }
+  if (rankIndex === 1) {
+    return 'border-b border-slate-300/45 bg-gradient-to-r from-slate-500/35 via-slate-400/22 to-slate-500/30 text-slate-50';
+  }
+  if (rankIndex === 2) {
+    return 'border-b border-amber-800/55 bg-gradient-to-r from-amber-900/50 via-orange-900/38 to-amber-900/45 text-amber-50';
+  }
+  return 'border-b border-slate-700/50';
+}
+
+function pointsCellClass(rankIndex: number): string {
+  if (rankIndex <= 2) return 'font-semibold text-amber-200';
+  return 'font-medium text-[var(--pirate-yellow)]';
+}
+
 function Section({ title, children, expanded, onToggle }: { title: string; children: React.ReactNode; expanded: boolean; onToggle: () => void }) {
   return (
     <div className="card">
@@ -65,16 +90,21 @@ export default function LeaderboardView({
           </thead>
           <tbody>
             {(expand.bat ? bestBatsman : bestBatsman.slice(0, INITIAL)).map((p, i) => (
-              <tr key={p.playerId} className="border-b border-slate-700/50">
-                <td className="py-2">{i + 1}</td>
+              <tr key={p.playerId} className={podiumRowClass(i)}>
+                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
                 <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
-                  <span className="block truncate" title={p.name}>
-                    {p.name}
+                  <span className="inline-flex items-center gap-1 min-w-0 max-w-full truncate" title={p.name}>
+                    <span className="truncate">{p.name}</span>
+                    {medalEmoji(i) ? (
+                      <span className="shrink-0 text-base" aria-hidden>
+                        {medalEmoji(i)}
+                      </span>
+                    ) : null}
                   </span>
                 </td>
-                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.battingPoints}</td>
-                <td className="py-2">{p.runs}</td>
-                <td className="py-2">{p.strikeRate.toFixed(1)}</td>
+                <td className={`py-2 ${pointsCellClass(i)}`}>{p.battingPoints}</td>
+                <td className="py-2 tabular-nums">{p.runs}</td>
+                <td className="py-2 tabular-nums">{p.strikeRate.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
@@ -94,16 +124,21 @@ export default function LeaderboardView({
           </thead>
           <tbody>
             {(expand.bowl ? bestBowler : bestBowler.slice(0, INITIAL)).map((p, i) => (
-              <tr key={p.playerId} className="border-b border-slate-700/50">
-                <td className="py-2">{i + 1}</td>
+              <tr key={p.playerId} className={podiumRowClass(i)}>
+                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
                 <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
-                  <span className="block truncate" title={p.name}>
-                    {p.name}
+                  <span className="inline-flex items-center gap-1 min-w-0 max-w-full truncate" title={p.name}>
+                    <span className="truncate">{p.name}</span>
+                    {medalEmoji(i) ? (
+                      <span className="shrink-0 text-base" aria-hidden>
+                        {medalEmoji(i)}
+                      </span>
+                    ) : null}
                   </span>
                 </td>
-                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.bowlingPoints}</td>
-                <td className="py-2">{p.wickets}</td>
-                <td className="py-2">{p.economy.toFixed(1)}</td>
+                <td className={`py-2 ${pointsCellClass(i)}`}>{p.bowlingPoints}</td>
+                <td className="py-2 tabular-nums">{p.wickets}</td>
+                <td className="py-2 tabular-nums">{p.economy.toFixed(1)}</td>
               </tr>
             ))}
           </tbody>
@@ -123,16 +158,21 @@ export default function LeaderboardView({
           </thead>
           <tbody>
             {(expand.field ? bestFielder : bestFielder.slice(0, INITIAL)).map((p, i) => (
-              <tr key={p.playerId} className="border-b border-slate-700/50">
-                <td className="py-2">{i + 1}</td>
+              <tr key={p.playerId} className={podiumRowClass(i)}>
+                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
                 <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
-                  <span className="block truncate" title={p.name}>
-                    {p.name}
+                  <span className="inline-flex items-center gap-1 min-w-0 max-w-full truncate" title={p.name}>
+                    <span className="truncate">{p.name}</span>
+                    {medalEmoji(i) ? (
+                      <span className="shrink-0 text-base" aria-hidden>
+                        {medalEmoji(i)}
+                      </span>
+                    ) : null}
                   </span>
                 </td>
-                <td className="py-2 font-medium text-[var(--pirate-yellow)]">{p.fieldingPoints}</td>
-                <td className="py-2">{p.catches}</td>
-                <td className="py-2">{p.runouts}</td>
+                <td className={`py-2 ${pointsCellClass(i)}`}>{p.fieldingPoints}</td>
+                <td className="py-2 tabular-nums">{p.catches}</td>
+                <td className="py-2 tabular-nums">{p.runouts}</td>
               </tr>
             ))}
           </tbody>
@@ -154,11 +194,13 @@ export default function LeaderboardView({
             </thead>
             <tbody>
               {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
-                <tr key={p.playerId} className="border-b border-slate-700/50">
-                  <td className="py-2">{i + 1}</td>
+                <tr key={p.playerId} className={podiumRowClass(i)}>
+                  <td className="py-2 font-medium tabular-nums">{i + 1}</td>
                   <td className="py-2 min-w-0 max-w-[14rem] sm:max-w-[18rem]">
                     <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
-                      <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-700">
+                      <span
+                        className={`relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-700 ${i <= 2 ? 'ring-2 ring-amber-300/50' : ''}`}
+                      >
                         {p.photoUrl ? (
                           <Image src={p.photoUrl} alt="" fill className="object-cover" sizes="28px" />
                         ) : null}
@@ -166,12 +208,17 @@ export default function LeaderboardView({
                       <span className="min-w-0 truncate font-medium" title={p.name}>
                         {p.name}
                       </span>
+                      {medalEmoji(i) ? (
+                        <span className="shrink-0 text-base" aria-hidden>
+                          {medalEmoji(i)}
+                        </span>
+                      ) : null}
                     </span>
                   </td>
-                  <td className="py-2">{p.battingPoints}</td>
-                  <td className="py-2">{p.bowlingPoints}</td>
-                  <td className="py-2">{p.fieldingPoints}</td>
-                  <td className="py-2 font-semibold text-[var(--pirate-yellow)]">{p.points}</td>
+                  <td className="py-2 tabular-nums">{p.battingPoints}</td>
+                  <td className="py-2 tabular-nums">{p.bowlingPoints}</td>
+                  <td className="py-2 tabular-nums">{p.fieldingPoints}</td>
+                  <td className={`py-2 font-semibold tabular-nums ${pointsCellClass(i)}`}>{p.points}</td>
                 </tr>
               ))}
             </tbody>

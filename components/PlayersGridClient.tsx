@@ -158,63 +158,63 @@ export default function PlayersGridClient({
       </div>
 
       {selected && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm"
-          role="presentation"
-          onClick={close}
-        >
-          <button
-            type="button"
-            onClick={close}
-            className="absolute top-3 right-3 sm:top-5 sm:right-5 z-[110] flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-200 text-2xl font-light leading-none border border-slate-600 hover:bg-slate-700 hover:text-white shadow-lg"
-            aria-label="Close player details"
-          >
-            ×
-          </button>
+        <>
           <div
-            className="relative w-full max-w-[min(92vw,36rem)] [perspective:1200px]"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-sm"
+            role="presentation"
+            onClick={close}
           >
-            <div
-              className={`relative w-full aspect-square max-h-[min(85vh,36rem)] mx-auto transition-transform duration-500 ease-out [transform-style:preserve-3d] motion-reduce:transition-none ${
-                flipOpen ? '[transform:rotateY(180deg)]' : '[transform:rotateY(0deg)]'
-              }`}
+            <button
+              type="button"
+              onClick={close}
+              className="absolute top-3 right-3 sm:top-5 sm:right-5 z-[110] flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-200 text-2xl font-light leading-none border border-slate-600 hover:bg-slate-700 hover:text-white shadow-lg"
+              aria-label="Close player details"
             >
-              {/* Front — same look as grid thumbnail */}
+              ×
+            </button>
+            <div
+              className="relative w-full max-w-[min(92vw,36rem)] [perspective:1200px]"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
               <div
-                className="absolute inset-0 rounded-2xl overflow-hidden border-[3px] border-[var(--pirate-yellow)] bg-slate-800 shadow-[0_0_28px_rgba(250,204,21,0.55),0_0_56px_rgba(250,204,21,0.2)] [backface-visibility:hidden]"
+                className={`relative w-full aspect-square max-h-[min(85vh,36rem)] mx-auto transition-transform duration-500 ease-out [transform-style:preserve-3d] motion-reduce:transition-none ${
+                  flipOpen ? '[transform:rotateY(180deg)]' : '[transform:rotateY(0deg)]'
+                }`}
               >
-                {selected.displayPhoto && imgUrl(selected) ? (
-                  <Image
-                    src={imgUrl(selected)!}
-                    alt={selected.displayName}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 92vw, 36rem"
-                    unoptimized
-                    priority
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                    No photo yet
+                {/* Front — same look as grid thumbnail */}
+                <div
+                  className="absolute inset-0 rounded-2xl overflow-hidden border-[3px] border-[var(--pirate-yellow)] bg-slate-800 shadow-[0_0_28px_rgba(250,204,21,0.55),0_0_56px_rgba(250,204,21,0.2)] [backface-visibility:hidden]"
+                >
+                  {selected.displayPhoto && imgUrl(selected) ? (
+                    <Image
+                      src={imgUrl(selected)!}
+                      alt={selected.displayName}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 92vw, 36rem"
+                      unoptimized
+                      priority
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+                      No photo yet
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 py-4">
+                    <p className="font-semibold text-lg text-white">{selected.displayName}</p>
                   </div>
-                )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-4 py-4">
-                  <p className="font-semibold text-lg text-white">{selected.displayName}</p>
                 </div>
-              </div>
 
-              {/* Back — details + image */}
-              <PlayerCardBackFace
-                selected={selected}
-                contactOpen={contactOpen}
-                onOpenContact={() => setContactOpen(true)}
-                onCloseContact={() => setContactOpen(false)}
-              />
+                <PlayerCardBackFace selected={selected} onOpenContact={() => setContactOpen(true)} />
+              </div>
             </div>
           </div>
-        </div>
+
+          {contactOpen && (
+            <PlayerContactPopup selected={selected} onClose={() => setContactOpen(false)} />
+          )}
+        </>
       )}
     </>
   );
@@ -247,14 +247,10 @@ function recordTierClass(tier: PlayerRecordTier | undefined): string {
 
 function PlayerCardBackFace({
   selected,
-  contactOpen,
   onOpenContact,
-  onCloseContact,
 }: {
   selected: PlayersGridPlayer;
-  contactOpen: boolean;
   onOpenContact: () => void;
-  onCloseContact: () => void;
 }) {
   const cardBack = getPlayerCardBack(selected.displayName, selected.role);
 
@@ -321,48 +317,65 @@ function PlayerCardBackFace({
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {contactOpen && (
-        <div
-          className="absolute inset-0 z-20 rounded-2xl bg-slate-950/98 border-[3px] border-[var(--pirate-yellow)] shadow-[inset_0_0_24px_rgba(250,204,21,0.08)] flex flex-col p-4 sm:p-5"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Contact details"
+function PlayerContactPopup({
+  selected,
+  onClose,
+}: {
+  selected: PlayersGridPlayer;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md rounded-2xl border-[3px] border-[var(--pirate-yellow)] bg-slate-900 shadow-[0_0_32px_rgba(250,204,21,0.35)] p-6 sm:p-8"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-popup-title"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-100 text-2xl font-light leading-none border-2 border-[var(--pirate-yellow)]/80 hover:bg-slate-700 hover:text-white shadow-lg"
+          aria-label="Close contact details"
         >
-          <div className="flex justify-end mb-1">
-            <button
-              type="button"
-              onClick={onCloseContact}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-200 text-xl leading-none border border-slate-600 hover:bg-slate-700"
-              aria-label="Close contact details"
-            >
-              ×
-            </button>
-          </div>
-          <h4 className="text-amber-400 text-xs font-semibold uppercase tracking-wide">Contact</h4>
-          {!selected.profileId ? (
-            <p className="text-slate-400 text-sm mt-3">
-              No login profile linked to this player card — phone, email, and birthday are unavailable.
-            </p>
-          ) : (
-            <dl className="mt-4 space-y-3 text-sm">
-              <div>
-                <dt className="text-slate-500">Phone</dt>
-                <dd className="text-white mt-0.5 break-all">{selected.contactPhone?.trim() || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Email</dt>
-                <dd className="text-white mt-0.5 break-all">{selected.contactEmail?.trim() || '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-slate-500">Birthday</dt>
-                <dd className="text-white mt-0.5">{formatDob(selected.contactBirthday)}</dd>
-              </div>
-            </dl>
-          )}
-        </div>
-      )}
+          ×
+        </button>
+        <h4
+          id="contact-popup-title"
+          className="text-amber-400 text-sm font-semibold uppercase tracking-wide pr-12"
+        >
+          Contact — {selected.displayName}
+        </h4>
+        {!selected.profileId ? (
+          <p className="text-slate-400 text-sm mt-4 leading-relaxed">
+            No login profile linked to this player card — phone, email, and birthday are unavailable.
+          </p>
+        ) : (
+          <dl className="mt-5 space-y-4 text-sm">
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Phone</dt>
+              <dd className="text-white mt-1 text-base break-all">{selected.contactPhone?.trim() || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Email</dt>
+              <dd className="text-white mt-1 text-base break-all">{selected.contactEmail?.trim() || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs uppercase tracking-wide">Birthday</dt>
+              <dd className="text-white mt-1 text-base">{formatDob(selected.contactBirthday)}</dd>
+            </div>
+          </dl>
+        )}
+      </div>
     </div>
   );
 }

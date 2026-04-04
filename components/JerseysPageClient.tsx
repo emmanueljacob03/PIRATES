@@ -6,25 +6,23 @@ import JerseyRequestForm from '@/components/JerseyRequestForm';
 import type { Jersey } from '@/types/database';
 import {
   sortJerseysByNumber,
-  stripJerseyRequestNotePrefix,
-  sleeveSizeFromNotes,
+  isJerseyNewRequest,
+  sleeveAbbrevFromNotes,
   type JerseyRow,
 } from '@/lib/jersey-utils';
 
 function downloadJerseyCsv(jerseys: JerseyRow[]) {
-  const sorted = [...jerseys].sort(sortJerseysByNumber);
-  const headers = 'S.No,Name,Jersey No,Size,Sleeve Size,Paid,Notes,Created At';
+  const onlyNew = jerseys.filter((j) => isJerseyNewRequest(j.notes ?? null));
+  const sorted = [...onlyNew].sort(sortJerseysByNumber);
+  const headers = 'S.No,Name,Jersey No,Size,Sleeve,Paid';
   const rows = sorted.map((j, i) => {
-    const noteForCsv = stripJerseyRequestNotePrefix(j.notes ?? null);
     return [
       String(i + 1),
       `"${(j.player_name ?? '').replace(/"/g, '""')}"`,
       j.jersey_number,
       j.size,
-      sleeveSizeFromNotes(j.notes ?? null),
+      sleeveAbbrevFromNotes(j.notes ?? null),
       j.paid ? 'Yes' : 'No',
-      `"${noteForCsv.replace(/"/g, '""')}"`,
-      j.created_at,
     ].join(',');
   });
   const csv = [headers, ...rows].join('\n');
@@ -32,7 +30,7 @@ function downloadJerseyCsv(jerseys: JerseyRow[]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `jersey-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `jersey-new-requests-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -65,8 +63,13 @@ export default function JerseysPageClient({ initial, isAdmin }: { initial: Jerse
       <div className="card">
         <div className="flex items-center justify-between gap-2 mb-4">
           <h3 className="text-lg font-semibold">Jersey Lookup</h3>
-          <button type="button" onClick={() => downloadJerseyCsv(jerseys)} className="text-sm btn-secondary py-1 px-2">
-            Download CSV
+          <button
+            type="button"
+            onClick={() => downloadJerseyCsv(jerseys)}
+            className="text-sm btn-secondary py-1 px-2"
+            title="New jersey requests only ([new]); no created date column"
+          >
+            Download CSV (new only)
           </button>
         </div>
         <JerseyLookup

@@ -8,12 +8,30 @@ export function stripJerseyRequestNotePrefix(notes: string | null | undefined): 
   return notes.replace(/^\[(?:new|existing)\]\s*/i, '').trim();
 }
 
-/** CSV / display: long sleeve only if comments mention it; otherwise short sleeve. */
-export function sleeveSizeFromNotes(notes: string | null | undefined): string {
+/** Jersey request form stores `[new]` or `[existing]` prefix on notes. */
+export function isJerseyNewRequest(notes: string | null | undefined): boolean {
+  return /^\[\s*new\s*\]/i.test((notes ?? '').trim());
+}
+
+/**
+ * Sleeve for CSV: `full` if notes (after stripping tag) mention long/full sleeve; otherwise `half`.
+ */
+export function sleeveAbbrevFromNotes(notes: string | null | undefined): 'full' | 'half' {
   const stripped = stripJerseyRequestNotePrefix(notes);
   const combined = `${stripped} ${notes ?? ''}`.toLowerCase();
-  if (/\blong[\s-]*sleeve\b/.test(combined)) return 'Long sleeve';
-  return 'Short sleeve';
+  if (
+    /\blong[\s-]*sleeve\b/.test(combined) ||
+    /\bfull[\s-]*sleeves?\b/.test(combined) ||
+    /\bfull\s+sleeve\b/.test(combined)
+  ) {
+    return 'full';
+  }
+  return 'half';
+}
+
+/** Longer label if needed elsewhere. */
+export function sleeveSizeFromNotes(notes: string | null | undefined): string {
+  return sleeveAbbrevFromNotes(notes) === 'full' ? 'Long sleeve' : 'Short sleeve';
 }
 
 export function sortJerseysByNumber(a: Jersey, b: Jersey): number {
