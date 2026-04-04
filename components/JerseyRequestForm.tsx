@@ -5,7 +5,13 @@ import type { Jersey } from '@/types/database';
 
 const NEW_JERSEY_AMOUNT = 50;
 
-export default function JerseyRequestForm({ onSuccess, existingJerseyNumbers }: { onSuccess?: (jersey: Jersey) => void; existingJerseyNumbers?: number[] }) {
+export default function JerseyRequestForm({
+  onSuccess,
+  existingJerseyNumbers,
+}: {
+  onSuccess?: (jersey: Jersey) => void;
+  existingJerseyNumbers?: string[];
+}) {
   const [requestType, setRequestType] = useState<'existing' | 'new'>('new');
   const [playerName, setPlayerName] = useState('');
   const [jerseyNumber, setJerseyNumber] = useState('');
@@ -19,8 +25,12 @@ export default function JerseyRequestForm({ onSuccess, existingJerseyNumbers }: 
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const num = parseInt(jerseyNumber, 10);
-    if (usedNumbers.includes(num)) {
+    const numRaw = jerseyNumber.trim();
+    if (!/^\d{1,4}$/.test(numRaw)) {
+      setMessage({ type: 'err', text: 'Jersey number must be 1–4 digits (e.g. 06 or 7).' });
+      return;
+    }
+    if (usedNumbers.includes(numRaw)) {
       setMessage({ type: 'err', text: 'This jersey number is already taken. Choose another.' });
       return;
     }
@@ -34,7 +44,7 @@ export default function JerseyRequestForm({ onSuccess, existingJerseyNumbers }: 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           player_name: playerName.trim(),
-          jersey_number: num,
+          jersey_number: numRaw,
           size,
           paid,
           notes: noteText,
@@ -100,14 +110,17 @@ export default function JerseyRequestForm({ onSuccess, existingJerseyNumbers }: 
       <div>
         <label className="block text-sm text-slate-300 mb-1">Jersey Number</label>
         <input
-          type="number"
-          min="1"
-          max="999"
+          type="text"
+          inputMode="numeric"
+          pattern="\d{1,4}"
+          maxLength={4}
           className="input-field"
+          placeholder="e.g. 06 or 7"
           value={jerseyNumber}
-          onChange={(e) => setJerseyNumber(e.target.value)}
+          onChange={(e) => setJerseyNumber(e.target.value.replace(/\D/g, '').slice(0, 4))}
           required
         />
+        <p className="text-slate-500 text-xs mt-1">Leading zeros are kept (06 is not the same as 6).</p>
       </div>
       <div>
         <label className="block text-sm text-slate-300 mb-1">Size</label>

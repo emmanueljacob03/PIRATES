@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
+import { createServerSupabase } from '@/lib/supabase-server';
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Team code required' }, { status: 403 });
   }
 
-  let body: { player_name?: string; jersey_number?: number; size?: string; paid?: boolean; notes?: string } = {};
+  let body: { player_name?: string; jersey_number?: string | number; size?: string; paid?: boolean; notes?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -16,12 +17,25 @@ export async function POST(req: NextRequest) {
   }
 
   const player_name = (body.player_name ?? '').trim();
-  const jersey_number = body.jersey_number ?? 0;
+  const rawNum = body.jersey_number;
+  const jersey_number =
+    typeof rawNum === 'number' && Number.isFinite(rawNum) ? String(rawNum) : String(rawNum ?? '').trim();
   const size = (body.size ?? 'M').trim();
   const paid = body.paid ?? false;
   const notes = body.notes?.trim() ?? null;
-  if (!player_name || !jersey_number) {
-    return NextResponse.json({ error: 'Player name and jersey number required' }, { status: 400 });
+  if (!player_name || !jersey_number || !/^\d{1,4}$/.test(jersey_number)) {
+    return NextResponse.json({ error: 'Player name and a valid jersey number (1–4 digits) required' }, { status: 400 });
+  }
+
+  let submitted_by_id: string | null = null;
+  try {
+    const userClient = await createServerSupabase();
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
+    submitted_by_id = user?.id ?? null;
+  } catch {
+    /* ignore */
   }
 
   try {
@@ -32,9 +46,19 @@ export async function POST(req: NextRequest) {
       size,
       paid,
       notes,
+      submitted_by_id,
     }).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json(data);
+    let out = data as Record<string, unknown>;
+    if (submitted_by_id && out) {
+      const { data: prof } = await (supabase as any)
+        .from('profiles')
+        .select('name')
+        .eq('id', submitted_by_id)
+        .maybeSingle();
+      out = { ...out, submitter_name: (prof as { name?: string } | null)?.name ?? null };
+    }
+    return NextResponse.json(out);
   } catch (e) {
     const msg = (e as Error).message;
     if (msg.includes('SUPABASE_SERVICE_ROLE_KEY')) {

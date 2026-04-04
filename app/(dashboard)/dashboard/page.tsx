@@ -26,8 +26,12 @@ export default async function DashboardPage() {
       (supabase as any).from('players').select('id', { count: 'exact', head: true }),
       (supabase as any).from('matches').select('id', { count: 'exact', head: true }),
       (supabase as any).from('match_stats').select('*'),
-      isAdmin ? (supabase as any).from('jerseys').select('player_name, paid') : Promise.resolve({ data: [] }),
-      isAdmin ? (supabase as any).from('contributions').select('player_name, amount, paid') : Promise.resolve({ data: [] }),
+      isAdmin
+        ? (supabase as any).from('jerseys').select('player_name, paid, submitted_by_id')
+        : Promise.resolve({ data: [] }),
+      isAdmin
+        ? (supabase as any).from('contributions').select('player_name, amount, paid, submitted_by_id')
+        : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
     totalMatches = matchesRes.count ?? 0;
@@ -78,14 +82,46 @@ export default async function DashboardPage() {
       }
     }
     if (isAdmin && jerseysRes.data && contribsRes.data) {
+      type JRow = { player_name?: string; paid?: boolean; submitted_by_id?: string | null };
+      type CRow = { player_name?: string; amount?: number; paid?: boolean; submitted_by_id?: string | null };
+      const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => !j.paid);
+      const contribRows = (contribsRes.data as CRow[]).filter((c) => !c.paid);
+      const oweIds = new Set<string>();
+      jerseyRows.forEach((j) => {
+        if (j.submitted_by_id) oweIds.add(j.submitted_by_id);
+      });
+      contribRows.forEach((c) => {
+        if (c.submitted_by_id) oweIds.add(c.submitted_by_id);
+      });
+      const displayByUserId: Record<string, string> = {};
+      const oweIdList = Array.from(oweIds);
+      if (oweIdList.length > 0) {
+        const { data: profs } = await supabase.from('profiles').select('id, name').in('id', oweIdList);
+        for (const p of profs ?? []) {
+          const row = p as { id: string; name: string | null };
+          if (row?.id) displayByUserId[row.id] = (row.name ?? '').trim() || row.id;
+        }
+      }
+      const oweKeyJersey = (j: JRow): string => {
+        if (j.submitted_by_id) {
+          return displayByUserId[j.submitted_by_id] || (j.player_name ?? '').trim();
+        }
+        return (j.player_name ?? '').trim();
+      };
+      const oweKeyContrib = (c: CRow): string => {
+        if (c.submitted_by_id) {
+          return displayByUserId[c.submitted_by_id] || (c.player_name ?? '').trim();
+        }
+        return (c.player_name ?? '').trim();
+      };
       const jerseyByPerson: Record<string, number> = {};
-      (jerseysRes.data as { player_name?: string; paid?: boolean }[]).filter((j) => !j.paid).forEach((j) => {
-        const n = (j.player_name ?? '').trim();
+      jerseyRows.forEach((j) => {
+        const n = oweKeyJersey(j);
         if (n) jerseyByPerson[n] = (jerseyByPerson[n] ?? 0) + 50;
       });
       const contribByPerson: Record<string, number> = {};
-      (contribsRes.data as { player_name?: string; amount?: number; paid?: boolean }[]).filter((c) => !c.paid).forEach((c) => {
-        const n = (c.player_name ?? '').trim();
+      contribRows.forEach((c) => {
+        const n = oweKeyContrib(c);
         if (n) contribByPerson[n] = (contribByPerson[n] ?? 0) + Number(c.amount ?? 0);
       });
       const names = new Set([...Object.keys(jerseyByPerson), ...Object.keys(contribByPerson)]);

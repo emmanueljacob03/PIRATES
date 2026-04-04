@@ -4,17 +4,23 @@ import { useState, useCallback } from 'react';
 import JerseyLookup from '@/components/JerseyLookup';
 import JerseyRequestForm from '@/components/JerseyRequestForm';
 import type { Jersey } from '@/types/database';
+import { sortJerseysByNumber, stripJerseyRequestNotePrefix, type JerseyRow } from '@/lib/jersey-utils';
 
-function downloadJerseyCsv(jerseys: Jersey[]) {
-  const headers = 'Player Name,Jersey Number,Size,Paid,Notes,Created At';
-  const rows = jerseys.map((j) => [
-    `"${(j.player_name ?? '').replace(/"/g, '""')}"`,
-    j.jersey_number,
-    j.size,
-    j.paid ? 'Yes' : 'No',
-    `"${(j.notes ?? '').replace(/"/g, '""')}"`,
-    j.created_at,
-  ].join(','));
+function downloadJerseyCsv(jerseys: JerseyRow[]) {
+  const sorted = [...jerseys].sort(sortJerseysByNumber);
+  const headers = 'S.No,Name,Jersey No,Size,Paid,Notes,Created At';
+  const rows = sorted.map((j, i) => {
+    const noteForCsv = stripJerseyRequestNotePrefix(j.notes ?? null);
+    return [
+      String(i + 1),
+      `"${(j.player_name ?? '').replace(/"/g, '""')}"`,
+      j.jersey_number,
+      j.size,
+      j.paid ? 'Yes' : 'No',
+      `"${noteForCsv.replace(/"/g, '""')}"`,
+      j.created_at,
+    ].join(',');
+  });
   const csv = [headers, ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -25,11 +31,12 @@ function downloadJerseyCsv(jerseys: Jersey[]) {
   URL.revokeObjectURL(url);
 }
 
-export default function JerseysPageClient({ initial, isAdmin }: { initial: Jersey[]; isAdmin?: boolean }) {
+export default function JerseysPageClient({ initial, isAdmin }: { initial: JerseyRow[]; isAdmin?: boolean }) {
   const [jerseys, setJerseys] = useState(initial);
 
   const handleNewJersey = useCallback((jersey: Jersey) => {
-    setJerseys((prev) => [jersey, ...prev].sort((a, b) => a.jersey_number - b.jersey_number));
+    const row = jersey as JerseyRow;
+    setJerseys((prev) => [...prev, row].sort(sortJerseysByNumber));
   }, []);
 
   const handlePaidToggle = useCallback(async (id: string, paid: boolean) => {
@@ -45,7 +52,7 @@ export default function JerseysPageClient({ initial, isAdmin }: { initial: Jerse
     setJerseys((prev) => prev.filter((j) => j.id !== id));
   }, [isAdmin]);
 
-  const existingNumbers = jerseys.map((j) => j.jersey_number);
+  const existingNumbers = jerseys.map((j) => String(j.jersey_number));
 
   return (
     <div className="grid md:grid-cols-2 gap-8">

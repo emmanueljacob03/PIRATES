@@ -36,10 +36,11 @@ CREATE POLICY "Admins update any profile" ON public.profiles
 CREATE TABLE IF NOT EXISTS public.jerseys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   player_name TEXT NOT NULL,
-  jersey_number INT NOT NULL UNIQUE,
+  jersey_number TEXT NOT NULL UNIQUE,
   size TEXT NOT NULL,
   paid BOOLEAN DEFAULT FALSE,
   notes TEXT,
+  submitted_by_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

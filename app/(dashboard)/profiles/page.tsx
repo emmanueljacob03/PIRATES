@@ -197,10 +197,11 @@ export default async function ProfilesPage() {
 
     const { data: jerseyRows } = await supabase
       .from('jerseys')
-      .select('player_name, paid');
+      .select('player_name, paid, submitted_by_id');
     const myJerseys = (jerseyRows ?? []).filter(
-      (j: { player_name?: string }) =>
-        nameMatchesSelf(j.player_name),
+      (j: { player_name?: string; submitted_by_id?: string | null }) =>
+        j.submitted_by_id === user.id ||
+        (!j.submitted_by_id && nameMatchesSelf(j.player_name)),
     );
     const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
     pendingJersey = unpaidJerseys.length * 50;

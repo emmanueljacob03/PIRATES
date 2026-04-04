@@ -29,11 +29,12 @@ export interface Database {
         Row: {
           id: string;
           player_name: string;
-          jersey_number: number;
+          jersey_number: string;
           size: string;
           paid: boolean;
           notes: string | null;
           created_at: string;
+          submitted_by_id: string | null;
         };
         Insert: Omit<Database['public']['Tables']['jerseys']['Row'], 'id' | 'created_at'> & {
           id?: string;

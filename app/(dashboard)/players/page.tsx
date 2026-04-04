@@ -1,10 +1,8 @@
-import Image from 'next/image';
 import { cookies } from 'next/headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name';
-import PlayerPhotoUpload from '@/components/PlayerPhotoUpload';
-import DeletePlayerButton from '@/components/DeletePlayerButton';
+import PlayersGridClient, { type PlayersGridPlayer } from '@/components/PlayersGridClient';
 
 export default async function PlayersPage() {
   const cookieStore = await cookies();
@@ -19,8 +17,7 @@ export default async function PlayersPage() {
     profile_id?: string | null;
     updated_at?: string;
   };
-  type DisplayPlayer = PlayerRow & { displayName: string; displayPhoto: string | null };
-  let players: DisplayPlayer[] = [];
+  let players: PlayersGridPlayer[] = [];
   let canEdit = false;
   let canDeletePlayers = false;
 
@@ -73,59 +70,34 @@ export default async function PlayersPage() {
       const pr = p.profile_id ? profileById.get(p.profile_id) : undefined;
       const displayName = scorecardDisplayName(p.name, pr?.name ?? null, p.profile_id ?? null);
       const displayPhoto = playerPhotoUrl(p.photo, pr?.avatar_url ?? null);
-      return { ...p, displayName, displayPhoto };
+      return {
+        id: p.id,
+        displayName,
+        displayPhoto,
+        jersey_number: p.jersey_number,
+        role: p.role,
+        updated_at: p.updated_at,
+      };
     });
   } catch {
     players = [];
   }
 
+  const canEditPhoto = !demo && (isAdminCode || canEdit);
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-pirate-gold mb-6">Players</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-        {players.map((p) => {
-          const canEditPhoto = !demo && (isAdminCode || canEdit);
-          const imgSrc =
-            p.displayPhoto &&
-            `${p.displayPhoto}${p.displayPhoto.includes('?') ? '&' : '?'}v=${encodeURIComponent(p.updated_at ?? p.id)}`;
-          const content = (
-            <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-slate-800">
-              {p.displayPhoto && imgSrc ? (
-                <Image
-                  key={imgSrc}
-                  src={imgSrc}
-                  alt={p.displayName}
-                  fill
-                  className="object-cover"
-                  sizes="220px"
-                  unoptimized
-                />
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 text-slate-500 text-xs px-2 text-center">
-                  No photo yet
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-2 py-2 flex items-center justify-between gap-2 min-h-[2.75rem]">
-                <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1 pr-1">{p.displayName}</p>
-                {canEditPhoto ? (
-                  <div className="flex-shrink-0 self-end mb-0.5">
-                    <PlayerPhotoUpload playerId={p.id} playerName={p.displayName} compact />
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          );
-          return (
-            <div key={p.id} className="card p-2 hover:border-amber-500/40 transition relative">
-              {!demo && canDeletePlayers && (
-                <DeletePlayerButton playerId={p.id} playerName={p.displayName} />
-              )}
-              {content}
-            </div>
-          );
-        })}
-      </div>
-      {players.length === 0 && <p className="text-slate-500">No players added yet.</p>}
+      {players.length > 0 ? (
+        <PlayersGridClient
+          players={players}
+          demo={demo}
+          canEditPhoto={canEditPhoto}
+          canDeletePlayers={!demo && canDeletePlayers}
+        />
+      ) : (
+        <p className="text-slate-500">No players added yet.</p>
+      )}
     </div>
   );
 }

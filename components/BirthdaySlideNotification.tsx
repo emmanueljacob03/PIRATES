@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { toAppZonedYmdFromDate } from '@/lib/app-timezone';
+import { pickBirthdaySlideMessage } from '@/lib/birthday-messages';
 
-/** One slide per calendar day per browser for the whole team (localStorage, not session). */
+/** One slide per calendar day per browser for the whole team (localStorage). */
 const STORAGE_PREFIX = 'pirates_birthday_team_slide_ack_';
 
 type Celebrant = { id: string; name: string };
@@ -16,7 +17,7 @@ export default function BirthdaySlideNotification() {
   const dismiss = useCallback(() => {
     if (!todayKey) return;
     try {
-      sessionStorage.setItem(STORAGE_PREFIX + todayKey, '1');
+      localStorage.setItem(STORAGE_PREFIX + todayKey, '1');
     } catch {
       /* ignore */
     }
@@ -51,35 +52,26 @@ export default function BirthdaySlideNotification() {
       .catch(() => {});
   }, [todayKey]);
 
-  if (!visible || celebrants.length === 0) return null;
-
-  const names =
-    celebrants.length === 1
-      ? celebrants[0].name
-      : celebrants.map((c) => c.name).join(', ');
+  if (!visible || celebrants.length === 0 || !todayKey) return null;
 
   return (
     <div
-      className="fixed top-4 left-4 z-[55] w-full max-w-sm px-3 sm:px-0 pirates-birthday-slide-in"
+      className="fixed top-4 left-4 z-[55] w-full max-w-md px-3 sm:px-0 pirates-birthday-slide-in"
       role="status"
       aria-live="polite"
     >
       <div className="bg-gradient-to-r from-amber-900/95 to-slate-800 border border-amber-400/60 rounded-lg shadow-xl p-4 pr-10 relative overflow-hidden">
-        <p className="text-amber-100 font-semibold text-sm leading-snug">🎂 Team birthday today</p>
-        <p className="text-amber-50 text-sm mt-1.5 leading-snug">
-          {celebrants.length === 1 ? (
-            <>
-              <span className="font-medium">{names}</span> — wish them a great day!
-            </>
-          ) : (
-            <>
-              <span className="font-medium">{names}</span> — wish them all a great day!
-            </>
-          )}
+        <p className="text-amber-100 font-semibold text-sm leading-snug">
+          🎂 Team birthday{celebrants.length > 1 ? 's' : ''} today
         </p>
-        <p className="text-amber-200/70 text-xs mt-2">
-          Shown once today on this device for each person when any teammate has a birthday (Central Time).
-        </p>
+        <ul className="mt-2.5 space-y-2.5 text-sm text-amber-50 leading-snug">
+          {celebrants.map((c) => (
+            <li key={c.id}>
+              <span className="font-medium text-amber-100">{c.name}</span>
+              <span className="text-amber-200/95"> — {pickBirthdaySlideMessage(c.id, todayKey)}</span>
+            </li>
+          ))}
+        </ul>
         <button
           type="button"
           onClick={dismiss}
