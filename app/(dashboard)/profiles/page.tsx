@@ -4,14 +4,7 @@ import { cookies } from 'next/headers';
 import ProfilePageClient from '@/components/ProfilePageClient';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
-
-function normalizeNameForMatch(s: string | null | undefined): string {
-  return (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function compactNameForMatch(s: string | null | undefined): string {
-  return normalizeNameForMatch(s).replace(/[^a-z0-9]/g, '');
-}
+import { buildSelfNameVariants, nameMatchesSelfVariants } from '@/lib/name-match';
 
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
@@ -166,22 +159,10 @@ export default async function ProfilesPage() {
       matchesPlayed = count ?? 0;
     }
 
-    // Contributions and pending amounts
-    const nameVariants = new Set<string>();
-    const addVariant = (v: string | null | undefined) => {
-      const n = normalizeNameForMatch(v);
-      if (n) nameVariants.add(n);
-      const c = compactNameForMatch(v);
-      if (c) nameVariants.add(c);
-    };
-    addVariant(profile.name);
-    addVariant(linkedPlayer?.name ?? null);
-
-    const nameMatchesSelf = (playerName: string | null | undefined): boolean => {
-      const n = normalizeNameForMatch(playerName);
-      const c = compactNameForMatch(playerName);
-      return (!!n && nameVariants.has(n)) || (!!c && nameVariants.has(c));
-    };
+    // Contributions and pending amounts (legacy rows: partial names vs full profile / roster)
+    const nameVariants = buildSelfNameVariants(profile.name, linkedPlayer?.name ?? null);
+    const nameMatchesSelf = (playerName: string | null | undefined): boolean =>
+      nameMatchesSelfVariants(playerName, nameVariants, [profile.name, linkedPlayer?.name ?? null]);
 
     const { data: contribs } = await supabase
       .from('contributions')
