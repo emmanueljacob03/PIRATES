@@ -154,8 +154,6 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
         <span className="text-slate-300 text-sm cursor-help border-b border-dotted border-slate-500 hover:border-amber-400/60">
           🌡 {tempRounded}°C{desc ? ` · ${desc}` : ''}
         </span>
-        <span className="text-slate-500 text-xs ml-1 hidden sm:inline">(hover)</span>
-        <span className="text-slate-500 text-xs ml-1 sm:hidden">(tap for tips)</span>
       </button>
       {open && advisoryText && (
         <div

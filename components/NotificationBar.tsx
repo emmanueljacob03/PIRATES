@@ -6,7 +6,6 @@ import {
   buildUpcomingMatchesSearchParams,
   selectMatchesForReminderWindow,
   formatReminderLine,
-  REMINDER_WINDOW_HOURS,
 } from '@/lib/upcoming-notifications';
 import { formatCentralNow } from '@/lib/app-timezone';
 
@@ -163,9 +162,7 @@ export default function NotificationBar() {
         🔔
       </span>
       <div className="flex-1 min-w-0 flex flex-col gap-1 pr-1">
-        <p className="text-[11px] text-slate-500">
-          CST now: {centralClock} · next {REMINDER_WINDOW_HOURS}h
-        </p>
+        <p className="text-[11px] text-slate-500">CST now: {centralClock}</p>
         <div
           className="overflow-x-auto scroll-smooth flex flex-nowrap items-center gap-x-3 py-0.5"
           style={{ scrollbarWidth: 'thin' }}

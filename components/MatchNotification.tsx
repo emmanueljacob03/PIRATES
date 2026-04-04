@@ -5,7 +5,6 @@ import {
   buildUpcomingMatchesSearchParams,
   selectMatchesForReminderWindow,
   formatReminderLine,
-  REMINDER_WINDOW_HOURS,
 } from '@/lib/upcoming-notifications';
 import { formatCentralNow } from '@/lib/app-timezone';
 import { consumeSlideReminderCookieInBrowser } from '@/lib/slide-reminder-cookie';
@@ -159,10 +158,8 @@ export default function MatchNotification() {
             🏏
           </span>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-amber-400">Reminder — next ~3 days</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              Within {REMINDER_WINDOW_HOURS}h · CST now: {centralClock}
-            </p>
+            <p className="font-semibold text-amber-400">Reminder</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">CST now: {centralClock}</p>
             <ul className="mt-3 max-h-52 overflow-y-auto space-y-0 text-sm text-slate-200 leading-snug">
               {visible.map((m, i) => (
                 <li
