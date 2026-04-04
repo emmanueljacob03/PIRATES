@@ -1,4 +1,4 @@
-/** Shared hot/cold/rain copy for API and client (cached weather rows). */
+/** Shared hot/cold/rain copy for API and client (cached weather rows). `temp` is °C. */
 
 export function weatherAdvisoryFromConditions(
   temp: number | null | undefined,
@@ -7,10 +7,10 @@ export function weatherAdvisoryFromConditions(
   let advisory = '';
   if (temp != null && Number.isFinite(Number(temp))) {
     const t = Number(temp);
-    if (t > 85) {
+    if (t > 29) {
       advisory =
         "It's too hot — come prepared with sunscreen, a hat, and extra water. Hydrate often.";
-    } else if (t < 50) {
+    } else if (t < 10) {
       advisory = 'Cold conditions — wear layers and warm up properly.';
     }
   }

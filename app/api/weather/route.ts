@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       { status: 503 },
     );
   }
-  const base = `https://api.openweathermap.org/data/2.5/weather?appid=${apiKey}&units=imperial`;
+  const base = `https://api.openweathermap.org/data/2.5/weather?appid=${apiKey}&units=metric`;
 
   if (!lat && !lon && !city?.trim()) {
     return NextResponse.json({ error: 'Provide lat/lon or city' }, { status: 400 });
@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
     const advisory = weatherAdvisoryFromConditions(temp, main) || null;
     return NextResponse.json({
       temp,
+      unit: 'C' as const,
       description: desc,
       main,
       advisory,

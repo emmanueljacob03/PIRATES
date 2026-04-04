@@ -12,6 +12,18 @@ type WeatherState = {
   advisory?: string | null;
 };
 
+/** `matches.weather` JSON: temp is °C if unit === 'C'; legacy rows omit unit and are °F. */
+function storedTempToCelsius(stored: {
+  temp?: number;
+  unit?: string;
+} | null): number | null {
+  const t = stored?.temp;
+  if (t == null || !Number.isFinite(Number(t))) return null;
+  const unit = stored?.unit ?? 'F';
+  if (unit === 'C') return Number(t);
+  return ((Number(t) - 32) * 5) / 9;
+}
+
 export default function ScheduleMatchWeather({ match }: { match: Match }) {
   const [weather, setWeather] = useState<WeatherState | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,16 +31,21 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   const [open, setOpen] = useState(false);
   const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const stored = match.weather as { temp?: number; description?: string; main?: string } | null;
+  const stored = match.weather as {
+    temp?: number;
+    description?: string;
+    main?: string;
+    unit?: string;
+  } | null;
 
   useEffect(() => {
-    if (stored?.temp != null && Number.isFinite(stored.temp)) {
+    const tempC = storedTempToCelsius(stored);
+    if (tempC != null) {
       setWeather({
-        temp: stored.temp,
-        description: stored.description ?? '',
-        main: stored.main ?? null,
-        advisory:
-          weatherAdvisoryFromConditions(stored.temp ?? null, stored.main ?? null) || null,
+        temp: tempC,
+        description: stored?.description ?? '',
+        main: stored?.main ?? null,
+        advisory: weatherAdvisoryFromConditions(tempC, stored?.main ?? null) || null,
       });
       return;
     }
@@ -63,7 +80,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
         setLoadError('Could not reach weather service. Check connection or try again.'),
       )
       .finally(() => setLoading(false));
-  }, [match.ground, match.id, stored?.temp, stored?.description, stored?.main]);
+  }, [match.ground, match.id, stored?.temp, stored?.unit, stored?.description, stored?.main]);
 
   const clearHide = useCallback(() => {
     if (hideRef.current) {
@@ -94,7 +111,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   const tempRounded = weather?.temp != null ? Math.round(weather.temp) : null;
   const desc = (weather?.description ?? '').trim();
   const titleParts: string[] = [];
-  if (tempRounded != null) titleParts.push(`${tempRounded}°F`);
+  if (tempRounded != null) titleParts.push(`${tempRounded}°C`);
   if (desc) titleParts.push(desc);
   if (advisoryText) titleParts.push(advisoryText);
   const titleAttr = titleParts.length > 0 ? titleParts.join(' — ') : undefined;
@@ -135,7 +152,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
         onClick={toggleTap}
       >
         <span className="text-slate-300 text-sm cursor-help border-b border-dotted border-slate-500 hover:border-amber-400/60">
-          🌡 {tempRounded}°F{desc ? ` · ${desc}` : ''}
+          🌡 {tempRounded}°C{desc ? ` · ${desc}` : ''}
         </span>
         <span className="text-slate-500 text-xs ml-1 hidden sm:inline">(hover)</span>
         <span className="text-slate-500 text-xs ml-1 sm:hidden">(tap for tips)</span>
@@ -147,7 +164,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           onMouseLeave={handlePointerLeave}
         >
           <p className="text-white font-medium mb-1">
-            {tempRounded}°F{desc ? ` · ${desc}` : ''}
+            {tempRounded}°C{desc ? ` · ${desc}` : ''}
           </p>
           <p className="text-amber-400 leading-snug">⚠ {advisoryText}</p>
         </div>
