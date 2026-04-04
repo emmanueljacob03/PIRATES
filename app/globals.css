@@ -140,6 +140,19 @@ body {
   .card-hover-lift:hover {
     transform: translateY(-2px);
   }
+  /** Stronger amber border + tint on hover (e.g. MVP card) without a glow. */
+  .card-hover-card-accent:hover {
+    border-color: rgba(250, 204, 21, 0.85) !important;
+    box-shadow:
+      0 8px 20px -4px rgba(0,               0,          0,   0.45),
+      0 0 0 1px rgba(201, 162, 39, 0.45) !important;
+    background-image: linear-gradient(
+      to bottom right,
+      rgba(120, 53, 15, 0.98),
+      rgba(15, 23, 42, 1),
+      rgba(113, 63, 18, 0.95)
+    ) !important;
+  }
   .input-field {
     @apply w-full rounded-lg px-3 py-2 transition;
     background: rgba(15, 23, 42, 0.8);
