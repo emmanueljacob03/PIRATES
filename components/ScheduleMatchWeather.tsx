@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Match } from '@/types/database';
 import { weatherAdvisoryFromConditions } from '@/lib/weather-advisory';
+import { weatherCityForScheduleGround } from '@/lib/schedule-grounds';
 
 type WeatherState = {
   temp?: number;
@@ -33,7 +34,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
     }
     setLoading(true);
     setLoadError(null);
-    const city = match.ground?.trim() || 'London';
+    const city = weatherCityForScheduleGround(match.ground);
     fetch(`/api/weather?city=${encodeURIComponent(city)}`, { credentials: 'same-origin' })
       .then(async (r) => {
         const d = (await r.json()) as {

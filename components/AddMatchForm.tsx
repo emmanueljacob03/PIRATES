@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { SCHEDULE_GROUNDS } from '@/lib/schedule-grounds';
 
 export default function AddMatchForm() {
   const router = useRouter();
@@ -80,12 +81,21 @@ export default function AddMatchForm() {
       </div>
       <div>
         <label className="block text-sm text-slate-300 mb-1">Ground</label>
-        <input
+        <select
           className="input-field"
           value={ground}
           onChange={(e) => setGround(e.target.value)}
-          placeholder="City/venue for weather"
-        />
+          required
+        >
+          <option value="" disabled>
+            Select ground…
+          </option>
+          {SCHEDULE_GROUNDS.map((g) => (
+            <option key={g.label} value={g.label}>
+              {g.label}
+            </option>
+          ))}
+        </select>
       </div>
       <label className="flex items-center gap-2 text-slate-300">
         <input type="checkbox" checked={isPractice} onChange={(e) => setIsPractice(e.target.checked)} />
