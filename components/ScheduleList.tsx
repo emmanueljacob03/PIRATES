@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format, addMonths, subMonths, startOfMonth, getDay, getDaysInMonth, parseISO } from 'date-fns';
 import type { Match } from '@/types/database';
-import MatchWeather from './MatchWeather';
-import PracticeMatchHover from './PracticeMatchHover';
+import ScheduleMatchWeather from './ScheduleMatchWeather';
 
 function isPractice(m: Match) {
   return (m.opponent || '').toLowerCase().includes('practice');
@@ -110,11 +109,7 @@ export default function ScheduleList({ matches, isAdmin }: { matches: Match[]; i
                     {formatMatchDate(m.date)} at {m.time}
                   </p>
                   <p className="text-slate-300">vs {m.opponent} · {m.ground}</p>
-                  {practice ? (
-                    <PracticeMatchHover match={m} />
-                  ) : (
-                    <MatchWeather match={m} />
-                  )}
+                  <ScheduleMatchWeather match={m} />
                   {m.advisory && (
                     <p className="text-sm text-amber-400 mt-2">⚠ {m.advisory}</p>
                   )}

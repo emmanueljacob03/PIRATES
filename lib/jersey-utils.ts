@@ -8,6 +8,14 @@ export function stripJerseyRequestNotePrefix(notes: string | null | undefined): 
   return notes.replace(/^\[(?:new|existing)\]\s*/i, '').trim();
 }
 
+/** CSV / display: long sleeve only if comments mention it; otherwise short sleeve. */
+export function sleeveSizeFromNotes(notes: string | null | undefined): string {
+  const stripped = stripJerseyRequestNotePrefix(notes);
+  const combined = `${stripped} ${notes ?? ''}`.toLowerCase();
+  if (/\blong[\s-]*sleeve\b/.test(combined)) return 'Long sleeve';
+  return 'Short sleeve';
+}
+
 export function sortJerseysByNumber(a: Jersey, b: Jersey): number {
   const sa = String(a.jersey_number ?? '');
   const sb = String(b.jersey_number ?? '');

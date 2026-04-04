@@ -56,13 +56,38 @@ export default async function PlayersPage() {
         fetchedPlayers.map((p) => p.profile_id).filter((id): id is string => Boolean(id)),
       ),
     );
-    const profileById = new Map<string, { name: string | null; avatar_url: string | null }>();
+    const profileById = new Map<
+      string,
+      {
+        name: string | null;
+        avatar_url: string | null;
+        phone: string | null;
+        email: string | null;
+        date_of_birth: string | null;
+      }
+    >();
     if (profileIds.length > 0) {
       const sb = codeVerified ? createAdminSupabase() : await createServerSupabase();
-      const { data: profs } = await sb.from('profiles').select('id, name, avatar_url').in('id', profileIds);
+      const { data: profs } = await sb
+        .from('profiles')
+        .select('id, name, avatar_url, phone, email, date_of_birth')
+        .in('id', profileIds);
       for (const row of profs ?? []) {
-        const r = row as { id: string; name: string | null; avatar_url: string | null };
-        profileById.set(r.id, { name: r.name, avatar_url: r.avatar_url });
+        const r = row as {
+          id: string;
+          name: string | null;
+          avatar_url: string | null;
+          phone: string | null;
+          email: string | null;
+          date_of_birth: string | null;
+        };
+        profileById.set(r.id, {
+          name: r.name,
+          avatar_url: r.avatar_url,
+          phone: r.phone,
+          email: r.email,
+          date_of_birth: r.date_of_birth,
+        });
       }
     }
 
@@ -77,6 +102,10 @@ export default async function PlayersPage() {
         jersey_number: p.jersey_number,
         role: p.role,
         updated_at: p.updated_at,
+        profileId: p.profile_id ?? null,
+        contactPhone: pr?.phone ?? null,
+        contactEmail: pr?.email ?? null,
+        contactBirthday: pr?.date_of_birth ?? null,
       };
     });
   } catch {

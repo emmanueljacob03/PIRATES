@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { weatherAdvisoryFromConditions } from '@/lib/weather-advisory';
 
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
@@ -26,17 +27,12 @@ export async function GET(req: NextRequest) {
     const temp = data.main?.temp ?? null;
     const desc = data.weather?.[0]?.description ?? null;
     const main = data.weather?.[0]?.main ?? null;
-    let advisory = '';
-    if (temp !== null) {
-      if (temp > 85) advisory = 'Wear caps, apply sunscreen, hydrate frequently.';
-      else if (temp < 50) advisory = 'Wear jackets, warm up properly.';
-    }
-    if (main === 'Rain') advisory = (advisory ? advisory + ' ' : '') + 'Bring umbrellas, carry towels.';
+    const advisory = weatherAdvisoryFromConditions(temp, main) || null;
     return NextResponse.json({
       temp,
       description: desc,
       main,
-      advisory: advisory || null,
+      advisory,
     });
   } catch (e) {
     return NextResponse.json({ error: 'Weather fetch failed' }, { status: 502 });

@@ -4,7 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase-admin';
 import JerseysPageClient from '@/components/JerseysPageClient';
 import type { Jersey } from '@/types/database';
 import { sortJerseysByNumber, type JerseyRow } from '@/lib/jersey-utils';
-import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
+import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 
 export default async function JerseysPage() {
   const cookieStore = await cookies();
@@ -21,27 +21,14 @@ export default async function JerseysPage() {
     const rows = (data ?? []) as Jersey[];
     const profilesForInfer = (allProfs ?? []) as { id: string; name: string | null }[];
     const playersForInfer = (allPlayers ?? []) as { name: string | null; profile_id: string | null }[];
-    const submitterIds = Array.from(
-      new Set(rows.map((r) => r.submitted_by_id).filter((id): id is string => !!id)),
-    );
-    const nameById: Record<string, string> = {};
-    if (submitterIds.length > 0) {
-      const { data: profs } = await (supabase as any).from('profiles').select('id, name').in('id', submitterIds);
-      for (const p of profs ?? []) {
-        const row = p as { id: string; name: string | null };
-        if (row?.id) nameById[row.id] = (row.name ?? '').trim();
-      }
+    const profileNameById: Record<string, string> = {};
+    for (const p of profilesForInfer) {
+      if (p?.id) profileNameById[p.id] = (p.name ?? '').trim();
     }
     jerseys = rows
       .map((r) => {
-        let submitterName = r.submitted_by_id ? nameById[r.submitted_by_id] ?? null : null;
-        if (!submitterName && !r.submitted_by_id) {
-          submitterName = uniqueInferredProfileFullNameForLegacyFormName(
-            r.player_name,
-            profilesForInfer,
-            playersForInfer,
-          );
-        }
+        const sid = r.submitted_by_id ?? legacyJerseySubmitterProfileId(r.player_name, playersForInfer);
+        const submitterName = sid ? profileNameById[sid] || null : null;
         return {
           ...r,
           jersey_number: String(r.jersey_number ?? ''),

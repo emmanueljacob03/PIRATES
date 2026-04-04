@@ -5,6 +5,7 @@ import ProfilePageClient from '@/components/ProfilePageClient';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
 import { buildSelfNameVariants, nameMatchesSelfVariants } from '@/lib/name-match';
+import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
@@ -176,13 +177,21 @@ export default async function ProfilesPage() {
       0,
     );
 
-    const { data: jerseyRows } = await supabase
-      .from('jerseys')
-      .select('player_name, paid, submitted_by_id');
+    const [{ data: jerseyRows }, { data: rosterForJerseyInfer }] = await Promise.all([
+      supabase.from('jerseys').select('player_name, paid, submitted_by_id'),
+      supabase.from('players').select('name, profile_id'),
+    ]);
+    const playersForJersey = (rosterForJerseyInfer ?? []) as {
+      name: string | null;
+      profile_id: string | null;
+    }[];
     const myJerseys = (jerseyRows ?? []).filter(
-      (j: { player_name?: string; submitted_by_id?: string | null }) =>
-        j.submitted_by_id === user.id ||
-        (!j.submitted_by_id && nameMatchesSelf(j.player_name)),
+      (j: { player_name?: string; submitted_by_id?: string | null }) => {
+        if (j.submitted_by_id) return j.submitted_by_id === user.id;
+        const legacySid = legacyJerseySubmitterProfileId(j.player_name, playersForJersey);
+        if (legacySid) return legacySid === user.id;
+        return nameMatchesSelf(j.player_name);
+      },
     );
     const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
     pendingJersey = unpaidJerseys.length * 50;

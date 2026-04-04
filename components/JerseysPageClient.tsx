@@ -4,11 +4,16 @@ import { useState, useCallback } from 'react';
 import JerseyLookup from '@/components/JerseyLookup';
 import JerseyRequestForm from '@/components/JerseyRequestForm';
 import type { Jersey } from '@/types/database';
-import { sortJerseysByNumber, stripJerseyRequestNotePrefix, type JerseyRow } from '@/lib/jersey-utils';
+import {
+  sortJerseysByNumber,
+  stripJerseyRequestNotePrefix,
+  sleeveSizeFromNotes,
+  type JerseyRow,
+} from '@/lib/jersey-utils';
 
 function downloadJerseyCsv(jerseys: JerseyRow[]) {
   const sorted = [...jerseys].sort(sortJerseysByNumber);
-  const headers = 'S.No,Name,Jersey No,Size,Paid,Notes,Created At';
+  const headers = 'S.No,Name,Jersey No,Size,Sleeve Size,Paid,Notes,Created At';
   const rows = sorted.map((j, i) => {
     const noteForCsv = stripJerseyRequestNotePrefix(j.notes ?? null);
     return [
@@ -16,6 +21,7 @@ function downloadJerseyCsv(jerseys: JerseyRow[]) {
       `"${(j.player_name ?? '').replace(/"/g, '""')}"`,
       j.jersey_number,
       j.size,
+      sleeveSizeFromNotes(j.notes ?? null),
       j.paid ? 'Yes' : 'No',
       `"${noteForCsv.replace(/"/g, '""')}"`,
       j.created_at,

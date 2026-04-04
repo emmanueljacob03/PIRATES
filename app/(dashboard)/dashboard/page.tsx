@@ -8,6 +8,7 @@ import UmpiringDuties from '@/components/UmpiringDuties';
 import TotalPendingCard from '@/components/TotalPendingCard';
 import Playing11Widget from '@/components/Playing11Widget';
 import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
+import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -107,6 +108,10 @@ export default async function DashboardPage() {
       const { data: allPlayersRaw } = await supabase.from('players').select('name, profile_id');
       const profilesForInfer = (allProfsRaw ?? []) as { id: string; name: string | null }[];
       const playersForInfer = (allPlayersRaw ?? []) as { name: string | null; profile_id: string | null }[];
+      const profileIdToName: Record<string, string> = {};
+      for (const p of profilesForInfer) {
+        if (p?.id) profileIdToName[p.id] = (p.name ?? '').trim() || p.id;
+      }
       const legacyOweName = (formName: string | undefined): string => {
         const trimmed = (formName ?? '').trim();
         const inferred = uniqueInferredProfileFullNameForLegacyFormName(
@@ -117,9 +122,8 @@ export default async function DashboardPage() {
         return inferred || trimmed;
       };
       const oweKeyJersey = (j: JRow): string => {
-        if (j.submitted_by_id) {
-          return displayByUserId[j.submitted_by_id] || (j.player_name ?? '').trim();
-        }
+        const sid = j.submitted_by_id ?? legacyJerseySubmitterProfileId(j.player_name, playersForInfer);
+        if (sid) return profileIdToName[sid] || (j.player_name ?? '').trim();
         return legacyOweName(j.player_name);
       };
       const oweKeyContrib = (c: CRow): string => {
