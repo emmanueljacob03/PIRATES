@@ -29,7 +29,30 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  /**
+   * `hover`: mouse on laptop — open on hover.
+   * `tap`: `(pointer: coarse)` or no hover — tap to open/close (touch phones/tablets).
+   */
+  const [panelMode, setPanelMode] = useState<'hover' | 'tap'>('tap');
   const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sync = () => {
+      const canHover = window.matchMedia('(hover: hover)').matches;
+      const finePointer = window.matchMedia('(pointer: fine)').matches;
+      const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+      // Coarse = finger/touch primary — always tap (mobile). Mouse laptops: fine + hover, no coarse.
+      const hoverUi = canHover && finePointer && !coarsePointer;
+      setPanelMode(hoverUi ? 'hover' : 'tap');
+    };
+    sync();
+    const queries = ['(hover: hover)', '(pointer: fine)', '(pointer: coarse)'].map((q) =>
+      window.matchMedia(q),
+    );
+    queries.forEach((mq) => mq.addEventListener('change', sync));
+    return () => queries.forEach((mq) => mq.removeEventListener('change', sync));
+  }, []);
 
   const stored = match.weather as {
     temp?: number;
@@ -95,17 +118,20 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   }, [clearHide]);
 
   const handlePointerEnter = useCallback(() => {
+    if (panelMode !== 'hover') return;
     clearHide();
     setOpen(true);
-  }, [clearHide]);
+  }, [clearHide, panelMode]);
 
   const handlePointerLeave = useCallback(() => {
+    if (panelMode !== 'hover') return;
     scheduleHide();
-  }, [scheduleHide]);
+  }, [scheduleHide, panelMode]);
 
-  const toggleTap = useCallback(() => {
+  const handleWeatherClick = useCallback(() => {
+    if (panelMode === 'hover') return;
     setOpen((o) => !o);
-  }, []);
+  }, [panelMode]);
 
   const advisoryText = (weather?.advisory ?? '').trim();
   const tempRounded = weather?.temp != null ? Math.round(weather.temp) : null;
@@ -137,6 +163,8 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
     return null;
   }
 
+  const showPanel = open && (advisoryText || tempRounded != null);
+
   return (
     <div
       className="relative mt-1 inline-block max-w-full"
@@ -145,17 +173,23 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
     >
       <button
         type="button"
-        className="text-left w-full sm:w-auto rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70"
+        className="text-left w-full sm:w-auto rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/70 touch-manipulation active:opacity-90 [-webkit-tap-highlight-color:transparent]"
         title={titleAttr}
         aria-expanded={open}
         aria-label={titleAttr ?? 'Weather'}
-        onClick={toggleTap}
+        onClick={handleWeatherClick}
       >
-        <span className="text-slate-300 text-sm cursor-help border-b border-dotted border-slate-500 hover:border-amber-400/60">
+        <span
+          className={`text-slate-300 text-sm border-b border-dotted border-slate-500 select-none ${
+            panelMode === 'hover'
+              ? 'cursor-help hover:border-amber-400/60'
+              : 'cursor-pointer border-amber-500/40'
+          }`}
+        >
           🌡 {tempRounded}°C{desc ? ` · ${desc}` : ''}
         </span>
       </button>
-      {open && advisoryText && (
+      {showPanel && (
         <div
           className="absolute left-0 top-full z-30 mt-1 min-w-[220px] max-w-[min(100%,320px)] p-3 rounded-lg bg-slate-800 border border-amber-500/40 shadow-xl text-sm text-amber-100"
           onMouseEnter={handlePointerEnter}
@@ -164,7 +198,11 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           <p className="text-white font-medium mb-1">
             {tempRounded}°C{desc ? ` · ${desc}` : ''}
           </p>
-          <p className="text-amber-400 leading-snug">⚠ {advisoryText}</p>
+          {advisoryText ? (
+            <p className="text-amber-400 leading-snug">⚠ {advisoryText}</p>
+          ) : (
+            <p className="text-slate-400 text-xs">No advisory for current conditions.</p>
+          )}
         </div>
       )}
     </div>

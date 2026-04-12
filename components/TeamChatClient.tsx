@@ -9,7 +9,7 @@ import type { TeamChatMessage } from '@/types/database';
 import { format } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
 import { chatNameColorForUser } from '@/lib/chat-name-color';
-import { parseChatBody, formatPollBody, formatImageBody } from '@/lib/chat-parse';
+import { parseChatBody, formatPollBody, formatImageBody, SYS_ROOM_ICON_BODY } from '@/lib/chat-parse';
 import { CHAT_EMOJI_GRID } from '@/lib/chat-emojis';
 import { chatImageUrlsForUser } from '@/lib/chat-user-images';
 import TeamChatPollBlock from '@/components/TeamChatPollBlock';
@@ -178,18 +178,21 @@ export default function TeamChatClient({
       const url = pub.publicUrl;
       const { error: setErr } = await (supabase as any)
         .from('team_chat_settings')
-        .update({ header_image_url: url, updated_at: new Date().toISOString() })
-        .eq('id', 1);
+        .upsert(
+          { id: 1, header_image_url: url, updated_at: new Date().toISOString() },
+          { onConflict: 'id' },
+        );
       if (setErr) {
         setError(
           setErr.message.includes('team_chat_settings') || setErr.code === '42P01'
-            ? 'Run supabase/team_chat_settings.sql in the Supabase SQL editor to enable the team chat image.'
+            ? 'Run supabase/team_chat_settings.sql in the Supabase SQL editor (include INSERT policy) to enable the team chat image.'
             : setErr.message,
         );
         return;
       }
       setRoomHeaderUrl(url);
       router.refresh();
+      await postBody(SYS_ROOM_ICON_BODY, false, { skipSendingState: true });
     } catch {
       setError('Could not update team chat image');
     } finally {
@@ -198,16 +201,18 @@ export default function TeamChatClient({
   }
 
   function canModify(m: Row): boolean {
+    if (parseChatBody(m.body).kind === 'system') return false;
     if (!userId || isDemo) return false;
     if (isAdmin) return true;
     if (m.user_id !== userId) return false;
     return Date.now() - new Date(m.created_at).getTime() <= EDIT_WINDOW_MS;
   }
 
-  async function postBody(body: string, isAlert = false) {
+  async function postBody(body: string, isAlert = false, opts?: { skipSendingState?: boolean }) {
     const trimmed = body.trim();
     if (!trimmed || !canPost) return;
-    setSending(true);
+    const skipSending = opts?.skipSendingState ?? false;
+    if (!skipSending) setSending(true);
     setError('');
     const tempId =
       typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -223,10 +228,12 @@ export default function TeamChatClient({
     };
     setMessages((prev) => [...prev, optimistic]);
     bumpMessageAnimation(setAnimIds, tempId);
-    setText('');
-    setPostAsAlert(false);
-    setEmojiOpen(false);
-    setAttachOpen(false);
+    if (!skipSending) {
+      setText('');
+      setPostAsAlert(false);
+      setEmojiOpen(false);
+      setAttachOpen(false);
+    }
 
     try {
       const res = await fetch('/api/team-chat', {
@@ -256,12 +263,12 @@ export default function TeamChatClient({
       } else {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
       }
-      inputRef.current?.focus();
+      if (!skipSending) inputRef.current?.focus();
     } catch {
       setError('Network error — try again');
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
-      setSending(false);
+      if (!skipSending) setSending(false);
     }
   }
 
@@ -464,6 +471,26 @@ export default function TeamChatClient({
             const parsed = parseChatBody(m.body);
             const nameColor = chatNameColorForUser(m.user_id);
             const enterClass = animIds.has(m.id) ? 'chat-msg-in' : '';
+
+            if (parsed.kind === 'system' && parsed.systemKind === 'room_icon') {
+              return (
+                <div key={m.id} className={`flex justify-center my-2 ${enterClass}`}>
+                  <p className="text-center text-[11px] leading-snug text-slate-500 px-3 py-1.5 rounded-full bg-[#111b21]/90 border border-slate-700/60 max-w-[min(100%,22rem)]">
+                    {mine ? (
+                      <>You changed the team chat picture</>
+                    ) : (
+                      <>
+                        <span className="font-semibold" style={{ color: nameColor }}>
+                          {m.sender_name}
+                        </span>
+                        <span className="text-slate-500"> changed the team chat picture</span>
+                      </>
+                    )}
+                    <span className="text-slate-600 tabular-nums"> · {format(new Date(m.created_at), 'HH:mm')}</span>
+                  </p>
+                </div>
+              );
+            }
 
             return (
               <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'} ${enterClass}`}>

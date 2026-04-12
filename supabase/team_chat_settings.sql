@@ -15,6 +15,10 @@ DROP POLICY IF EXISTS "team_chat_settings_select" ON public.team_chat_settings;
 CREATE POLICY "team_chat_settings_select" ON public.team_chat_settings
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "team_chat_settings_insert" ON public.team_chat_settings;
+CREATE POLICY "team_chat_settings_insert" ON public.team_chat_settings
+  FOR INSERT TO authenticated WITH CHECK (id = 1);
+
 DROP POLICY IF EXISTS "team_chat_settings_update" ON public.team_chat_settings;
 CREATE POLICY "team_chat_settings_update" ON public.team_chat_settings
   FOR UPDATE TO authenticated USING (id = 1) WITH CHECK (id = 1);

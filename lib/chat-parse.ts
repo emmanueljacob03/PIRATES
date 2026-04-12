@@ -3,13 +3,20 @@
 const IMG_RE = /^!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)\s*([\s\S]*)$/;
 const POLL_PREFIX = '__POLL__\n';
 
+/** Team chat room icon changed — render as WhatsApp-style system line, not raw text. */
+export const SYS_ROOM_ICON_BODY = '__SYS_ROOM_ICON__';
+
 export type ParsedChatBody =
   | { kind: 'text'; text: string }
   | { kind: 'image'; url: string; alt: string; caption: string }
-  | { kind: 'poll'; question: string; options: string[] };
+  | { kind: 'poll'; question: string; options: string[] }
+  | { kind: 'system'; systemKind: 'room_icon' };
 
 export function parseChatBody(body: string): ParsedChatBody {
   const trimmed = body.trim();
+  if (trimmed === SYS_ROOM_ICON_BODY) {
+    return { kind: 'system', systemKind: 'room_icon' };
+  }
   const img = trimmed.match(IMG_RE);
   if (img) {
     return {
