@@ -25,15 +25,22 @@ export default async function DashboardLayout({
 
   let hasSession = false;
   let showAdminTools = isAdminCookie;
+  let profileAvatarUrl: string | null = null;
   try {
     const supabase = await createServerSupabase();
     const {
       data: { session },
     } = await supabase.auth.getSession();
     hasSession = !!session;
-    if (!showAdminTools && session?.user) {
-      const { data: prof } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
-      showAdminTools = (prof as { role?: string } | null)?.role === 'admin';
+    if (session?.user) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role, avatar_url')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      const p = prof as { role?: string; avatar_url?: string | null } | null;
+      profileAvatarUrl = p?.avatar_url?.trim() || null;
+      if (!showAdminTools) showAdminTools = p?.role === 'admin';
     }
   } catch {
     // ignore
@@ -53,7 +60,7 @@ export default async function DashboardLayout({
             {showAdminTools && <ExpenseApprovalNotification />}
             {showAdminTools && <SignupApprovalRequests />}
             <NotificationBar />
-            <ProfileIcon />
+            <ProfileIcon avatarUrl={profileAvatarUrl} />
             <LogoutButton />
           </div>
         </header>

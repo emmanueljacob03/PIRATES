@@ -396,7 +396,7 @@ export default function TeamChatClient({
 
   return (
     <>
-    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl w-full max-w-xl mx-auto h-[min(88vh,920px)]">
+    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl w-full max-w-3xl mx-auto h-[min(88vh,920px)]">
       <input
         ref={roomCameraInputRef}
         type="file"
@@ -588,15 +588,17 @@ export default function TeamChatClient({
       <div className="flex-shrink-0 border-t border-slate-800 relative" style={{ background: '#1f2c34' }}>
         {error && <p className="text-xs text-red-400 px-3 pt-2">{error}</p>}
         {isAdmin && (
-          <label className="absolute top-2 right-3 z-10 flex items-center gap-2 cursor-pointer select-none rounded-md bg-[#111b21]/90 border border-slate-600/80 px-2 py-1">
-            <input
-              type="checkbox"
-              checked={postAsAlert}
-              onChange={(e) => setPostAsAlert(e.target.checked)}
-              className="rounded border-slate-500 text-red-600 focus:ring-red-500 shrink-0"
-            />
-            <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
-          </label>
+          <div className="flex justify-end px-3 pt-2 pb-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none rounded-md bg-[#111b21]/90 border border-slate-600/80 px-2 py-1">
+              <input
+                type="checkbox"
+                checked={postAsAlert}
+                onChange={(e) => setPostAsAlert(e.target.checked)}
+                className="rounded border-slate-500 text-red-600 focus:ring-red-500 shrink-0"
+              />
+              <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
+            </label>
+          </div>
         )}
 
         {pollOpen && (
@@ -669,7 +671,7 @@ export default function TeamChatClient({
           }}
         />
 
-        <div className={`flex items-end gap-1 p-2 ${isAdmin ? 'pt-9' : ''}`}>
+        <div className={`flex items-end gap-1 p-2 ${isAdmin ? 'pt-1' : ''}`}>
           <div className="relative shrink-0" ref={attachWrapRef}>
             <button
               type="button"
@@ -818,7 +820,6 @@ export default function TeamChatClient({
               unoptimized={!!roomHeaderUrl && roomHeaderUrl.startsWith('http')}
             />
           </div>
-          <p className="text-xs text-slate-400 text-center">Camera or Photo updates the shared team chat image for everyone.</p>
           <div className="flex flex-wrap gap-3 justify-center">
             <button
               type="button"
