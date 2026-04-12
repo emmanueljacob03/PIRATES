@@ -11,7 +11,10 @@ import { compressImageForUpload } from '@/lib/image-compress';
 import { chatNameColorForUser } from '@/lib/chat-name-color';
 import { parseChatBody, formatPollBody, formatImageBody } from '@/lib/chat-parse';
 import { CHAT_EMOJI_GRID } from '@/lib/chat-emojis';
+import { chatImageUrlsForUser } from '@/lib/chat-user-images';
 import TeamChatPollBlock from '@/components/TeamChatPollBlock';
+
+const DEFAULT_TEAM_CHAT_IMAGE = '/pirates-emblem.png';
 
 /** Manual Database shape lacks full GenericSchema; PostgREST insert types resolve to `never` without this. */
 const db = supabase as unknown as SupabaseClient<any>;
@@ -38,15 +41,15 @@ export default function TeamChatClient({
   initialMessages,
   userId,
   senderName,
-  viewerAvatarUrl,
+  roomHeaderImageUrl,
   isAdmin,
   isDemo,
 }: {
   initialMessages: Row[];
   userId: string | null;
   senderName: string;
-  /** Logged-in user profile photo (header + hint). */
-  viewerAvatarUrl?: string | null;
+  /** Team chat room header (not profile); null → Pirates emblem. */
+  roomHeaderImageUrl: string | null;
   isAdmin: boolean;
   isDemo: boolean;
 }) {
@@ -63,9 +66,10 @@ export default function TeamChatClient({
   const [animIds, setAnimIds] = useState<Set<string>>(new Set());
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-  const [avatarDisplay, setAvatarDisplay] = useState<string | null>(viewerAvatarUrl ?? null);
-  const [dpUploading, setDpUploading] = useState(false);
+  const [roomHeaderUrl, setRoomHeaderUrl] = useState<string | null>(roomHeaderImageUrl ?? null);
+  const [roomImageModalOpen, setRoomImageModalOpen] = useState(false);
+  const [roomUploading, setRoomUploading] = useState(false);
+  const [userGallery, setUserGallery] = useState<{ userId: string; name: string } | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQ, setPollQ] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
@@ -75,10 +79,10 @@ export default function TeamChatClient({
   const editInputRef = useRef<HTMLTextAreaElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const dpCameraInputRef = useRef<HTMLInputElement>(null);
-  const dpGalleryInputRef = useRef<HTMLInputElement>(null);
+  const roomCameraInputRef = useRef<HTMLInputElement>(null);
+  const roomGalleryInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
-  const headerLogoRef = useRef<HTMLDivElement>(null);
+  const emojiBtnWrapRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -91,13 +95,13 @@ export default function TeamChatClient({
   }, []);
 
   useEffect(() => {
-    setAvatarDisplay(viewerAvatarUrl ?? null);
-  }, [viewerAvatarUrl]);
+    setRoomHeaderUrl(roomHeaderImageUrl ?? null);
+  }, [roomHeaderImageUrl]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (attachWrapRef.current && !attachWrapRef.current.contains(e.target as Node)) setAttachOpen(false);
-      if (headerLogoRef.current && !headerLogoRef.current.contains(e.target as Node)) setHeaderMenuOpen(false);
+      if (emojiBtnWrapRef.current && !emojiBtnWrapRef.current.contains(e.target as Node)) setEmojiOpen(false);
     }
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
@@ -134,38 +138,62 @@ export default function TeamChatClient({
     };
   }, [isDemo, userId]);
 
+  useEffect(() => {
+    if (isDemo || !userId) return;
+    const ch = db
+      .channel('team-chat-settings')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'team_chat_settings' },
+        (payload) => {
+          const row = payload.new as { header_image_url?: string | null };
+          if (row?.header_image_url !== undefined) setRoomHeaderUrl(row.header_image_url ?? null);
+        },
+      )
+      .subscribe();
+    return () => {
+      db.removeChannel(ch);
+    };
+  }, [isDemo, userId]);
+
   const canPost = !!userId && !isDemo;
 
-  async function uploadProfileAvatarFromFile(file: File | null) {
+  async function uploadRoomHeaderImage(file: File | null) {
     if (!file || !userId) return;
-    setHeaderMenuOpen(false);
-    setDpUploading(true);
+    setRoomUploading(true);
     setError('');
     try {
       const compressed = await compressImageForUpload(file, { maxBytes: 2_400_000, maxEdge: 2000 });
       const ext = compressed.name.split('.').pop() || 'jpg';
-      const path = `${userId}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, { upsert: true });
+      const path = `team-chat/room/header-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, {
+        upsert: false,
+        contentType: compressed.type || 'image/jpeg',
+      });
       if (upErr) {
         setError(upErr.message);
         return;
       }
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
-      const nextUrl = urlData.publicUrl;
-      const { error: prErr } = await (supabase as any)
-        .from('profiles')
-        .update({ avatar_url: nextUrl, updated_at: new Date().toISOString() })
-        .eq('id', userId);
-      if (prErr) {
-        setError(prErr.message || 'Could not save profile photo');
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      const url = pub.publicUrl;
+      const { error: setErr } = await (supabase as any)
+        .from('team_chat_settings')
+        .update({ header_image_url: url, updated_at: new Date().toISOString() })
+        .eq('id', 1);
+      if (setErr) {
+        setError(
+          setErr.message.includes('team_chat_settings') || setErr.code === '42P01'
+            ? 'Run supabase/team_chat_settings.sql in the Supabase SQL editor to enable the team chat image.'
+            : setErr.message,
+        );
         return;
       }
-      setAvatarDisplay(nextUrl);
+      setRoomHeaderUrl(url);
       router.refresh();
     } catch {
-      setError('Could not update photo');
+      setError('Could not update team chat image');
     } finally {
-      setDpUploading(false);
+      setRoomUploading(false);
     }
   }
 
@@ -350,6 +378,11 @@ export default function TeamChatClient({
 
   const sorted = useMemo(() => [...messages].sort((a, b) => a.created_at.localeCompare(b.created_at)), [messages]);
 
+  const userGalleryUrls = useMemo(() => {
+    if (!userGallery) return [];
+    return chatImageUrlsForUser(messages, userGallery.userId);
+  }, [messages, userGallery]);
+
   if (isDemo || !userId) {
     return (
       <div className="rounded-2xl border border-slate-600 bg-slate-800/50 p-10 text-center text-slate-300 max-w-5xl mx-auto min-h-[50vh] flex flex-col items-center justify-center">
@@ -362,76 +395,51 @@ export default function TeamChatClient({
   }
 
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl w-full max-w-5xl mx-auto h-[min(88vh,920px)]">
+    <>
+    <div className="flex flex-col rounded-2xl border border-slate-700 overflow-hidden bg-slate-900/80 shadow-xl w-full max-w-xl mx-auto h-[min(88vh,920px)]">
+      <input
+        ref={roomCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          void uploadRoomHeaderImage(f ?? null);
+        }}
+      />
+      <input
+        ref={roomGalleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          void uploadRoomHeaderImage(f ?? null);
+        }}
+      />
       <div
         className="flex-shrink-0 px-4 py-3 flex items-center gap-3 border-b border-slate-800"
         style={{ background: 'linear-gradient(180deg, #1f2c34 0%, #111b21 100%)' }}
       >
-        <input
-          ref={dpCameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            void uploadProfileAvatarFromFile(f ?? null);
-          }}
-        />
-        <input
-          ref={dpGalleryInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            void uploadProfileAvatarFromFile(f ?? null);
-          }}
-        />
-        <div className="relative shrink-0" ref={headerLogoRef}>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setHeaderMenuOpen((o) => !o);
-            }}
-            disabled={dpUploading}
-            className="relative w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold text-white overflow-hidden border border-emerald-500/50 hover:bg-emerald-500 disabled:opacity-60"
-            title="Update profile photo"
-            aria-label="Update profile photo"
-            aria-expanded={headerMenuOpen}
-          >
-            {avatarDisplay ? (
-              <Image src={avatarDisplay} alt="" fill className="object-cover" sizes="40px" />
-            ) : (
-              'P'
-            )}
-          </button>
-          {headerMenuOpen && (
-            <div className="absolute left-0 top-full mt-1 z-50 w-40 rounded-lg border border-slate-600 bg-[#111b21] shadow-xl py-1">
-              <button
-                type="button"
-                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
-                onClick={() => {
-                  dpCameraInputRef.current?.click();
-                }}
-              >
-                Camera
-              </button>
-              <button
-                type="button"
-                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
-                onClick={() => {
-                  dpGalleryInputRef.current?.click();
-                }}
-              >
-                Photo
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setRoomImageModalOpen(true)}
+          className="relative shrink-0 w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/70 shadow-[0_0_14px_rgba(251,191,36,0.45)] ring-1 ring-amber-500/50 hover:ring-amber-300/80 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          title="Team chat image — tap to view or change"
+          aria-label="Team chat image"
+        >
+          <Image
+            src={roomHeaderUrl || DEFAULT_TEAM_CHAT_IMAGE}
+            alt="Pirates team chat"
+            fill
+            className="object-cover"
+            sizes="40px"
+            unoptimized={!!roomHeaderUrl && roomHeaderUrl.startsWith('http')}
+          />
+        </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-[var(--pirate-yellow)] font-semibold text-lg tracking-[0.12em] uppercase font-['Times_New_Roman',Times,serif]">
             PIRATES CHAT
@@ -504,13 +512,15 @@ export default function TeamChatClient({
                       Admin alert
                     </div>
                   )}
-                  <p
-                    className={`text-xs font-semibold mb-0.5 ${alert ? 'text-red-200' : ''}`}
+                  <button
+                    type="button"
+                    className={`text-xs font-semibold mb-0.5 w-full text-left bg-transparent border-0 p-0 cursor-pointer hover:underline ${alert ? 'text-red-200' : ''}`}
                     style={alert ? undefined : { color: nameColor }}
+                    onClick={() => setUserGallery({ userId: m.user_id, name: m.sender_name })}
                   >
                     {m.sender_name}
                     {mine ? ' · you' : ''}
-                  </p>
+                  </button>
                   {isEditing ? (
                     <div className="space-y-2 mt-1" onClick={(e) => e.stopPropagation()}>
                       <textarea
@@ -587,26 +597,6 @@ export default function TeamChatClient({
             />
             <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
           </label>
-        )}
-
-        {emojiOpen && (
-          <div className="absolute bottom-full left-0 right-0 z-40 mb-1 mx-2 max-h-64 overflow-y-auto rounded-xl border border-slate-600 bg-[#111b21] p-3 shadow-xl">
-            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Emojis</p>
-            <div className="flex flex-wrap gap-1">
-              {CHAT_EMOJI_GRID.map((em, i) => (
-                <button
-                  key={`${em}-${i}`}
-                  type="button"
-                  className="text-2xl p-1.5 rounded-md hover:bg-slate-700/80 border border-transparent hover:border-slate-600 leading-none"
-                  onClick={() => {
-                    void postBody(em, false);
-                  }}
-                >
-                  {em}
-                </button>
-              ))}
-            </div>
-          </div>
         )}
 
         {pollOpen && (
@@ -688,11 +678,13 @@ export default function TeamChatClient({
                 setAttachOpen((o) => !o);
                 setEmojiOpen(false);
               }}
-              className="w-11 h-11 rounded-full flex items-center justify-center text-slate-200 hover:bg-slate-700/80 border border-slate-600/80 text-2xl font-light leading-none"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-slate-200 hover:bg-slate-700/80 border border-slate-600/80"
               aria-label="Attach"
               disabled={!canPost || sending}
             >
-              +
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
             </button>
             {attachOpen && (
               <div className="absolute bottom-full left-0 mb-2 w-48 rounded-xl border border-slate-600 bg-[#111b21] shadow-xl py-1 z-50">
@@ -724,16 +716,6 @@ export default function TeamChatClient({
                 >
                   Poll
                 </button>
-                <button
-                  type="button"
-                  className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
-                  onClick={() => {
-                    setAttachOpen(false);
-                    setEmojiOpen((s) => !s);
-                  }}
-                >
-                  Emojis
-                </button>
               </div>
             )}
           </div>
@@ -752,8 +734,45 @@ export default function TeamChatClient({
             placeholder="Type a message"
             maxLength={4000}
             disabled={!canPost || sending}
-            className="flex-1 rounded-full bg-[#2a3942] border border-slate-600/80 text-slate-100 placeholder:text-slate-500 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-600/50"
+            className="flex-1 rounded-full bg-[#2a3942] border border-slate-600/80 text-slate-100 placeholder:text-slate-500 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-emerald-600/50 min-w-0"
           />
+
+          <div className="relative shrink-0" ref={emojiBtnWrapRef}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEmojiOpen((o) => !o);
+                setAttachOpen(false);
+              }}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-xl leading-none text-slate-200 hover:bg-slate-700/80 border border-slate-600/80"
+              aria-label="Emojis"
+              aria-expanded={emojiOpen}
+              disabled={!canPost || sending}
+            >
+              😀
+            </button>
+            {emojiOpen && (
+              <div className="absolute bottom-full right-0 mb-2 z-50 w-[min(92vw,280px)] max-h-64 overflow-y-auto rounded-xl border border-slate-600 bg-[#111b21] p-3 shadow-xl">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Emojis</p>
+                <div className="flex flex-wrap gap-1">
+                  {CHAT_EMOJI_GRID.map((em, i) => (
+                    <button
+                      key={`${em}-${i}`}
+                      type="button"
+                      className="text-2xl p-1.5 rounded-md hover:bg-slate-700/80 border border-transparent hover:border-slate-600 leading-none"
+                      onClick={() => {
+                        void postBody(em, false);
+                      }}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => void send()}
@@ -768,5 +787,106 @@ export default function TeamChatClient({
         </div>
       </div>
     </div>
+
+    {roomImageModalOpen && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Team chat image"
+        onClick={() => setRoomImageModalOpen(false)}
+      >
+        <div
+          className="relative flex w-full max-w-md flex-col items-center gap-5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => setRoomImageModalOpen(false)}
+            className="absolute -top-1 -right-1 z-10 rounded-full bg-slate-800/90 border border-slate-600 text-slate-200 w-9 h-9 text-lg leading-none hover:bg-slate-700"
+            aria-label="Close"
+          >
+            ×
+          </button>
+          <div className="relative w-full max-h-[min(70vh,420px)] aspect-square rounded-2xl overflow-hidden border-4 border-amber-400 shadow-[0_0_28px_rgba(251,191,36,0.55),0_0_56px_rgba(251,191,36,0.25)] bg-[#0b141a]">
+            <Image
+              src={roomHeaderUrl || DEFAULT_TEAM_CHAT_IMAGE}
+              alt="Team chat"
+              fill
+              className="object-contain p-1"
+              sizes="(max-width:768px) 92vw, 420px"
+              unoptimized={!!roomHeaderUrl && roomHeaderUrl.startsWith('http')}
+            />
+          </div>
+          <p className="text-xs text-slate-400 text-center">Camera or Photo updates the shared team chat image for everyone.</p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              type="button"
+              disabled={!canPost || roomUploading}
+              onClick={() => roomCameraInputRef.current?.click()}
+              className="rounded-full px-5 py-2.5 text-sm font-medium bg-slate-700 text-slate-100 border border-slate-600 hover:bg-slate-600 disabled:opacity-50"
+            >
+              Camera
+            </button>
+            <button
+              type="button"
+              disabled={!canPost || roomUploading}
+              onClick={() => roomGalleryInputRef.current?.click()}
+              className="rounded-full px-5 py-2.5 text-sm font-medium bg-slate-700 text-slate-100 border border-slate-600 hover:bg-slate-600 disabled:opacity-50"
+            >
+              Photo
+            </button>
+            {roomUploading ? <span className="text-sm text-amber-200/90 self-center">Updating…</span> : null}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {userGallery && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Photos from ${userGallery.name}`}
+        onClick={() => setUserGallery(null)}
+      >
+        <div
+          className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-slate-600 bg-[#111b21] p-4 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-[var(--pirate-yellow)] font-semibold font-['Times_New_Roman',Times,serif] tracking-wide">
+              {userGallery.name}&apos;s chat photos
+            </h2>
+            <button
+              type="button"
+              onClick={() => setUserGallery(null)}
+              className="rounded-full bg-slate-800 border border-slate-600 text-slate-200 w-9 h-9 text-lg leading-none hover:bg-slate-700 shrink-0"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+          {userGalleryUrls.length === 0 ? (
+            <p className="text-sm text-slate-400 py-6 text-center">No photos shared in chat yet.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {userGalleryUrls.map((url) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative aspect-square rounded-lg overflow-hidden border border-slate-600/80 bg-[#0b141a] focus:outline-none focus:ring-2 focus:ring-emerald-500/60"
+                >
+                  <Image src={url} alt="" fill className="object-cover" sizes="(max-width:640px) 45vw, 160px" unoptimized />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

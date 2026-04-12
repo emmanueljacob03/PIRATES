@@ -196,6 +196,22 @@ export interface Database {
           option_index: number;
         }>;
       };
+      team_chat_settings: {
+        Row: {
+          id: number;
+          header_image_url: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: number;
+          header_image_url?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<{
+          header_image_url: string | null;
+          updated_at: string;
+        }>;
+      };
     };
   };
 }
