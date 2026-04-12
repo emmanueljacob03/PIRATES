@@ -11,6 +11,9 @@ INSERT INTO public.team_chat_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHIN
 
 ALTER TABLE public.team_chat_settings ENABLE ROW LEVEL SECURITY;
 
+-- Ensure authenticated can read/write when RLS policies allow (some projects omit default GRANTs).
+GRANT SELECT, INSERT, UPDATE ON public.team_chat_settings TO authenticated;
+
 DROP POLICY IF EXISTS "team_chat_settings_select" ON public.team_chat_settings;
 CREATE POLICY "team_chat_settings_select" ON public.team_chat_settings
   FOR SELECT TO authenticated USING (true);

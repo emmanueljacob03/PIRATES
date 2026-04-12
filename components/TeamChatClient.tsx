@@ -176,17 +176,17 @@ export default function TeamChatClient({
       }
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
       const url = pub.publicUrl;
-      const { error: setErr } = await (supabase as any)
-        .from('team_chat_settings')
-        .upsert(
-          { id: 1, header_image_url: url, updated_at: new Date().toISOString() },
-          { onConflict: 'id' },
-        );
-      if (setErr) {
+      const saveRes = await fetch('/api/team-chat/room-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ header_image_url: url }),
+      });
+      const saveJson = (await saveRes.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!saveRes.ok) {
         setError(
-          setErr.message.includes('team_chat_settings') || setErr.code === '42P01'
-            ? 'Run supabase/team_chat_settings.sql in the Supabase SQL editor (include INSERT policy) to enable the team chat image.'
-            : setErr.message,
+          saveJson.error ||
+            'Could not save team chat image. Ensure SUPABASE_SERVICE_ROLE_KEY is set on the server, or run supabase/team_chat_settings.sql in Supabase.',
         );
         return;
       }
