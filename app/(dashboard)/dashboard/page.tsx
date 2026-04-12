@@ -9,6 +9,7 @@ import TotalPendingCard from '@/components/TotalPendingCard';
 import Playing11Widget from '@/components/Playing11Widget';
 import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
+import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -135,7 +136,7 @@ export default async function DashboardPage() {
       const jerseyByPerson: Record<string, number> = {};
       jerseyRows.forEach((j) => {
         const n = oweKeyJersey(j);
-        if (n) jerseyByPerson[n] = (jerseyByPerson[n] ?? 0) + 50;
+        if (n) jerseyByPerson[n] = (jerseyByPerson[n] ?? 0) + NEW_JERSEY_AMOUNT_USD;
       });
       const contribByPerson: Record<string, number> = {};
       contribRows.forEach((c) => {

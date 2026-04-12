@@ -1,11 +1,27 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { submitTeamCodeAndGoDashboard } from '@/lib/team-code-submit';
 import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
+import { combineDobParts, daysInMonth } from '@/lib/dob-parts';
+
+const SIGNUP_MONTHS: { v: string; label: string }[] = [
+  { v: '01', label: 'Jan' },
+  { v: '02', label: 'Feb' },
+  { v: '03', label: 'Mar' },
+  { v: '04', label: 'Apr' },
+  { v: '05', label: 'May' },
+  { v: '06', label: 'Jun' },
+  { v: '07', label: 'Jul' },
+  { v: '08', label: 'Aug' },
+  { v: '09', label: 'Sep' },
+  { v: '10', label: 'Oct' },
+  { v: '11', label: 'Nov' },
+  { v: '12', label: 'Dec' },
+];
 
 type Step = 'credentials' | 'code' | 'waiting_approval' | 'rejected';
 
@@ -35,7 +51,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [dob, setDob] = useState('');
+  const [dobY, setDobY] = useState('');
+  const [dobM, setDobM] = useState('');
+  const [dobD, setDobD] = useState('');
   const [phone, setPhone] = useState('');
   const [teamCode, setTeamCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,6 +63,18 @@ export default function LoginPage() {
   const credentialsSubmitLock = useRef(false);
   const lastCredentialAuthAtRef = useRef(0);
   const credentialCooldownUntilRef = useRef(0);
+
+  const maxDobYear = new Date().getFullYear();
+  const dobCalendarValue = useMemo(
+    () => combineDobParts(dobY, dobM, dobD) ?? '',
+    [dobY, dobM, dobD],
+  );
+  const dobMaxDay = useMemo(() => {
+    const y = parseInt(dobY, 10);
+    const m = parseInt(dobM, 10);
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return 31;
+    return daysInMonth(y, m);
+  }, [dobY, dobM]);
 
   function isAuthRateLimitMessage(raw: string): boolean {
     const lower = raw.toLowerCase();
@@ -228,15 +258,19 @@ export default function LoginPage() {
 
     try {
       if (isSignUp) {
-        if (!dob.trim()) {
-          setMessage({ type: 'err', text: 'Date of birth is required to create an account.' });
+        const dobCombined = combineDobParts(dobY, dobM, dobD);
+        if (!dobCombined) {
+          setMessage({
+            type: 'err',
+            text: 'Enter a valid date of birth (year, month, and day).',
+          });
           setLoading(false);
           return;
         }
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { name, dob: dob.trim() || null, phone } },
+          options: { data: { name, dob: dobCombined, phone } },
         });
         if (error) {
           const msg = error.message || '';
@@ -260,7 +294,7 @@ export default function LoginPage() {
           // @ts-expect-error Supabase client generic inference
           const { error: profileErr } = await supabase.from('profiles').update({
             name: name || null,
-            date_of_birth: dob.trim() || null,
+            date_of_birth: dobCombined,
             phone: phone || null,
             updated_at: new Date().toISOString(),
           }).eq('id', data.user.id);
@@ -540,18 +574,120 @@ export default function LoginPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="dob" className="block text-slate-300 text-sm font-medium mb-1">
+                    <span className="block text-slate-300 text-sm font-medium mb-1" id="dob-label">
                       Date of birth <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      id="dob"
-                      type="date"
-                      className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white placeholder-slate-400 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                      value={dob}
-                      onChange={(e) => setDob(e.target.value)}
-                      required
-                      autoComplete="bday"
-                    />
+                    </span>
+                    <p className="text-slate-500 text-xs mb-2">
+                      Type the year (fast), then choose month and day — or open the calendar below.
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-end" role="group" aria-labelledby="dob-label">
+                      <div className="w-[6.75rem] min-w-0">
+                        <label htmlFor="dob-year" className="block text-xs text-slate-400 mb-1">
+                          Year
+                        </label>
+                        <input
+                          id="dob-year"
+                          type="number"
+                          inputMode="numeric"
+                          min={1900}
+                          max={maxDobYear}
+                          placeholder="1995"
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2.5 text-white placeholder-slate-500 focus:ring-2 focus:ring-amber-500 focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={dobY}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setDobY(v);
+                            if (dobM && dobD) {
+                              const y = parseInt(v, 10);
+                              const m = parseInt(dobM, 10);
+                              const di = parseInt(dobD, 10);
+                              if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(di)) {
+                                const dim = daysInMonth(y, m);
+                                if (di > dim) setDobD(String(dim).padStart(2, '0'));
+                              }
+                            }
+                          }}
+                          autoComplete="bday-year"
+                        />
+                      </div>
+                      <div className="w-[6.5rem] min-w-0">
+                        <label htmlFor="dob-month" className="block text-xs text-slate-400 mb-1">
+                          Month
+                        </label>
+                        <select
+                          id="dob-month"
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          value={dobM}
+                          onChange={(e) => {
+                            const nm = e.target.value;
+                            setDobM(nm);
+                            if (dobY && nm && dobD) {
+                              const y = parseInt(dobY, 10);
+                              const m = parseInt(nm, 10);
+                              const di = parseInt(dobD, 10);
+                              if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(di)) {
+                                const dim = daysInMonth(y, m);
+                                if (di > dim) setDobD(String(dim).padStart(2, '0'));
+                              }
+                            }
+                          }}
+                          autoComplete="bday-month"
+                        >
+                          <option value="">—</option>
+                          {SIGNUP_MONTHS.map((mo) => (
+                            <option key={mo.v} value={mo.v}>
+                              {mo.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-[5.25rem] min-w-0">
+                        <label htmlFor="dob-day" className="block text-xs text-slate-400 mb-1">
+                          Day
+                        </label>
+                        <select
+                          id="dob-day"
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          value={dobD}
+                          onChange={(e) => setDobD(e.target.value)}
+                          autoComplete="bday-day"
+                        >
+                          <option value="">—</option>
+                          {Array.from({ length: dobMaxDay }, (_, i) => i + 1).map((n) => (
+                            <option key={n} value={String(n).padStart(2, '0')}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <details className="mt-2 rounded-lg border border-slate-600/80 bg-slate-800/50 px-3 py-2">
+                      <summary className="text-xs text-amber-400/90 cursor-pointer select-none hover:text-amber-300">
+                        Or pick from calendar (browser date picker)
+                      </summary>
+                      <input
+                        type="date"
+                        className="mt-2 w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2.5 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                        min="1900-01-01"
+                        max={`${maxDobYear}-12-31`}
+                        value={dobCalendarValue}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (!v) {
+                            setDobY('');
+                            setDobM('');
+                            setDobD('');
+                            return;
+                          }
+                          const [y, m, d] = v.split('-');
+                          if (y && m && d) {
+                            setDobY(y);
+                            setDobM(m);
+                            setDobD(d);
+                          }
+                        }}
+                      />
+                    </details>
                   </div>
                   <p className="text-slate-500 text-xs">
                     Add your profile photo after you sign in — open Profile.
@@ -619,6 +755,9 @@ export default function LoginPage() {
                 type="button"
                 className="text-amber-400 hover:text-amber-300 underline text-sm"
                 onClick={() => {
+                  setDobY('');
+                  setDobM('');
+                  setDobD('');
                   setIsSignUp(!isSignUp);
                   setMessage(null);
                 }}

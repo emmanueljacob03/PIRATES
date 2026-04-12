@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import type { Jersey } from '@/types/database';
-
-const NEW_JERSEY_AMOUNT = 50;
+import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 
 export default function JerseyRequestForm({
   onSuccess,
@@ -59,7 +58,7 @@ export default function JerseyRequestForm({
         }
         throw new Error(msg);
       }
-      setMessage({ type: 'ok', text: isExisting ? 'Jersey recorded (Paid).' : `Jersey request saved (Unpaid $${NEW_JERSEY_AMOUNT}). It appears in Jersey Lookup.` });
+      setMessage({ type: 'ok', text: isExisting ? 'Jersey recorded (Paid).' : `Jersey request saved (Unpaid $${NEW_JERSEY_AMOUNT_USD}). It appears in Jersey Lookup.` });
       if (data?.id) onSuccess?.(data as Jersey);
       setPlayerName('');
       setJerseyNumber('');
@@ -89,7 +88,7 @@ export default function JerseyRequestForm({
           New
         </button>
         <span className="text-sm text-slate-400">
-          {isExisting ? 'Paid' : `Unpaid $${NEW_JERSEY_AMOUNT}`}
+          {isExisting ? 'Paid' : `Unpaid $${NEW_JERSEY_AMOUNT_USD}`}
         </span>
       </div>
       <form onSubmit={handleSubmit} className="space-y-4">

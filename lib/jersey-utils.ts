@@ -1,5 +1,8 @@
 import type { Jersey } from '@/types/database';
 
+/** USD per unpaid new jersey (UI copy + pending totals). */
+export const NEW_JERSEY_AMOUNT_USD = 16;
+
 export type JerseyRow = Jersey & { submitter_name?: string | null };
 
 /** Strip [new]/[existing] prefix from stored notes for display. */

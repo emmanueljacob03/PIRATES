@@ -2,9 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { JerseyRow } from '@/lib/jersey-utils';
-import { stripJerseyRequestNotePrefix } from '@/lib/jersey-utils';
-
-const NEW_JERSEY_AMOUNT = 50;
+import { stripJerseyRequestNotePrefix, NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 
 export default function JerseyLookup({
   jerseys,
@@ -67,7 +65,7 @@ export default function JerseyLookup({
                     <p className="text-sm text-slate-300">
                       Jersey #{j.jersey_number} · Size {j.size}
                     </p>
-                    <p className="text-sm">{j.paid ? 'Paid ✔' : `Unpaid $${NEW_JERSEY_AMOUNT}`}</p>
+                    <p className="text-sm">{j.paid ? 'Paid ✔' : `Unpaid $${NEW_JERSEY_AMOUNT_USD}`}</p>
                     {showNotesButton && (
                       <div className="mt-2">
                         <button

@@ -6,6 +6,7 @@ import ModeAccessBadge from '@/components/ModeAccessBadge';
 import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
 import { buildSelfNameVariants, nameMatchesSelfVariants } from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
+import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
@@ -194,7 +195,7 @@ export default async function ProfilesPage() {
       },
     );
     const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
-    pendingJersey = unpaidJerseys.length * 50;
+    pendingJersey = unpaidJerseys.length * NEW_JERSEY_AMOUNT_USD;
 
     const unpaidContribs = byName.filter(
       (c: { paid?: boolean }) => !(c as { paid?: boolean }).paid,
