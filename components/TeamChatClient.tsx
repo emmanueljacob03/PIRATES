@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { TeamChatMessage } from '@/types/database';
@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
 import { chatNameColorForUser } from '@/lib/chat-name-color';
 import { parseChatBody, formatPollBody, formatImageBody } from '@/lib/chat-parse';
-import { CHAT_STICKER_PACKS } from '@/lib/chat-stickers';
+import { CHAT_EMOJI_GRID } from '@/lib/chat-emojis';
 import TeamChatPollBlock from '@/components/TeamChatPollBlock';
 
 /** Manual Database shape lacks full GenericSchema; PostgREST insert types resolve to `never` without this. */
@@ -62,7 +62,10 @@ export default function TeamChatClient({
   const [, setTimeTick] = useState(0);
   const [animIds, setAnimIds] = useState<Set<string>>(new Set());
   const [attachOpen, setAttachOpen] = useState(false);
-  const [stickerOpen, setStickerOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [avatarDisplay, setAvatarDisplay] = useState<string | null>(viewerAvatarUrl ?? null);
+  const [dpUploading, setDpUploading] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQ, setPollQ] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
@@ -72,7 +75,11 @@ export default function TeamChatClient({
   const editInputRef = useRef<HTMLTextAreaElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const dpCameraInputRef = useRef<HTMLInputElement>(null);
+  const dpGalleryInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
+  const headerLogoRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,8 +91,13 @@ export default function TeamChatClient({
   }, []);
 
   useEffect(() => {
+    setAvatarDisplay(viewerAvatarUrl ?? null);
+  }, [viewerAvatarUrl]);
+
+  useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (attachWrapRef.current && !attachWrapRef.current.contains(e.target as Node)) setAttachOpen(false);
+      if (headerLogoRef.current && !headerLogoRef.current.contains(e.target as Node)) setHeaderMenuOpen(false);
     }
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
@@ -124,6 +136,39 @@ export default function TeamChatClient({
 
   const canPost = !!userId && !isDemo;
 
+  async function uploadProfileAvatarFromFile(file: File | null) {
+    if (!file || !userId) return;
+    setHeaderMenuOpen(false);
+    setDpUploading(true);
+    setError('');
+    try {
+      const compressed = await compressImageForUpload(file, { maxBytes: 2_400_000, maxEdge: 2000 });
+      const ext = compressed.name.split('.').pop() || 'jpg';
+      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, { upsert: true });
+      if (upErr) {
+        setError(upErr.message);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
+      const nextUrl = urlData.publicUrl;
+      const { error: prErr } = await (supabase as any)
+        .from('profiles')
+        .update({ avatar_url: nextUrl, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+      if (prErr) {
+        setError(prErr.message || 'Could not save profile photo');
+        return;
+      }
+      setAvatarDisplay(nextUrl);
+      router.refresh();
+    } catch {
+      setError('Could not update photo');
+    } finally {
+      setDpUploading(false);
+    }
+  }
+
   function canModify(m: Row): boolean {
     if (!userId || isDemo) return false;
     if (isAdmin) return true;
@@ -152,7 +197,7 @@ export default function TeamChatClient({
     bumpMessageAnimation(setAnimIds, tempId);
     setText('');
     setPostAsAlert(false);
-    setStickerOpen(false);
+    setEmojiOpen(false);
     setAttachOpen(false);
 
     try {
@@ -322,29 +367,76 @@ export default function TeamChatClient({
         className="flex-shrink-0 px-4 py-3 flex items-center gap-3 border-b border-slate-800"
         style={{ background: 'linear-gradient(180deg, #1f2c34 0%, #111b21 100%)' }}
       >
-        <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold text-white">
-          P
+        <input
+          ref={dpCameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void uploadProfileAvatarFromFile(f ?? null);
+          }}
+        />
+        <input
+          ref={dpGalleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void uploadProfileAvatarFromFile(f ?? null);
+          }}
+        />
+        <div className="relative shrink-0" ref={headerLogoRef}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setHeaderMenuOpen((o) => !o);
+            }}
+            disabled={dpUploading}
+            className="relative w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold text-white overflow-hidden border border-emerald-500/50 hover:bg-emerald-500 disabled:opacity-60"
+            title="Update profile photo"
+            aria-label="Update profile photo"
+            aria-expanded={headerMenuOpen}
+          >
+            {avatarDisplay ? (
+              <Image src={avatarDisplay} alt="" fill className="object-cover" sizes="40px" />
+            ) : (
+              'P'
+            )}
+          </button>
+          {headerMenuOpen && (
+            <div className="absolute left-0 top-full mt-1 z-50 w-40 rounded-lg border border-slate-600 bg-[#111b21] shadow-xl py-1">
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                onClick={() => {
+                  dpCameraInputRef.current?.click();
+                }}
+              >
+                Camera
+              </button>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                onClick={() => {
+                  dpGalleryInputRef.current?.click();
+                }}
+              >
+                Photo
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-[var(--pirate-yellow)] font-semibold text-lg tracking-[0.12em] uppercase font-['Times_New_Roman',Times,serif]">
             PIRATES CHAT
           </h1>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-            <Link
-              href="/profiles"
-              className="text-[11px] text-slate-400 hover:text-amber-300/90 underline underline-offset-2"
-            >
-              Profile photo → set your DP from device
-            </Link>
-          </div>
         </div>
-        <Link href="/profiles" className="shrink-0 relative w-11 h-11 rounded-full overflow-hidden border border-slate-600 bg-slate-800">
-          {viewerAvatarUrl ? (
-            <Image src={viewerAvatarUrl} alt="" fill className="object-cover" sizes="44px" />
-          ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-xs">+</span>
-          )}
-        </Link>
       </div>
 
       <div
@@ -497,28 +589,23 @@ export default function TeamChatClient({
           </label>
         )}
 
-        {stickerOpen && (
-          <div className="absolute bottom-full left-0 right-0 z-40 mb-1 mx-2 max-h-56 overflow-y-auto rounded-xl border border-slate-600 bg-[#111b21] p-3 shadow-xl">
-            {CHAT_STICKER_PACKS.map((pack) => (
-              <div key={pack.title} className="mb-3 last:mb-0">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">{pack.title}</p>
-                <div className="flex flex-wrap gap-2">
-                  {pack.items.map((s) => (
-                    <button
-                      key={`${pack.title}-${s.label}`}
-                      type="button"
-                      className="text-2xl p-2 rounded-lg hover:bg-slate-700/80 border border-transparent hover:border-slate-600"
-                      title={s.label}
-                      onClick={() => {
-                        void postBody(`${s.emoji} ${s.label}`, false);
-                      }}
-                    >
-                      {s.emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+        {emojiOpen && (
+          <div className="absolute bottom-full left-0 right-0 z-40 mb-1 mx-2 max-h-64 overflow-y-auto rounded-xl border border-slate-600 bg-[#111b21] p-3 shadow-xl">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Emojis</p>
+            <div className="flex flex-wrap gap-1">
+              {CHAT_EMOJI_GRID.map((em, i) => (
+                <button
+                  key={`${em}-${i}`}
+                  type="button"
+                  className="text-2xl p-1.5 rounded-md hover:bg-slate-700/80 border border-transparent hover:border-slate-600 leading-none"
+                  onClick={() => {
+                    void postBody(em, false);
+                  }}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -599,7 +686,7 @@ export default function TeamChatClient({
               onClick={(e) => {
                 e.stopPropagation();
                 setAttachOpen((o) => !o);
-                setStickerOpen(false);
+                setEmojiOpen(false);
               }}
               className="w-11 h-11 rounded-full flex items-center justify-center text-slate-200 hover:bg-slate-700/80 border border-slate-600/80 text-2xl font-light leading-none"
               aria-label="Attach"
@@ -616,7 +703,7 @@ export default function TeamChatClient({
                     cameraInputRef.current?.click();
                   }}
                 >
-                  <span className="mr-2">📷</span> Camera
+                  Camera
                 </button>
                 <button
                   type="button"
@@ -625,7 +712,7 @@ export default function TeamChatClient({
                     galleryInputRef.current?.click();
                   }}
                 >
-                  <span className="mr-2">🖼</span> Photo
+                  Photo
                 </button>
                 <button
                   type="button"
@@ -635,17 +722,17 @@ export default function TeamChatClient({
                     setPollOpen(true);
                   }}
                 >
-                  <span className="mr-2">📊</span> Poll
+                  Poll
                 </button>
                 <button
                   type="button"
                   className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
                   onClick={() => {
                     setAttachOpen(false);
-                    setStickerOpen((s) => !s);
+                    setEmojiOpen((s) => !s);
                   }}
                 >
-                  <span className="mr-2">😂</span> Stickers
+                  Emojis
                 </button>
               </div>
             )}
