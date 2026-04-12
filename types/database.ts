@@ -179,6 +179,23 @@ export interface Database {
           is_alert: boolean;
         }>;
       };
+      team_chat_poll_votes: {
+        Row: {
+          message_id: string;
+          user_id: string;
+          option_index: number;
+        };
+        Insert: {
+          message_id: string;
+          user_id: string;
+          option_index: number;
+        };
+        Update: Partial<{
+          message_id: string;
+          user_id: string;
+          option_index: number;
+        }>;
+      };
     };
   };
 }

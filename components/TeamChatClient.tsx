@@ -1,10 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { TeamChatMessage } from '@/types/database';
 import { format } from 'date-fns';
+import { compressImageForUpload } from '@/lib/image-compress';
+import { chatNameColorForUser } from '@/lib/chat-name-color';
+import { parseChatBody, formatPollBody, formatImageBody } from '@/lib/chat-parse';
+import { CHAT_STICKER_PACKS } from '@/lib/chat-stickers';
+import TeamChatPollBlock from '@/components/TeamChatPollBlock';
 
 /** Manual Database shape lacks full GenericSchema; PostgREST insert types resolve to `never` without this. */
 const db = supabase as unknown as SupabaseClient<any>;
@@ -13,16 +20,33 @@ type Row = TeamChatMessage;
 
 const EDIT_WINDOW_MS = 20 * 60 * 1000;
 
+function bumpMessageAnimation(
+  setAnimIds: React.Dispatch<React.SetStateAction<Set<string>>>,
+  id: string,
+) {
+  setAnimIds((s) => new Set(s).add(id));
+  window.setTimeout(() => {
+    setAnimIds((s) => {
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
+  }, 500);
+}
+
 export default function TeamChatClient({
   initialMessages,
   userId,
   senderName,
+  viewerAvatarUrl,
   isAdmin,
   isDemo,
 }: {
   initialMessages: Row[];
   userId: string | null;
   senderName: string;
+  /** Logged-in user profile photo (header + hint). */
+  viewerAvatarUrl?: string | null;
   isAdmin: boolean;
   isDemo: boolean;
 }) {
@@ -30,17 +54,25 @@ export default function TeamChatClient({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  /** Admins: checked = send next message as red alert. */
   const [postAsAlert, setPostAsAlert] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  /** Re-render so edit/delete buttons hide when the 20-minute window passes. */
   const [, setTimeTick] = useState(0);
+  const [animIds, setAnimIds] = useState<Set<string>>(new Set());
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollQ, setPollQ] = useState('');
+  const [pollOpts, setPollOpts] = useState(['', '']);
+
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLTextAreaElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const attachWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,6 +81,14 @@ export default function TeamChatClient({
   useEffect(() => {
     const id = window.setInterval(() => setTimeTick((t) => t + 1), 30_000);
     return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (attachWrapRef.current && !attachWrapRef.current.contains(e.target as Node)) setAttachOpen(false);
+    }
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
   }, []);
 
   useEffect(() => {
@@ -61,7 +101,11 @@ export default function TeamChatClient({
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const row = payload.new as Row;
-            setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === row.id)) return prev;
+              queueMicrotask(() => bumpMessageAnimation(setAnimIds, row.id));
+              return [...prev, row];
+            });
           } else if (payload.eventType === 'UPDATE') {
             const row = payload.new as Row;
             setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
@@ -87,12 +131,29 @@ export default function TeamChatClient({
     return Date.now() - new Date(m.created_at).getTime() <= EDIT_WINDOW_MS;
   }
 
-  async function send() {
-    const body = text.trim();
-    if (!body || !canPost) return;
+  async function postBody(body: string, isAlert = false) {
+    const trimmed = body.trim();
+    if (!trimmed || !canPost) return;
     setSending(true);
     setError('');
-    const isAlert = isAdmin && postAsAlert;
+    const tempId =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? `temp-${crypto.randomUUID()}`
+        : `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimistic: Row = {
+      id: tempId,
+      user_id: userId!,
+      sender_name: senderName,
+      body: trimmed,
+      is_alert: isAlert,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    bumpMessageAnimation(setAnimIds, tempId);
+    setText('');
+    setPostAsAlert(false);
+    setStickerOpen(false);
+    setAttachOpen(false);
 
     try {
       const res = await fetch('/api/team-chat', {
@@ -100,7 +161,7 @@ export default function TeamChatClient({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
-          body: text,
+          body: trimmed,
           sender_name: senderName,
           is_alert: isAlert,
         }),
@@ -109,20 +170,66 @@ export default function TeamChatClient({
 
       if (!res.ok) {
         setError(json.error || 'Could not send message');
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
         return;
       }
       if (json.data) {
         const inserted = json.data as TeamChatMessage;
-        setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
+        setMessages((prev) => {
+          const without = prev.filter((m) => m.id !== tempId && m.id !== inserted.id);
+          return [...without, inserted];
+        });
+        bumpMessageAnimation(setAnimIds, inserted.id);
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
       }
-      setText('');
-      setPostAsAlert(false);
       inputRef.current?.focus();
     } catch {
       setError('Network error — try again');
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } finally {
       setSending(false);
     }
+  }
+
+  async function send() {
+    await postBody(text, isAdmin && postAsAlert);
+  }
+
+  async function uploadAndSendImage(file: File | null) {
+    if (!file || !userId || !canPost) return;
+    setAttachOpen(false);
+    setError('');
+    try {
+      const compressed = await compressImageForUpload(file, { maxEdge: 1600, maxBytes: 1_400_000 });
+      const path = `team-chat/${userId}/${Date.now()}.jpg`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, {
+        upsert: false,
+        contentType: compressed.type || 'image/jpeg',
+      });
+      if (upErr) {
+        setError(upErr.message);
+        return;
+      }
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      const url = pub.publicUrl;
+      await postBody(formatImageBody(url, ''), false);
+    } catch {
+      setError('Could not upload image');
+    }
+  }
+
+  function startPollFromModal() {
+    const q = pollQ.trim();
+    const opts = pollOpts.map((o) => o.trim()).filter(Boolean);
+    if (q.length < 1 || opts.length < 2) {
+      setError('Poll needs a question and at least two options.');
+      return;
+    }
+    setPollOpen(false);
+    setPollQ('');
+    setPollOpts(['', '']);
+    void postBody(formatPollBody(q, opts), false);
   }
 
   function startEdit(m: Row) {
@@ -201,7 +308,9 @@ export default function TeamChatClient({
   if (isDemo || !userId) {
     return (
       <div className="rounded-2xl border border-slate-600 bg-slate-800/50 p-10 text-center text-slate-300 max-w-5xl mx-auto min-h-[50vh] flex flex-col items-center justify-center">
-        <p className="text-lg font-semibold text-emerald-400 mb-2">Pirates chat</p>
+        <p className="text-lg font-semibold text-emerald-400 mb-2 font-['Times_New_Roman',Times,serif] tracking-wide uppercase">
+          PIRATES CHAT
+        </p>
         <p className="text-sm max-w-md">Sign in (not demo mode) to open chat.</p>
       </div>
     );
@@ -216,7 +325,26 @@ export default function TeamChatClient({
         <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-lg font-bold text-white">
           P
         </div>
-        <h1 className="text-emerald-400 font-semibold text-base tracking-tight">Pirates chat</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[var(--pirate-yellow)] font-semibold text-lg tracking-[0.12em] uppercase font-['Times_New_Roman',Times,serif]">
+            PIRATES CHAT
+          </h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
+            <Link
+              href="/profiles"
+              className="text-[11px] text-slate-400 hover:text-amber-300/90 underline underline-offset-2"
+            >
+              Profile photo → set your DP from device
+            </Link>
+          </div>
+        </div>
+        <Link href="/profiles" className="shrink-0 relative w-11 h-11 rounded-full overflow-hidden border border-slate-600 bg-slate-800">
+          {viewerAvatarUrl ? (
+            <Image src={viewerAvatarUrl} alt="" fill className="object-cover" sizes="44px" />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center text-slate-500 text-xs">+</span>
+          )}
+        </Link>
       </div>
 
       <div
@@ -233,8 +361,12 @@ export default function TeamChatClient({
             const mine = m.user_id === userId;
             const alert = m.is_alert;
             const isEditing = editingId === m.id;
+            const parsed = parseChatBody(m.body);
+            const nameColor = chatNameColorForUser(m.user_id);
+            const enterClass = animIds.has(m.id) ? 'chat-msg-in' : '';
+
             return (
-              <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'} ${enterClass}`}>
                 <div
                   className={`max-w-[85%] rounded-lg px-3 py-2 shadow-md group relative ${
                     alert
@@ -280,7 +412,10 @@ export default function TeamChatClient({
                       Admin alert
                     </div>
                   )}
-                  <p className={`text-xs font-semibold mb-0.5 ${alert ? 'text-red-200' : 'text-emerald-400'}`}>
+                  <p
+                    className={`text-xs font-semibold mb-0.5 ${alert ? 'text-red-200' : ''}`}
+                    style={alert ? undefined : { color: nameColor }}
+                  >
                     {m.sender_name}
                     {mine ? ' · you' : ''}
                   </p>
@@ -314,6 +449,24 @@ export default function TeamChatClient({
                         </button>
                       </div>
                     </div>
+                  ) : parsed.kind === 'image' ? (
+                    <div className="space-y-1.5">
+                      <div className="relative rounded-md overflow-hidden max-w-[min(100%,280px)] border border-slate-700/80">
+                        <Image
+                          src={parsed.url}
+                          alt={parsed.alt}
+                          width={280}
+                          height={200}
+                          className="w-full h-auto object-cover"
+                          unoptimized
+                        />
+                      </div>
+                      {parsed.caption ? (
+                        <p className="text-[0.9375rem] whitespace-pre-wrap break-words leading-snug">{parsed.caption}</p>
+                      ) : null}
+                    </div>
+                  ) : parsed.kind === 'poll' ? (
+                    <TeamChatPollBlock messageId={m.id} parsed={parsed} userId={userId} />
                   ) : (
                     <p className="text-[0.9375rem] whitespace-pre-wrap break-words leading-snug">{m.body}</p>
                   )}
@@ -343,7 +496,161 @@ export default function TeamChatClient({
             <span className={`text-xs font-medium ${postAsAlert ? 'text-red-400' : 'text-slate-400'}`}>Alert</span>
           </label>
         )}
-        <div className={`flex items-end gap-2 p-2 ${isAdmin ? 'pt-9' : ''}`}>
+
+        {stickerOpen && (
+          <div className="absolute bottom-full left-0 right-0 z-40 mb-1 mx-2 max-h-56 overflow-y-auto rounded-xl border border-slate-600 bg-[#111b21] p-3 shadow-xl">
+            {CHAT_STICKER_PACKS.map((pack) => (
+              <div key={pack.title} className="mb-3 last:mb-0">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">{pack.title}</p>
+                <div className="flex flex-wrap gap-2">
+                  {pack.items.map((s) => (
+                    <button
+                      key={`${pack.title}-${s.label}`}
+                      type="button"
+                      className="text-2xl p-2 rounded-lg hover:bg-slate-700/80 border border-transparent hover:border-slate-600"
+                      title={s.label}
+                      onClick={() => {
+                        void postBody(`${s.emoji} ${s.label}`, false);
+                      }}
+                    >
+                      {s.emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {pollOpen && (
+          <div className="absolute bottom-full left-2 right-2 z-40 mb-1 p-3 rounded-xl border border-amber-500/40 bg-[#0b141a] shadow-xl max-h-[70vh] overflow-y-auto">
+            <p className="text-sm text-slate-200 font-medium mb-2">New poll</p>
+            <input
+              className="w-full rounded-lg bg-[#2a3942] border border-slate-600 text-slate-100 text-sm px-3 py-2 mb-2"
+              placeholder="Question"
+              value={pollQ}
+              onChange={(e) => setPollQ(e.target.value)}
+            />
+            {pollOpts.map((o, i) => (
+              <input
+                key={i}
+                className="w-full rounded-lg bg-[#2a3942] border border-slate-600 text-slate-100 text-sm px-3 py-2 mb-2"
+                placeholder={`Option ${i + 1}`}
+                value={o}
+                onChange={(e) => {
+                  const next = [...pollOpts];
+                  next[i] = e.target.value;
+                  setPollOpts(next);
+                }}
+              />
+            ))}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                className="text-xs text-amber-400 hover:underline"
+                onClick={() => setPollOpts((p) => [...p, ''])}
+              >
+                + Add option
+              </button>
+            </div>
+            <div className="flex gap-2 justify-end mt-3">
+              <button type="button" className="text-sm px-3 py-1.5 rounded-full bg-slate-700 text-slate-200" onClick={() => setPollOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="text-sm px-3 py-1.5 rounded-full bg-emerald-600 text-white"
+                onClick={() => startPollFromModal()}
+              >
+                Send poll
+              </button>
+            </div>
+          </div>
+        )}
+
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void uploadAndSendImage(f ?? null);
+          }}
+        />
+        <input
+          ref={galleryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = '';
+            void uploadAndSendImage(f ?? null);
+          }}
+        />
+
+        <div className={`flex items-end gap-1 p-2 ${isAdmin ? 'pt-9' : ''}`}>
+          <div className="relative shrink-0" ref={attachWrapRef}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setAttachOpen((o) => !o);
+                setStickerOpen(false);
+              }}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-slate-200 hover:bg-slate-700/80 border border-slate-600/80 text-2xl font-light leading-none"
+              aria-label="Attach"
+              disabled={!canPost || sending}
+            >
+              +
+            </button>
+            {attachOpen && (
+              <div className="absolute bottom-full left-0 mb-2 w-48 rounded-xl border border-slate-600 bg-[#111b21] shadow-xl py-1 z-50">
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                  onClick={() => {
+                    cameraInputRef.current?.click();
+                  }}
+                >
+                  <span className="mr-2">📷</span> Camera
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                  onClick={() => {
+                    galleryInputRef.current?.click();
+                  }}
+                >
+                  <span className="mr-2">🖼</span> Photo
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                  onClick={() => {
+                    setAttachOpen(false);
+                    setPollOpen(true);
+                  }}
+                >
+                  <span className="mr-2">📊</span> Poll
+                </button>
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-2.5 text-sm text-slate-200 hover:bg-slate-700/80"
+                  onClick={() => {
+                    setAttachOpen(false);
+                    setStickerOpen((s) => !s);
+                  }}
+                >
+                  <span className="mr-2">😂</span> Stickers
+                </button>
+              </div>
+            )}
+          </div>
+
           <input
             ref={inputRef}
             type="text"
