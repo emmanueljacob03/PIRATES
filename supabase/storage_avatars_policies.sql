@@ -1,5 +1,8 @@
 -- Run in Supabase SQL Editor if profile photo upload from the app hangs or returns “new row violates row-level security”.
 -- Ensure bucket exists: Dashboard → Storage → New bucket → id: avatars → Public.
+--
+-- Paths must start with the user’s UUID as the first segment, e.g. `{uuid}/avatar.jpg` or `{uuid}/team-chat/123.jpg`.
+-- Do NOT use `team-chat/{uuid}/...` (first segment would be `team-chat` and INSERT will fail RLS).
 
 -- Allow anyone to read avatar files (bucket is public)
 DROP POLICY IF EXISTS "Public read avatars" ON storage.objects;

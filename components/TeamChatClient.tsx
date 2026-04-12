@@ -165,7 +165,8 @@ export default function TeamChatClient({
     try {
       const compressed = await compressImageForUpload(file, { maxBytes: 2_400_000, maxEdge: 2000 });
       const ext = compressed.name.split('.').pop() || 'jpg';
-      const path = `team-chat/room/header-${Date.now()}.${ext}`;
+      // Storage RLS: first folder must be auth uid (see supabase/storage_avatars_policies.sql).
+      const path = `${userId}/team-chat-room-${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, {
         upsert: false,
         contentType: compressed.type || 'image/jpeg',
@@ -282,7 +283,7 @@ export default function TeamChatClient({
     setError('');
     try {
       const compressed = await compressImageForUpload(file, { maxEdge: 1600, maxBytes: 1_400_000 });
-      const path = `team-chat/${userId}/${Date.now()}.jpg`;
+      const path = `${userId}/team-chat/${Date.now()}.jpg`;
       const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, {
         upsert: false,
         contentType: compressed.type || 'image/jpeg',
