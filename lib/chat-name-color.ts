@@ -1,29 +1,69 @@
-/** Stable display color per user for chat names (dark bubble backgrounds). */
+/** Stable display color per user for chat names (dark bubble backgrounds). Large palette to reduce collisions. */
 
 const PALETTE = [
-  '#5eead4', // teal-300
-  '#93c5fd', // blue-300
-  '#f9a8d4', // pink-300
-  '#fde047', // yellow-300
-  '#c4b5fd', // violet-300
-  '#86efac', // green-300
-  '#fdba74', // orange-300
-  '#67e8f9', // cyan-300
-  '#fcd34d', // amber-300
-  '#a5b4fc', // indigo-300
-  '#f0abfc', // fuchsia-300
-  '#bef264', // lime-300
+  '#5eead4',
+  '#93c5fd',
+  '#f9a8d4',
+  '#fde047',
+  '#c4b5fd',
+  '#86efac',
+  '#fdba74',
+  '#67e8f9',
+  '#fcd34d',
+  '#a5b4fc',
+  '#f0abfc',
+  '#bef264',
+  '#38bdf8',
+  '#fb923c',
+  '#f472b6',
+  '#4ade80',
+  '#818cf8',
+  '#2dd4bf',
+  '#fbbf24',
+  '#e879f9',
+  '#34d399',
+  '#60a5fa',
+  '#fca5a5',
+  '#c084fc',
+  '#a78bfa',
+  '#22d3ee',
+  '#fb7185',
+  '#a3e635',
+  '#7dd3fc',
+  '#facc15',
+  '#e9d5ff',
+  '#99f6e4',
+  '#fecdd3',
+  '#bfdbfe',
+  '#fde68a',
+  '#d8b4fe',
+  '#6ee7b7',
+  '#7c3aed',
+  '#0ea5e9',
+  '#ec4899',
+  '#14b8a6',
+  '#eab308',
+  '#8b5cf6',
+  '#f43f5e',
+  '#10b981',
+  '#6366f1',
+  '#f59e0b',
+  '#d946ef',
+  '#06b6d4',
 ] as const;
 
 function hashString(s: string): number {
-  let h = 0;
+  let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
-    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
   }
-  return Math.abs(h);
+  return h >>> 0;
 }
 
+/** Deterministic pastel-ish color per user id (spread across palette). */
 export function chatNameColorForUser(userId: string): string {
-  const idx = hashString(userId) % PALETTE.length;
+  const h = hashString(userId);
+  const idx = h % PALETTE.length;
   return PALETTE[idx]!;
 }

@@ -9,10 +9,11 @@ import type { TeamChatMessage } from '@/types/database';
 import { format } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
 import { chatNameColorForUser } from '@/lib/chat-name-color';
-import { parseChatBody, formatPollBody, formatImageBody, SYS_ROOM_ICON_BODY } from '@/lib/chat-parse';
+import { parseChatBody, formatPollBody, formatImageBody, formatAudioBody, SYS_ROOM_ICON_BODY } from '@/lib/chat-parse';
 import { CHAT_EMOJI_GRID } from '@/lib/chat-emojis';
 import { chatImageUrlsForUser } from '@/lib/chat-user-images';
 import TeamChatPollBlock from '@/components/TeamChatPollBlock';
+import ChatVoiceRecorder from '@/components/ChatVoiceRecorder';
 
 const DEFAULT_TEAM_CHAT_IMAGE = '/pirates-emblem.png';
 
@@ -300,6 +301,28 @@ export default function TeamChatClient({
     }
   }
 
+  async function uploadAndSendVoice(blob: Blob, mimeType: string) {
+    if (!userId || !canPost) return;
+    setError('');
+    try {
+      const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'webm';
+      const path = `${userId}/team-chat/voice-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, {
+        upsert: false,
+        contentType: mimeType || 'audio/webm',
+      });
+      if (upErr) {
+        setError(upErr.message);
+        return;
+      }
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      const url = pub.publicUrl;
+      await postBody(formatAudioBody(url), false);
+    } catch {
+      setError('Could not upload voice message');
+    }
+  }
+
   function startPollFromModal() {
     const q = pollQ.trim();
     const opts = pollOpts.map((o) => o.trim()).filter(Boolean);
@@ -458,8 +481,13 @@ export default function TeamChatClient({
       <div
         className="flex-1 overflow-y-auto px-3 py-4 space-y-2 chat-scroll"
         style={{
-          backgroundColor: '#0b141a',
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%231a2428' fill-opacity='0.35'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          backgroundColor: '#0a1218',
+          backgroundImage: [
+            'radial-gradient(ellipse 120% 80% at 50% -20%, rgba(16,185,129,0.12) 0%, transparent 50%)',
+            'radial-gradient(ellipse 80% 50% at 100% 50%, rgba(251,191,36,0.06) 0%, transparent 45%)',
+            'linear-gradient(180deg, rgba(15,23,32,0.98) 0%, rgba(8,14,18,1) 40%, rgba(6,11,15,1) 100%)',
+            `url("data:image/svg+xml,%3Csvg width='72' height='72' viewBox='0 0 72 72' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%231a2830' fill-opacity='0.4'%3E%3Cpath d='M36 38v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-32V2h-2v4h-4v2h4v4h2V8h4V6h-4zM8 38v-4H6v4H2v2h4v4h2v-4h4v-2H8zM8 6V2H6v4H2v2h4v4h2V8h4V6H8z'/%3E%3C/g%3E%3C/svg%3E")`,
+          ].join(', '),
         }}
       >
         {sorted.length === 0 ? (
@@ -581,19 +609,26 @@ export default function TeamChatClient({
                     </div>
                   ) : parsed.kind === 'image' ? (
                     <div className="space-y-1.5">
-                      <div className="relative rounded-md overflow-hidden max-w-[min(100%,280px)] border border-slate-700/80">
+                      <div className="relative rounded-md overflow-hidden max-w-[min(100%,200px)] border border-slate-700/80">
                         <Image
                           src={parsed.url}
                           alt={parsed.alt}
-                          width={280}
-                          height={200}
-                          className="w-full h-auto object-cover"
+                          width={200}
+                          height={150}
+                          className="w-full h-auto max-h-[150px] object-cover"
                           unoptimized
                         />
                       </div>
                       {parsed.caption ? (
                         <p className="text-[0.9375rem] whitespace-pre-wrap break-words leading-snug">{parsed.caption}</p>
                       ) : null}
+                    </div>
+                  ) : parsed.kind === 'audio' ? (
+                    <div className="max-w-[min(100%,280px)]">
+                      <audio controls preload="metadata" className="w-full h-9 rounded-md">
+                        <source src={parsed.url} />
+                        Voice message
+                      </audio>
                     </div>
                   ) : parsed.kind === 'poll' ? (
                     <TeamChatPollBlock messageId={m.id} parsed={parsed} userId={userId} />
@@ -802,6 +837,12 @@ export default function TeamChatClient({
               </div>
             )}
           </div>
+
+          <ChatVoiceRecorder
+            disabled={!canPost || sending}
+            onError={(msg) => setError(msg)}
+            onRecorded={(blob, mimeType) => void uploadAndSendVoice(blob, mimeType)}
+          />
 
           <button
             type="button"

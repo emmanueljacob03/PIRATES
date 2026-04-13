@@ -24,5 +24,5 @@ DROP POLICY IF EXISTS "team_chat_poll_votes_update" ON public.team_chat_poll_vot
 CREATE POLICY "team_chat_poll_votes_update" ON public.team_chat_poll_votes
   FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
--- Optional: realtime for live counts
+-- Optional: realtime so “who voted” updates live (Dashboard → Replication → team_chat_poll_votes)
 -- ALTER PUBLICATION supabase_realtime ADD TABLE public.team_chat_poll_votes;

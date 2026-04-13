@@ -6,9 +6,12 @@ const POLL_PREFIX = '__POLL__\n';
 /** Team chat room icon changed — render as WhatsApp-style system line, not raw text. */
 export const SYS_ROOM_ICON_BODY = '__SYS_ROOM_ICON__';
 
+const AUDIO_PREFIX = '__AUDIO__\n';
+
 export type ParsedChatBody =
   | { kind: 'text'; text: string }
   | { kind: 'image'; url: string; alt: string; caption: string }
+  | { kind: 'audio'; url: string }
   | { kind: 'poll'; question: string; options: string[] }
   | { kind: 'system'; systemKind: 'room_icon' };
 
@@ -16,6 +19,12 @@ export function parseChatBody(body: string): ParsedChatBody {
   const trimmed = body.trim();
   if (trimmed === SYS_ROOM_ICON_BODY) {
     return { kind: 'system', systemKind: 'room_icon' };
+  }
+  if (trimmed.startsWith(AUDIO_PREFIX)) {
+    const url = trimmed.slice(AUDIO_PREFIX.length).trim();
+    if (/^https?:\/\//i.test(url)) {
+      return { kind: 'audio', url };
+    }
   }
   const img = trimmed.match(IMG_RE);
   if (img) {
@@ -49,4 +58,8 @@ export function formatPollBody(question: string, options: string[]): string {
 export function formatImageBody(url: string, caption: string): string {
   const cap = caption.trim();
   return `![photo](${url})${cap ? `\n${cap}` : ''}`;
+}
+
+export function formatAudioBody(url: string): string {
+  return `${AUDIO_PREFIX}${url.trim()}`;
 }
