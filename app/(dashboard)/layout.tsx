@@ -54,12 +54,12 @@ export default async function DashboardLayout({
         <MatchNotification />
         {!demo && <BirthdaySlideNotification />}
         <header className="border-b border-slate-700 px-3 sm:px-4 py-3 flex flex-col gap-2 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0 w-full">
-            <div className="min-w-0 shrink">
+          <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0 w-full">
+            <div className="min-w-0 shrink flex-1">
               <PiratesHeader href={logoHref} />
             </div>
             <nav
-              className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0"
+              className="flex items-center justify-end gap-2 sm:gap-3 shrink-0"
               aria-label="Notifications and profile"
             >
               {showAdminTools && (
@@ -67,7 +67,7 @@ export default async function DashboardLayout({
                   <ExpenseApprovalNotification />
                 </div>
               )}
-              <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-2 md:gap-3">
+              <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-2 md:gap-3">
                 {showAdminTools && <SignupApprovalRequests />}
                 <NotificationBar />
               </div>
@@ -75,7 +75,7 @@ export default async function DashboardLayout({
             </nav>
           </div>
           {showAdminTools && (
-            <div className="flex justify-start w-full min-w-0 sm:hidden">
+            <div className="flex justify-end w-full min-w-0 sm:hidden">
               <ExpenseApprovalNotification />
             </div>
           )}
