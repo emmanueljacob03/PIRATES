@@ -363,7 +363,7 @@ export default function ProfilePageClient({
         <p className="text-white">{matchesPlayed}</p>
       </div>
 
-      <div className="pt-6 mt-2 border-t border-slate-700 flex justify-center">
+      <div className="pt-6 mt-2 border-t border-slate-700 flex justify-center sm:justify-end">
         <LogoutButton />
       </div>
     </div>
