@@ -74,6 +74,9 @@ export default function TeamChatClient({
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQ, setPollQ] = useState('');
   const [pollOpts, setPollOpts] = useState(['', '']);
+  const [pendingImage, setPendingImage] = useState<{ file: File; url: string } | null>(null);
+  const [pendingVoice, setPendingVoice] = useState<{ blob: Blob; mime: string; url: string } | null>(null);
+  const [pendingMediaSending, setPendingMediaSending] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +87,20 @@ export default function TeamChatClient({
   const roomGalleryInputRef = useRef<HTMLInputElement>(null);
   const attachWrapRef = useRef<HTMLDivElement>(null);
   const emojiBtnWrapRef = useRef<HTMLDivElement>(null);
+  const pendingImageRef = useRef(pendingImage);
+  const pendingVoiceRef = useRef(pendingVoice);
+  pendingImageRef.current = pendingImage;
+  pendingVoiceRef.current = pendingVoice;
   const router = useRouter();
+
+  useEffect(() => {
+    return () => {
+      const pi = pendingImageRef.current;
+      if (pi?.url) URL.revokeObjectURL(pi.url);
+      const pv = pendingVoiceRef.current;
+      if (pv?.url) URL.revokeObjectURL(pv.url);
+    };
+  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -278,12 +294,30 @@ export default function TeamChatClient({
     await postBody(text, isAdmin && postAsAlert);
   }
 
-  async function uploadAndSendImage(file: File | null) {
-    if (!file || !userId || !canPost) return;
+  function queueImagePreview(file: File | null) {
+    if (!file) return;
     setAttachOpen(false);
     setError('');
+    const url = URL.createObjectURL(file);
+    setPendingImage((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { file, url };
+    });
+  }
+
+  function cancelPendingImage() {
+    setPendingImage((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
+  async function confirmSendPendingImage() {
+    if (!pendingImage || !userId || !canPost) return;
+    setPendingMediaSending(true);
+    setError('');
     try {
-      const compressed = await compressImageForUpload(file, { maxEdge: 1600, maxBytes: 1_400_000 });
+      const compressed = await compressImageForUpload(pendingImage.file, { maxEdge: 1600, maxBytes: 1_400_000 });
       const path = `${userId}/team-chat/${Date.now()}.jpg`;
       const { error: upErr } = await supabase.storage.from('avatars').upload(path, compressed, {
         upsert: false,
@@ -296,18 +330,38 @@ export default function TeamChatClient({
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
       const url = pub.publicUrl;
       await postBody(formatImageBody(url, ''), false);
+      cancelPendingImage();
     } catch {
       setError('Could not upload image');
+    } finally {
+      setPendingMediaSending(false);
     }
   }
 
-  async function uploadAndSendVoice(blob: Blob, mimeType: string) {
-    if (!userId || !canPost) return;
+  function queueVoicePreview(blob: Blob, mimeType: string) {
+    const url = URL.createObjectURL(blob);
+    setPendingVoice((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { blob, mime: mimeType, url };
+    });
+  }
+
+  function cancelPendingVoice() {
+    setPendingVoice((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+  }
+
+  async function confirmSendPendingVoice() {
+    if (!pendingVoice || !userId || !canPost) return;
+    setPendingMediaSending(true);
     setError('');
     try {
+      const mimeType = pendingVoice.mime;
       const ext = mimeType.includes('mp4') || mimeType.includes('m4a') ? 'm4a' : 'webm';
       const path = `${userId}/team-chat/voice-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('avatars').upload(path, blob, {
+      const { error: upErr } = await supabase.storage.from('avatars').upload(path, pendingVoice.blob, {
         upsert: false,
         contentType: mimeType || 'audio/webm',
       });
@@ -318,8 +372,11 @@ export default function TeamChatClient({
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
       const url = pub.publicUrl;
       await postBody(formatAudioBody(url), false);
+      cancelPendingVoice();
     } catch {
       setError('Could not upload voice message');
+    } finally {
+      setPendingMediaSending(false);
     }
   }
 
@@ -719,7 +776,7 @@ export default function TeamChatClient({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            void uploadAndSendImage(f ?? null);
+            queueImagePreview(f ?? null);
           }}
         />
         <input
@@ -730,7 +787,7 @@ export default function TeamChatClient({
           onChange={(e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
-            void uploadAndSendImage(f ?? null);
+            queueImagePreview(f ?? null);
           }}
         />
 
@@ -839,9 +896,9 @@ export default function TeamChatClient({
           </div>
 
           <ChatVoiceRecorder
-            disabled={!canPost || sending}
+            disabled={!canPost || sending || !!pendingVoice || !!pendingImage}
             onError={(msg) => setError(msg)}
-            onRecorded={(blob, mimeType) => void uploadAndSendVoice(blob, mimeType)}
+            onRecorded={(blob, mimeType) => queueVoicePreview(blob, mimeType)}
           />
 
           <button
@@ -907,6 +964,81 @@ export default function TeamChatClient({
               Photo
             </button>
             {roomUploading ? <span className="text-sm text-amber-200/90 self-center">Updating…</span> : null}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {pendingImage && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm photo"
+        onClick={() => !pendingMediaSending && cancelPendingImage()}
+      >
+        <div
+          className="relative w-full max-w-sm rounded-2xl border border-slate-600 bg-[#111b21] p-4 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-sm text-slate-200 font-medium mb-3">Send this photo?</p>
+          <div className="relative w-full max-h-[50vh] rounded-lg overflow-hidden border border-slate-700 bg-[#0b141a] mb-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={pendingImage.url} alt="" className="w-full h-auto max-h-[50vh] object-contain" />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              disabled={pendingMediaSending}
+              className="px-4 py-2 rounded-full text-sm bg-slate-700 text-slate-200 hover:bg-slate-600 disabled:opacity-50"
+              onClick={() => cancelPendingImage()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={pendingMediaSending}
+              className="px-4 py-2 rounded-full text-sm bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+              onClick={() => void confirmSendPendingImage()}
+            >
+              {pendingMediaSending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {pendingVoice && (
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Confirm voice message"
+        onClick={() => !pendingMediaSending && cancelPendingVoice()}
+      >
+        <div
+          className="relative w-full max-w-sm rounded-2xl border border-slate-600 bg-[#111b21] p-4 shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-sm text-slate-200 font-medium mb-3">Send this voice message?</p>
+          <audio src={pendingVoice.url} controls className="w-full mb-4 h-10 rounded-md" />
+          <div className="flex gap-2 justify-end">
+            <button
+              type="button"
+              disabled={pendingMediaSending}
+              className="px-4 py-2 rounded-full text-sm bg-slate-700 text-slate-200 hover:bg-slate-600 disabled:opacity-50"
+              onClick={() => cancelPendingVoice()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={pendingMediaSending}
+              className="px-4 py-2 rounded-full text-sm bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+              onClick={() => void confirmSendPendingVoice()}
+            >
+              {pendingMediaSending ? 'Sending…' : 'Send'}
+            </button>
           </div>
         </div>
       </div>

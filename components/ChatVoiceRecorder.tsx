@@ -11,6 +11,7 @@ function pickMime(): string {
   return '';
 }
 
+/** WhatsApp-style mic (idle) / stop (recording). Preview/send is handled by parent after onRecorded. */
 export default function ChatVoiceRecorder({
   onRecorded,
   onError,
@@ -92,18 +93,29 @@ export default function ChatVoiceRecorder({
       type="button"
       onClick={() => void toggle()}
       disabled={disabled}
-      className={`w-11 h-11 rounded-full flex flex-col items-center justify-center shrink-0 border touch-manipulation ${
+      className={`w-12 h-12 rounded-full flex flex-col items-center justify-center shrink-0 touch-manipulation shadow-md transition ${
         isRecording
-          ? 'bg-red-900/80 border-red-500/70 text-red-100 animate-pulse'
-          : 'text-slate-200 hover:bg-slate-700/80 border-slate-600/80'
+          ? 'bg-[#e53935] text-white animate-pulse'
+          : 'bg-[#25D366] text-white hover:bg-[#20bd5a] active:scale-95'
       } disabled:opacity-40`}
-      aria-label={isRecording ? 'Stop recording and send' : 'Record voice message'}
-      title={isRecording ? 'Tap to stop and send' : 'Tap to record voice'}
+      aria-label={isRecording ? 'Stop recording' : 'Record voice message'}
+      title={isRecording ? 'Tap to stop — then confirm to send' : 'Hold to record — tap to stop, then confirm'}
     >
-      <span className="text-lg leading-none" aria-hidden>
-        {isRecording ? '⏹' : '🎤'}
-      </span>
-      {isRecording ? <span className="text-[9px] tabular-nums leading-none mt-0.5">{seconds}s</span> : null}
+      {isRecording ? (
+        <>
+          <span className="text-[10px] font-bold tabular-nums leading-none">{seconds}s</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" className="mt-0.5" aria-hidden>
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+      )}
     </button>
   );
 }

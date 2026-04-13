@@ -5,7 +5,6 @@ import { cookies } from 'next/headers';
 export const dynamic = 'force-dynamic';
 import DashboardNav from '@/components/DashboardNav';
 import TeamChatNavButton from '@/components/TeamChatNavButton';
-import LogoutButton from '@/components/LogoutButton';
 import PiratesHeader from '@/components/PiratesHeader';
 import MatchNotification from '@/components/MatchNotification';
 import BirthdaySlideNotification from '@/components/BirthdaySlideNotification';
@@ -54,15 +53,29 @@ export default async function DashboardLayout({
       <div className="min-h-screen bg-pirate-dark">
         <MatchNotification />
         {!demo && <BirthdaySlideNotification />}
-        <header className="border-b border-slate-700 px-4 py-3 flex items-center justify-between gap-4">
-          <PiratesHeader href={logoHref} />
-          <div className="flex items-center gap-3 flex-1 justify-end max-w-2xl">
-            {showAdminTools && <ExpenseApprovalNotification />}
-            {showAdminTools && <SignupApprovalRequests />}
-            <NotificationBar />
-            <ProfileIcon avatarUrl={profileAvatarUrl} />
-            <LogoutButton />
+        <header className="border-b border-slate-700 px-3 sm:px-4 py-3 flex flex-col gap-2 min-w-0">
+          <div className="flex items-center justify-between gap-2 min-w-0 w-full">
+            <div className="min-w-0 shrink">
+              <PiratesHeader href={logoHref} />
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              {showAdminTools && (
+                <div className="hidden sm:flex max-w-[min(100%,14rem)] min-w-0">
+                  <ExpenseApprovalNotification />
+                </div>
+              )}
+              <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-2 md:gap-3">
+                {showAdminTools && <SignupApprovalRequests />}
+                <NotificationBar />
+              </div>
+              <ProfileIcon avatarUrl={profileAvatarUrl} />
+            </div>
           </div>
+          {showAdminTools && (
+            <div className="flex sm:hidden justify-end w-full min-w-0">
+              <ExpenseApprovalNotification />
+            </div>
+          )}
         </header>
         <main className="px-4 py-6 max-w-6xl mx-auto relative">
           <div className="absolute top-2 right-4 sm:right-0 z-10 flex flex-col items-end">

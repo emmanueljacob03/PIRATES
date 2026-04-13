@@ -21,6 +21,8 @@ export default function TeamChatPollBlock({
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [err, setErr] = useState('');
+  /** Tap the vote count to show who voted — names appear inline next to the option, not below. */
+  const [namesOpenFor, setNamesOpenFor] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!messageId) return;
@@ -118,43 +120,61 @@ export default function TeamChatPollBlock({
           const c = counts[i] ?? 0;
           const selected = myVote === i;
           const votersHere = votes.filter((v) => v.option_index === i);
+          const showNames = namesOpenFor === i && votersHere.length > 0;
           return (
             <li key={i} className="rounded-lg border border-slate-700/50 bg-[#0b141a]/80 overflow-hidden">
-              <button
-                type="button"
-                disabled={!userId || voting || loading}
-                onClick={() => void vote(i)}
-                className={`w-full text-left px-3 py-2 text-sm border-0 transition ${
-                  selected
-                    ? 'bg-amber-900/35 text-amber-50'
-                    : 'bg-transparent text-slate-200 hover:bg-slate-800/60'
-                }`}
-              >
-                <span className="font-medium">{opt}</span>
-                <span className="float-right tabular-nums text-slate-400">{loading ? '…' : c}</span>
-              </button>
-              {!loading && votersHere.length > 0 ? (
-                <div className="px-3 pb-2 pt-0 border-t border-slate-700/40">
-                  <p className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">Who voted</p>
-                  <div className="flex flex-wrap gap-x-2 gap-y-1">
-                    {votersHere.map((v) => (
-                      <span
-                        key={v.user_id}
-                        className="text-[11px] font-semibold"
-                        style={{ color: chatNameColorForUser(v.user_id) }}
-                      >
-                        {nameById.get(v.user_id) ?? v.user_id.slice(0, 8)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+              <div className="flex items-center gap-2 px-2 py-2 min-h-[2.75rem]">
+                <button
+                  type="button"
+                  disabled={!userId || voting || loading}
+                  onClick={() => void vote(i)}
+                  className={`flex-1 min-w-0 text-left text-sm rounded-md px-2 py-1.5 -mx-1 transition ${
+                    selected ? 'bg-amber-900/35 text-amber-50' : 'text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                >
+                  <span className="font-medium break-words">{opt}</span>
+                  {showNames ? (
+                    <span className="text-[11px] font-normal leading-snug">
+                      <span className="text-slate-500"> · </span>
+                      {votersHere.map((v, idx) => (
+                        <span key={v.user_id}>
+                          {idx > 0 ? <span className="text-slate-600"> · </span> : null}
+                          <span className="font-semibold" style={{ color: chatNameColorForUser(v.user_id) }}>
+                            {nameById.get(v.user_id) ?? v.user_id.slice(0, 8)}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  disabled={loading || c === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (c === 0) return;
+                    setNamesOpenFor((prev) => (prev === i ? null : i));
+                  }}
+                  className={`shrink-0 min-w-[2.25rem] rounded-lg px-2 py-1.5 text-sm tabular-nums border transition ${
+                    namesOpenFor === i
+                      ? 'border-amber-500/60 bg-amber-950/40 text-amber-200'
+                      : 'border-slate-600/80 bg-slate-800/90 text-slate-300 hover:bg-slate-700/80'
+                  } ${c === 0 ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
+                  title={c === 0 ? 'No votes yet' : namesOpenFor === i ? 'Hide names' : 'Show who voted'}
+                  aria-expanded={namesOpenFor === i}
+                  aria-label={`${c} votes. ${namesOpenFor === i ? 'Hide' : 'Show'} who voted`}
+                >
+                  {loading ? '…' : c}
+                </button>
+              </div>
             </li>
           );
         })}
       </ul>
       {err ? <p className="text-[11px] text-red-400">{err}</p> : null}
-      {!userId ? <p className="text-[10px] text-slate-500">Sign in to vote</p> : null}
+      {!userId ? <p className="text-[10px] text-slate-500">Sign in to vote · Tap the number to see names</p> : (
+        <p className="text-[10px] text-slate-500">Tap the vote count to show who voted (inline)</p>
+      )}
     </div>
   );
 }

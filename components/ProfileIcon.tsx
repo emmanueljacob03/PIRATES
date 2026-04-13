@@ -10,13 +10,13 @@ export default function ProfileIcon({ avatarUrl }: { avatarUrl?: string | null }
   return (
     <Link
       href="/profiles"
-      className="relative flex items-center justify-center w-9 h-9 rounded-full border-2 border-[var(--pirate-yellow)] bg-[var(--pirate-navy)] text-[var(--pirate-yellow)] hover:opacity-90 overflow-hidden shrink-0"
+      className="relative flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-full border-2 border-[var(--pirate-yellow)] bg-[var(--pirate-navy)] text-[var(--pirate-yellow)] hover:opacity-90 overflow-hidden shrink-0"
       aria-label="My profile"
     >
       {hasPhoto ? (
-        <Image src={url} alt="" fill className="object-cover" sizes="36px" />
+        <Image src={url} alt="" fill className="object-cover" sizes="48px" />
       ) : (
-        <span className="text-lg leading-none">👤</span>
+        <span className="text-xl sm:text-2xl leading-none">👤</span>
       )}
     </Link>
   );

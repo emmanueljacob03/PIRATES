@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { format, parseISO, isValid } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
+import LogoutButton from '@/components/LogoutButton';
 
 type Profile = {
   name: string | null;
@@ -26,9 +27,32 @@ function formatDobDisplay(ymd: string | null): string {
 }
 type Duty = { who: string; duty_date: string; notes: string };
 
+export type ProfileContributionEntry = {
+  id: string;
+  amount: number;
+  date: string;
+  notes: string | null;
+  paid: boolean;
+};
+
+function contributionKindLabel(notes: string | null): string {
+  if (notes?.trim()) return notes.trim();
+  return 'Match fee';
+}
+
+function formatContributionDate(ymd: string): string {
+  try {
+    const d = parseISO(ymd.slice(0, 10));
+    return isValid(d) ? format(d, 'MMM d, yyyy') : ymd;
+  } catch {
+    return ymd;
+  }
+}
+
 export default function ProfilePageClient({
   initialProfile,
   contributionTotal,
+  contributionEntries = [],
   matchesPlayed,
   umpiringDuties,
   pendingJersey = 0,
@@ -37,6 +61,7 @@ export default function ProfilePageClient({
 }: {
   initialProfile: Profile;
   contributionTotal: number;
+  contributionEntries?: ProfileContributionEntry[];
   matchesPlayed: number;
   umpiringDuties: Duty[];
   pendingJersey?: number;
@@ -47,7 +72,6 @@ export default function ProfilePageClient({
   const totalPending = pendingJersey + pendingContribution;
   const [profile, setProfile] = useState(initialProfile);
   const [viewMoreContrib, setViewMoreContrib] = useState(false);
-  const [viewMoreMatches, setViewMoreMatches] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialProfile.name ?? '');
   const [phone, setPhone] = useState(initialProfile.phone ?? '');
@@ -223,17 +247,14 @@ export default function ProfilePageClient({
             <>
               <p className="text-lg font-semibold text-white">{profile.name || '—'}</p>
               <div className="mt-3 rounded-lg border border-slate-600/70 bg-slate-900/50 p-3 space-y-1.5">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
-                  Email, phone & date of birth
-                </p>
                 <p className="text-slate-300 text-sm">
                   <span className="text-slate-500">Email</span> — {profile.email || '—'}
                 </p>
                 <p className="text-slate-300 text-sm">
-                  <span className="text-slate-500">Phone</span> — {profile.phone || '—'}
+                  <span className="text-slate-500">Ph</span> — {profile.phone || '—'}
                 </p>
                 <p className="text-slate-300 text-sm">
-                  <span className="text-slate-500">Date of birth</span> — {formatDobDisplay(profile.date_of_birth)}
+                  <span className="text-slate-500">DOB</span> — {formatDobDisplay(profile.date_of_birth)}
                 </p>
               </div>
               <button type="button" onClick={() => setEditing(true)} className="btn-secondary text-sm mt-3">
@@ -247,12 +268,13 @@ export default function ProfilePageClient({
                   {profileFormError}
                 </p>
               ) : null}
-              <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Email, phone & DOB</p>
               <input className="input-field" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-              <p className="text-slate-500 text-xs">Email (read-only): {profile.email}</p>
-              <input className="input-field" placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <p className="text-slate-500 text-sm">
+                <span className="text-slate-400">Email</span> — {profile.email}
+              </p>
+              <input className="input-field" placeholder="Ph" value={phone} onChange={(e) => setPhone(e.target.value)} />
               <label className="block text-slate-300 text-sm font-medium">
-                Date of birth <span className="text-red-400">*</span>
+                DOB <span className="text-red-400">*</span>
               </label>
               <input className="input-field" type="date" value={dob} onChange={(e) => setDob(e.target.value)} required />
               <input className="input-field" placeholder="Photo URL" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
@@ -311,19 +333,38 @@ export default function ProfilePageClient({
       <div>
         <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Contribution did</h3>
         <p className="text-white">${contributionTotal.toFixed(2)}</p>
-        <button type="button" onClick={() => setViewMoreContrib(!viewMoreContrib)} className="text-sm text-[var(--pirate-yellow)] hover:underline mt-1">
-          {viewMoreContrib ? 'Show less' : 'View more'}
-        </button>
-        {viewMoreContrib && <p className="text-slate-500 text-sm mt-1">Total contribution across all entries.</p>}
+        {contributionEntries.length > 0 ? (
+          <button type="button" onClick={() => setViewMoreContrib(!viewMoreContrib)} className="text-sm text-[var(--pirate-yellow)] hover:underline mt-1">
+            {viewMoreContrib ? 'Show less' : 'View more'}
+          </button>
+        ) : null}
+        {viewMoreContrib && contributionEntries.length > 0 ? (
+          <ul className="mt-2 space-y-2 text-sm text-slate-300 list-none pl-0">
+            {contributionEntries.map((e) => (
+              <li key={e.id} className="border-b border-slate-700/50 pb-2 last:border-0 last:pb-0">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="text-white font-medium tabular-nums">${e.amount.toFixed(2)}</span>
+                  <span className="text-slate-500 text-xs">{formatContributionDate(e.date)}</span>
+                  {e.paid ? (
+                    <span className="text-[10px] uppercase tracking-wide text-emerald-500/90">Paid</span>
+                  ) : (
+                    <span className="text-[10px] uppercase tracking-wide text-amber-500/90">Unpaid</span>
+                  )}
+                </div>
+                <p className="text-slate-400 mt-0.5">{contributionKindLabel(e.notes)}</p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
 
       <div>
         <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Total matches played</h3>
         <p className="text-white">{matchesPlayed}</p>
-        <button type="button" onClick={() => setViewMoreMatches(!viewMoreMatches)} className="text-sm text-[var(--pirate-yellow)] hover:underline mt-1">
-          {viewMoreMatches ? 'Show less' : 'View more'}
-        </button>
-        {viewMoreMatches && <p className="text-slate-500 text-sm mt-1">Based on scorecard entries.</p>}
+      </div>
+
+      <div className="pt-6 mt-2 border-t border-slate-700 flex justify-center">
+        <LogoutButton />
       </div>
     </div>
   );

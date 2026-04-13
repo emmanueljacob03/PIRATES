@@ -28,6 +28,13 @@ export default async function ProfilesPage() {
     date_of_birth: null,
   };
   let contributionTotal = 0;
+  let contributionEntries: {
+    id: string;
+    amount: number;
+    date: string;
+    notes: string | null;
+    paid: boolean;
+  }[] = [];
   let matchesPlayed = 0;
   let umpiringDuties: { who: string; duty_date: string; notes: string }[] = [];
   let pendingJersey = 0;
@@ -168,7 +175,7 @@ export default async function ProfilesPage() {
 
     const { data: contribs } = await supabase
       .from('contributions')
-      .select('player_name, amount, paid, submitted_by_id');
+      .select('id, player_name, amount, paid, submitted_by_id, date, notes');
     const byName = (contribs ?? []).filter(
       (c: { player_name?: string; submitted_by_id?: string | null }) =>
         c.submitted_by_id === user.id || nameMatchesSelf(c.player_name),
@@ -177,6 +184,23 @@ export default async function ProfilesPage() {
       (s: number, c: { amount: number }) => s + Number(c.amount),
       0,
     );
+    const contributionEntries = [...byName]
+      .map(
+        (c: {
+          id: string;
+          amount: number;
+          date: string;
+          notes: string | null;
+          paid: boolean;
+        }) => ({
+          id: c.id,
+          amount: Number(c.amount),
+          date: c.date,
+          notes: c.notes?.trim() ? c.notes.trim() : null,
+          paid: !!c.paid,
+        }),
+      )
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     const [{ data: jerseyRows }, { data: rosterForJerseyInfer }] = await Promise.all([
       supabase.from('jerseys').select('player_name, paid, submitted_by_id'),
@@ -232,6 +256,7 @@ export default async function ProfilesPage() {
       <ProfilePageClient
         initialProfile={profile}
         contributionTotal={contributionTotal}
+        contributionEntries={contributionEntries}
         matchesPlayed={matchesPlayed}
         umpiringDuties={umpiringDuties}
         pendingJersey={pendingJersey}
