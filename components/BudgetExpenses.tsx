@@ -18,9 +18,12 @@ const VISIBLE_INITIAL = 5;
 export default function BudgetExpenses({
   initial,
   isAdmin,
+  hideTeamTotal = false,
 }: {
   initial: ExpenseRow[];
   isAdmin?: boolean;
+  /** Hide approved-expenses sum (e.g. viewers: no team totals). */
+  hideTeamTotal?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
@@ -176,7 +179,9 @@ export default function BudgetExpenses({
           {showAll ? 'Show less' : 'View more'}
         </button>
       )}
-      <p className="font-semibold text-amber-400">Total expenses (approved): ${total.toFixed(2)}</p>
+      {!hideTeamTotal && (
+        <p className="font-semibold text-amber-400">Total expenses (approved): ${total.toFixed(2)}</p>
+      )}
 
       {error && <p className="text-red-400 text-sm" role="alert">{error}</p>}
 

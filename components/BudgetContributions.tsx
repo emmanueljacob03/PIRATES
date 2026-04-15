@@ -32,6 +32,7 @@ export default function BudgetContributions({
   isAdmin,
   viewerMode,
   rosterPlayerNames = [],
+  hideTeamTotal = false,
 }: {
   initial: Row[];
   isAdmin?: boolean;
@@ -39,6 +40,8 @@ export default function BudgetContributions({
   viewerMode?: boolean;
   /** Roster names for admin “player name” chevron picker (optional). */
   rosterPlayerNames?: string[];
+  /** Hide rolled-up match-fee sum (e.g. viewers: no team totals). */
+  hideTeamTotal?: boolean;
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(initial);
@@ -348,9 +351,11 @@ export default function BudgetContributions({
           {viewMore ? 'Show less' : 'View more'}
         </button>
       )}
-      <p className="font-semibold" style={{ color: 'var(--pirate-yellow)' }}>
-        Total: ${total.toFixed(2)}
-      </p>
+      {!hideTeamTotal && (
+        <p className="font-semibold" style={{ color: 'var(--pirate-yellow)' }}>
+          Total: ${total.toFixed(2)}
+        </p>
+      )}
 
       {viewerMode && !isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">

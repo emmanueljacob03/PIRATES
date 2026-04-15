@@ -60,29 +60,15 @@ export default async function BudgetPage() {
     return (
       <div>
         <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--pirate-yellow)' }}>Team Budget</h2>
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <div className="card">
-            <p className="text-slate-400 text-sm">Total Match Fees</p>
-            <p className="text-2xl font-bold text-green-400">${totalContributions.toFixed(2)}</p>
-          </div>
-          <div className="card">
-            <p className="text-slate-400 text-sm">Expenses</p>
-            <p className="text-2xl font-bold text-red-400">${totalExpenses.toFixed(2)}</p>
-          </div>
-          <div className="card">
-            <p className="text-slate-400 text-sm">Remaining Budget</p>
-            <p className="text-2xl font-bold text-amber-400">${remaining.toFixed(2)}</p>
-          </div>
-        </div>
         <div className="grid md:grid-cols-2 gap-8">
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
-            <BudgetContributions {...contribProps} />
+            <BudgetContributions {...contribProps} hideTeamTotal />
           </div>
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Expenses</h3>
             <p className="text-slate-400 text-sm mb-2">Pending expenses will be shown grey until admin approval.</p>
-            <BudgetExpenses initial={expenses} isAdmin={false} />
+            <BudgetExpenses initial={expenses} isAdmin={false} hideTeamTotal />
           </div>
         </div>
       </div>
