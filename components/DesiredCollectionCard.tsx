@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdmin: boolean; initialValue: string }) {
@@ -10,6 +10,24 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
   const [inputVal, setInputVal] = useState(initialValue);
   const [saving, setSaving] = useState(false);
   const [persistWarning, setPersistWarning] = useState<string | null>(null);
+
+  async function loadFromApi() {
+    try {
+      const res = await fetch('/api/desired-collection', { cache: 'no-store' });
+      const data = await res.json();
+      if (typeof data?.value === 'string') {
+        const next = data.value.trim() || '0.00';
+        setValue(next);
+        setInputVal(next);
+      }
+    } catch {
+      /* keep current state */
+    }
+  }
+
+  useEffect(() => {
+    void loadFromApi();
+  }, []);
 
   async function handleSave() {
     setSaving(true);
@@ -39,8 +57,12 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
         } else {
           setPersistWarning(null);
         }
-        // Do not GET /api/desired-collection here: on serverless, read can return 0.00 from another
-        // instance’s empty .data file and overwrite the value we just set from this POST response.
+        // Re-fetch only when DB save succeeded (or legacy API without `persisted`). On Vercel, GET no longer
+        // reads the ephemeral `.data` file, so this stays in sync with Supabase.
+        const persisted = (data as { persisted?: boolean }).persisted;
+        if (persisted !== false) {
+          await loadFromApi();
+        }
         router.refresh();
       }
     } finally {

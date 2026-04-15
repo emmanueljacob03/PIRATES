@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contribution } from '@/types/database';
 import { format } from 'date-fns';
@@ -37,20 +37,19 @@ export default function BudgetContributions({
   isAdmin?: boolean;
   /** Logged-in member: match fee form without paid checkbox; uses account name. */
   viewerMode?: boolean;
-  /** Roster names for “pay for” dropdown (viewer only). */
+  /** Roster names for admin “player name” chevron picker (optional). */
   rosterPlayerNames?: string[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(initial);
-  const [playerName, setPlayerName] = useState('');
-  /** Admin: roster dropdown selection; `__other__` shows free-text field. */
-  const [adminPlayerPick, setAdminPlayerPick] = useState('');
-  const [adminPlayerOther, setAdminPlayerOther] = useState('');
+  /** Admin: type any name, or open roster list via the chevron inside the field. */
+  const [adminPlayerName, setAdminPlayerName] = useState('');
+  const [adminRosterOpen, setAdminRosterOpen] = useState(false);
+  const adminRosterWrapRef = useRef<HTMLDivElement>(null);
   const [amount, setAmount] = useState('');
   const [paid, setPaid] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [viewerReason, setViewerReason] = useState('');
-  const [playerForFee, setPlayerForFee] = useState('');
   const [loading, setLoading] = useState(false);
   const [viewMore, setViewMore] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -73,6 +72,17 @@ export default function BudgetContributions({
   const displayRows = viewMore ? sortedRows : sortedRows.slice(0, 5);
   const hasMore = sortedRows.length > 5;
 
+  useEffect(() => {
+    if (!adminRosterOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (adminRosterWrapRef.current && !adminRosterWrapRef.current.contains(e.target as Node)) {
+        setAdminRosterOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [adminRosterOpen]);
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!amount) return;
@@ -89,7 +99,6 @@ export default function BudgetContributions({
             amount: amt,
             notes: viewerReason.trim() || undefined,
             date: new Date().toISOString().slice(0, 10),
-            ...(playerForFee.trim() ? { player_name: playerForFee.trim() } : {}),
           }),
         });
         const data = await res.json().catch(() => null);
@@ -100,10 +109,9 @@ export default function BudgetContributions({
         }
         if (data?.id) {
           setRows((prev) => [data as Row, ...prev]);
-          setAmount('');
-          setViewerReason('');
-          setPlayerForFee('');
-          router.refresh();
+            setAmount('');
+            setViewerReason('');
+            router.refresh();
         }
       } catch {
         setLoading(false);
@@ -111,19 +119,14 @@ export default function BudgetContributions({
       return;
     }
 
-    const resolvedAdminName =
-      rosterPlayerNames.length > 0
-        ? adminPlayerPick === '__other__'
-          ? adminPlayerOther.trim()
-          : adminPlayerPick.trim()
-        : playerName.trim();
-    if (!resolvedAdminName) return;
+    const name = adminPlayerName.trim();
+    if (!name) return;
     setLoading(true);
     const res = await fetch('/api/contributions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        player_name: resolvedAdminName,
+        player_name: name,
         amount: amt,
         paid,
         date: new Date().toISOString().slice(0, 10),
@@ -134,9 +137,7 @@ export default function BudgetContributions({
     setLoading(false);
     if (data?.id) {
       setRows((prev) => [data as Row, ...prev]);
-      setPlayerName('');
-      setAdminPlayerPick('');
-      setAdminPlayerOther('');
+      setAdminPlayerName('');
       setAmount('');
       setPaid(false);
       setAdminNotes('');
@@ -200,17 +201,9 @@ export default function BudgetContributions({
           <tr className="text-left text-slate-400 border-b border-slate-600">
             <th className="pb-2">
               {showViewerTable ? (
-                <span className="inline-flex items-center gap-1.5" title="Choose below who this fee is for">
-                  Player name
-                  <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4 opacity-95" />
-                </span>
+                'Player name'
               ) : (
-                <span className="inline-flex items-center gap-1.5">
-                  Player
-                  {rosterPlayerNames.length > 0 && (
-                    <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4" aria-hidden />
-                  )}
-                </span>
+                'Player'
               )}
             </th>
             <th className="pb-2">Match fee</th>
@@ -349,45 +342,9 @@ export default function BudgetContributions({
       {viewerMode && !isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">
           <p className="text-xs text-slate-400">
-            Pick <strong>Player name</strong> from the list (opens all registered players), enter amount, then Add. The
-            fee is recorded for that player. Leave as &quot;My account&quot; to log under your own name. Admin marks
-            paid when received.
+            Your account name is used for <strong>Player name</strong>. Enter amount, optional note, then Add. Admin
+            marks paid when received.
           </p>
-          {rosterPlayerNames.length > 0 ? (
-            <label className="block text-sm text-slate-200 overflow-visible">
-              <span className="inline-flex items-center gap-2 text-slate-300 font-medium">
-                Player name
-                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-5 h-5 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
-              </span>
-              <div className="relative mt-1.5 overflow-visible">
-                <select
-                  className="input-field relative z-0 w-full max-w-lg appearance-none pr-12 py-2.5 pl-3 text-slate-100 cursor-pointer"
-                  value={playerForFee}
-                  onChange={(e) => setPlayerForFee(e.target.value)}
-                  aria-label="Player name — choose registered player"
-                >
-                  <option value="">My account (self)</option>
-                  {rosterPlayerNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span
-                  className="pointer-events-none absolute inset-y-0 right-2 z-10 flex items-center rounded-md bg-slate-900/90 px-1 text-[var(--pirate-yellow)] ring-1 ring-[var(--pirate-yellow)]/40"
-                  aria-hidden
-                >
-                  <ChevronDownIcon className="w-6 h-6" />
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">Tap the field to see every registered player.</p>
-            </label>
-          ) : (
-            <p className="text-xs text-amber-400/90">
-              Roster not loaded — you can still add a fee under your account only. Refresh or contact admin for the
-              player list.
-            </p>
-          )}
           <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:items-end">
             <div className="flex flex-col gap-1 min-w-0">
               <span className="text-xs text-slate-500">Amount ($)</span>
@@ -420,60 +377,63 @@ export default function BudgetContributions({
 
       {isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">
-          {rosterPlayerNames.length > 0 ? (
-            <div className="space-y-2 max-w-lg">
-              <span className="inline-flex items-center gap-2 text-sm text-slate-300 font-medium">
-                Player name
-                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-5 h-5 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
-              </span>
-              <div className="relative overflow-visible">
-                <select
-                  className="input-field w-full appearance-none pr-12 py-2.5 pl-3 text-slate-100 cursor-pointer"
-                  value={adminPlayerPick}
-                  onChange={(e) => {
-                    setAdminPlayerPick(e.target.value);
-                    if (e.target.value !== '__other__') setAdminPlayerOther('');
-                  }}
-                  aria-label="Player name — choose from roster"
-                  required
-                >
-                  <option value="">Select player…</option>
-                  {rosterPlayerNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                  <option value="__other__">Other (type name)…</option>
-                </select>
-                <span
-                  className="pointer-events-none absolute inset-y-0 right-2 z-10 flex items-center rounded-md bg-slate-900/90 px-1 text-[var(--pirate-yellow)] ring-1 ring-[var(--pirate-yellow)]/40"
-                  aria-hidden
-                >
-                  <ChevronDownIcon className="w-6 h-6" />
-                </span>
-              </div>
-              {adminPlayerPick === '__other__' && (
-                <input
-                  className="input-field w-full"
-                  placeholder="Enter player name"
-                  value={adminPlayerOther}
-                  onChange={(e) => setAdminPlayerOther(e.target.value)}
-                  aria-label="Custom player name"
-                  required
-                />
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2 items-end">
+          <div className="max-w-lg space-y-1.5">
+            <label className="block text-sm text-slate-300 font-medium" htmlFor="admin-player-name-input">
+              Player name
+            </label>
+            <p className="text-[11px] text-slate-500">
+              Type a name, or use the arrow in the field to pick from the roster.
+            </p>
+            <div ref={adminRosterWrapRef} className="relative">
               <input
-                className="input-field flex-1 min-w-[120px]"
-                placeholder="Player name"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
+                id="admin-player-name-input"
+                className="input-field w-full pr-11 py-2.5"
+                placeholder="Enter name"
+                value={adminPlayerName}
+                onChange={(e) => setAdminPlayerName(e.target.value)}
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={adminRosterOpen}
+                aria-controls="admin-roster-listbox"
                 required
               />
+              {rosterPlayerNames.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    className="absolute right-1.5 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[var(--pirate-yellow)] hover:bg-slate-700/80 focus:outline-none focus:ring-2 focus:ring-[var(--pirate-yellow)]/50"
+                    onClick={() => setAdminRosterOpen((o) => !o)}
+                    aria-label="Open roster list"
+                    title="Choose from roster"
+                  >
+                    <ChevronDownIcon className="h-5 w-5 shrink-0" />
+                  </button>
+                  {adminRosterOpen && (
+                    <ul
+                      id="admin-roster-listbox"
+                      role="listbox"
+                      className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-48 overflow-auto rounded-lg border border-slate-600 bg-slate-900 py-1 shadow-lg"
+                    >
+                      {rosterPlayerNames.map((n) => (
+                        <li key={n} role="option">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-700/80"
+                            onClick={() => {
+                              setAdminPlayerName(n);
+                              setAdminRosterOpen(false);
+                            }}
+                          >
+                            {n}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
           <div className="flex flex-wrap gap-2 items-end">
             <input
               type="number"

@@ -63,6 +63,12 @@ export async function readDesiredCollectionValue(): Promise<string> {
     }
   }
 
+  // Vercel: filesystem is per-instance and not shared — reading `.data` here often returns stale `0.00`
+  // and overwrites the real Supabase value in the UI. Only use the file on non-Vercel hosts (local dev).
+  if (process.env.VERCEL) {
+    return '0.00';
+  }
+
   return readFromFile();
 }
 
@@ -77,7 +83,9 @@ export type WriteDesiredCollectionResult = {
  * Requires `SUPABASE_SERVICE_ROLE_KEY` on the server for DB write; run `alter_team_chat_settings_desired_collection.sql` for the column.
  */
 export async function writeDesiredCollectionValue(value: string): Promise<WriteDesiredCollectionResult> {
-  await writeToFile(value);
+  if (!process.env.VERCEL) {
+    await writeToFile(value);
+  }
 
   let supabase: ReturnType<typeof createAdminSupabase>;
   try {
