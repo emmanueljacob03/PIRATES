@@ -475,8 +475,9 @@ export default function TeamChatClient({
       list.push(p.url);
       map.set(m.user_id, list);
     }
-    for (const [uid, urls] of map) {
-      map.set(uid, Array.from(new Set(urls)));
+    for (const uid of Array.from(map.keys())) {
+      const urls = map.get(uid);
+      if (urls) map.set(uid, Array.from(new Set(urls)));
     }
     return map;
   }, [messages]);
