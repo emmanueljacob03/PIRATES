@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { Match } from '@/types/database';
 import { weatherAdvisoryFromConditions, weatherFriendlyTipFromConditions } from '@/lib/weather-advisory';
 import { weatherCityForScheduleGround } from '@/lib/schedule-grounds';
@@ -37,7 +38,12 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
    * `tap`: `(pointer: coarse)` or no hover — tap to open/close (touch phones/tablets).
    */
   const [panelMode, setPanelMode] = useState<'hover' | 'tap'>('tap');
+  const [mounted, setMounted] = useState(false);
   const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -191,9 +197,54 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
 
   const showPanel = open && (advisoryText || friendlyText || tempRounded != null);
 
+  const panelClassName =
+    'p-3 rounded-lg bg-slate-800 border border-amber-500/40 shadow-xl text-sm text-amber-100 max-h-[min(55vh,360px)] overflow-y-auto';
+
+  const panelInner = (
+    <>
+      <p className="text-white font-medium mb-1">
+        {tempRounded}°C{desc ? ` · ${desc}` : ''}
+        {weather?.forecastForMatch ? (
+          <span className="text-slate-400 text-xs font-normal block mt-0.5">Forecast for scheduled match time</span>
+        ) : null}
+      </p>
+      {weather?.forecastHint ? (
+        <p className="text-slate-400 text-xs leading-snug mb-2">{weather.forecastHint}</p>
+      ) : null}
+      {advisoryText ? (
+        <p className="text-amber-400 leading-snug mb-2">⚠ {advisoryText}</p>
+      ) : null}
+      <p className="text-slate-200/95 leading-snug text-sm">{friendlyText || 'Conditions look playable — stay sharp.'}</p>
+    </>
+  );
+
+  const tapOverlay =
+    mounted &&
+    showPanel &&
+    panelMode === 'tap' &&
+    createPortal(
+      <>
+        <div
+          className="fixed inset-0 z-[200] bg-black/40"
+          aria-hidden
+          onClick={() => setOpen(false)}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Weather details"
+          className={`fixed left-4 right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[210] mx-auto w-auto max-w-lg ${panelClassName}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {panelInner}
+        </div>
+      </>,
+      document.body,
+    );
+
   return (
     <div
-      className="relative mt-1 inline-block max-w-full"
+      className="relative z-0 mt-1 inline-block max-w-full overflow-visible"
       onMouseEnter={handlePointerEnter}
       onMouseLeave={handlePointerLeave}
     >
@@ -218,25 +269,14 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           ) : null}
         </span>
       </button>
-      {showPanel && (
+      {tapOverlay}
+      {showPanel && panelMode === 'hover' && (
         <div
-          className="absolute left-0 top-full z-30 mt-1 min-w-[220px] max-w-[min(100%,320px)] p-3 rounded-lg bg-slate-800 border border-amber-500/40 shadow-xl text-sm text-amber-100"
+          className={`absolute left-0 top-full z-[100] mt-1 min-w-[220px] max-w-[min(100%,320px)] ${panelClassName}`}
           onMouseEnter={handlePointerEnter}
           onMouseLeave={handlePointerLeave}
         >
-          <p className="text-white font-medium mb-1">
-            {tempRounded}°C{desc ? ` · ${desc}` : ''}
-            {weather?.forecastForMatch ? (
-              <span className="text-slate-400 text-xs font-normal block mt-0.5">Forecast for scheduled match time</span>
-            ) : null}
-          </p>
-          {weather?.forecastHint ? (
-            <p className="text-slate-400 text-xs leading-snug mb-2">{weather.forecastHint}</p>
-          ) : null}
-          {advisoryText ? (
-            <p className="text-amber-400 leading-snug mb-2">⚠ {advisoryText}</p>
-          ) : null}
-          <p className="text-slate-200/95 leading-snug text-sm">{friendlyText || 'Conditions look playable — stay sharp.'}</p>
+          {panelInner}
         </div>
       )}
     </div>

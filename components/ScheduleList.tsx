@@ -103,7 +103,7 @@ export default function ScheduleList({ matches, isAdmin }: { matches: Match[]; i
               return (
                 <li
                   key={m.id}
-                  className={`rounded-lg p-3 transition hover:opacity-95 relative ${
+                  className={`rounded-lg p-3 transition hover:opacity-95 relative overflow-visible ${
                     practice
                       ? 'bg-slate-700/50 border-2 border-white/60'
                       : 'bg-slate-700/50 border-2 border-[var(--pirate-yellow)]'

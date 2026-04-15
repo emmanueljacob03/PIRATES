@@ -333,13 +333,13 @@ export default function ProfilePageClient({
             {umpiringDuties.map((d, i) => {
               const t = (d.duty_time || '12:00').trim();
               return (
-                <li key={d.id ?? i}>
-                  <span className="text-white font-medium">{d.who}</span>
-                  {' — '}
-                  {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
-                  {` at ${t}`}
+                <li key={d.id ?? i} className="text-slate-300">
+                  <span className="text-white">
+                    {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
+                    {` at ${t}`}
+                  </span>
                   {d.notes ? (
-                    <span className="text-slate-400 block sm:inline sm:ml-1">Note (admin): {d.notes}</span>
+                    <span className="text-slate-400 block sm:inline sm:ml-1"> · Note (admin): {d.notes}</span>
                   ) : null}
                 </li>
               );

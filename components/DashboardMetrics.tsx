@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import DesiredCollectionCard from '@/components/DesiredCollectionCard';
 
@@ -17,7 +18,12 @@ function TotalMatchesCard({
 }) {
   const [open, setOpen] = useState(false);
   const [panelMode, setPanelMode] = useState<'hover' | 'tap'>('tap');
+  const [mounted, setMounted] = useState(false);
   const hideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -66,9 +72,52 @@ function TotalMatchesCard({
 
   const showPanel = open;
 
+  const panelClassName =
+    'p-3 rounded-lg bg-slate-800 border border-amber-500/40 shadow-xl text-sm text-slate-200 max-h-[min(50vh,280px)] overflow-y-auto';
+
+  const panelInner = (
+    <>
+      <p className="text-white font-medium mb-2 border-b border-slate-600 pb-2">Match breakdown</p>
+      <ul className="space-y-1.5">
+        <li className="flex justify-between gap-4">
+          <span className="text-slate-400">Matches</span>
+          <span className="font-semibold text-amber-100 tabular-nums">{regularMatches}</span>
+        </li>
+        <li className="flex justify-between gap-4">
+          <span className="text-slate-400">Practice matches</span>
+          <span className="font-semibold text-amber-100 tabular-nums">{practiceMatches}</span>
+        </li>
+      </ul>
+    </>
+  );
+
+  const tapOverlay =
+    mounted &&
+    showPanel &&
+    panelMode === 'tap' &&
+    createPortal(
+      <>
+        <div
+          className="fixed inset-0 z-[200] bg-black/40"
+          aria-hidden
+          onClick={() => setOpen(false)}
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Match breakdown"
+          className={`fixed left-4 right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-[210] mx-auto max-w-lg ${panelClassName}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {panelInner}
+        </div>
+      </>,
+      document.body,
+    );
+
   return (
     <div
-      className="card card-hover-lift min-w-0 relative"
+      className="card card-hover-lift min-w-0 relative overflow-visible"
       onMouseEnter={handlePointerEnter}
       onMouseLeave={handlePointerLeave}
     >
@@ -85,23 +134,14 @@ function TotalMatchesCard({
           {totalMatches}
         </p>
       </button>
-      {showPanel && (
+      {tapOverlay}
+      {showPanel && panelMode === 'hover' && (
         <div
-          className="absolute left-0 top-full z-30 mt-1 min-w-[220px] max-w-[min(100%,280px)] p-3 rounded-lg bg-slate-800 border border-amber-500/40 shadow-xl text-sm text-slate-200"
+          className={`absolute left-0 top-full z-[100] mt-1 min-w-[220px] max-w-[min(100%,280px)] ${panelClassName}`}
           onMouseEnter={handlePointerEnter}
           onMouseLeave={handlePointerLeave}
         >
-          <p className="text-white font-medium mb-2 border-b border-slate-600 pb-2">Match breakdown</p>
-          <ul className="space-y-1.5">
-            <li className="flex justify-between gap-4">
-              <span className="text-slate-400">Matches</span>
-              <span className="font-semibold text-amber-100 tabular-nums">{regularMatches}</span>
-            </li>
-            <li className="flex justify-between gap-4">
-              <span className="text-slate-400">Practice matches</span>
-              <span className="font-semibold text-amber-100 tabular-nums">{practiceMatches}</span>
-            </li>
-          </ul>
+          {panelInner}
         </div>
       )}
     </div>

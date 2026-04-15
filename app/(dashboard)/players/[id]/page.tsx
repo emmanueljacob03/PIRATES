@@ -216,16 +216,17 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
                 }
                 return (
                   <li key={d.id} className="text-slate-300">
-                    <span className="font-medium text-white">{d.who}</span>
-                    {done && (
-                      <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
-                        Completed
-                      </span>
-                    )}
-                    <span className="block text-slate-400 mt-0.5">
+                    <span className="text-white">
                       {dateStr} at {t}
-                      {d.notes ? <span className="text-slate-500"> — Note (admin): {d.notes}</span> : null}
+                      {done && (
+                        <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
+                          Completed
+                        </span>
+                      )}
                     </span>
+                    {d.notes ? (
+                      <span className="block text-slate-400 mt-1">Note (admin): {d.notes}</span>
+                    ) : null}
                   </li>
                 );
               })}
