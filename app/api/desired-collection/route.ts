@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { readDesiredCollectionValue, writeDesiredCollectionValue } from '@/lib/desired-collection';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const cookieStore = await cookies();
+  if (cookieStore.get('pirates_admin')?.value !== 'true') {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const raw = typeof body?.value === 'string' ? body.value.trim() : String(body?.value ?? '0');

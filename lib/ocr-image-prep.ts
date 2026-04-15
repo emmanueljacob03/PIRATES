@@ -1,8 +1,55 @@
 /**
+ * Prepare phone screenshots for Tesseract: HEIC/HEIF → JPEG, validate decodable raster formats.
+ * Upscale + contrast for bowling tables (small decimals).
+ */
+
+function looksHeic(file: File): boolean {
+  const n = (file.name || '').toLowerCase();
+  return (
+    n.endsWith('.heic') ||
+    n.endsWith('.heif') ||
+    file.type === 'image/heic' ||
+    file.type === 'image/heif'
+  );
+}
+
+/**
+ * Ensures the browser and Tesseract receive JPEG/PNG bytes they can decode.
+ * iPhone “live” photos / HEIC exports often fail OCR without conversion (Chrome/desktop especially).
+ */
+export async function normalizeImageFileForOcr(file: File): Promise<File> {
+  const base = (file.name || 'scorecard').replace(/\.[^.]+$/, '') || 'scorecard';
+
+  if (looksHeic(file)) {
+    try {
+      const heic2any = (await import('heic2any')).default;
+      const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      const blob = Array.isArray(out) ? out[0] : out;
+      if (!blob) throw new Error('empty');
+      return new File([blob], `${base}-ocr.jpg`, { type: 'image/jpeg' });
+    } catch {
+      throw new Error(
+        'Could not convert HEIC/HEIF to JPEG. Export the photo as JPEG from your phone, or use a PNG/JPEG screenshot of the scorecard.',
+      );
+    }
+  }
+
+  try {
+    const bm = await createImageBitmap(file);
+    bm.close();
+  } catch {
+    throw new Error(
+      'Could not read this image in the browser. Use a JPEG or PNG screenshot of the scorecard (not RAW).',
+    );
+  }
+
+  return file;
+}
+
+/**
  * Upscale + light contrast for scorecard photos so Tesseract reads small decimals (e.g. 3.4 overs).
  * Uses nearest-neighbor integer scale when possible so digit edges stay sharp.
  */
-
 export async function upscaleImageBlobForOcr(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   try {

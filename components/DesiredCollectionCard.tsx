@@ -29,10 +29,15 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
     try {
       const res = await fetch('/api/desired-collection', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: inputVal }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        alert((data as { error?: string })?.error ?? 'Could not save desired collection.');
+        return;
+      }
       if (data?.value !== undefined) {
         const next = String(data.value);
         setValue(next);

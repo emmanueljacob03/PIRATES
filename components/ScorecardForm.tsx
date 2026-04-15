@@ -217,27 +217,34 @@ export default function ScorecardForm({
     setOcrLoading(true);
     try {
       const { createWorker, PSM } = await import('tesseract.js');
-      const { upscaleImageBlobForOcr } = await import('@/lib/ocr-image-prep');
-      const worker = await createWorker('eng');
+      const { normalizeImageFileForOcr, upscaleImageBlobForOcr } = await import('@/lib/ocr-image-prep');
+
+      const prepBat1 = batting1 ? await normalizeImageFileForOcr(batting1) : null;
+      const prepBat2 = batting2 ? await normalizeImageFileForOcr(batting2) : null;
+
+      const worker = await createWorker('eng', 1, {
+        errorHandler: (err: unknown) => console.warn('[OCR worker]', err),
+      });
       const ocrOne = async (f: File | null) => {
         if (!f) return '';
         const res = await worker.recognize(f);
         return (res?.data?.text ?? '').toString();
       };
       /**
-       * Bowling: upscale image (clearer decimals), then multi-PSM read (column + block + sparse).
-       * Batting stays single-block on originals.
+       * Bowling: normalize (HEIC→JPEG etc.), upscale (clearer decimals), then multi-PSM read (column + block + sparse).
+       * Batting: normalized files, single-block read.
        */
       let bw = '';
       if (bowling1) {
-        let bowlingFileForOcr: File = bowling1;
+        const normalizedBowling = await normalizeImageFileForOcr(bowling1);
+        let bowlingFileForOcr: File = normalizedBowling;
         try {
-          const blob = await upscaleImageBlobForOcr(bowling1);
+          const blob = await upscaleImageBlobForOcr(normalizedBowling);
           bowlingFileForOcr = new File([blob], `${bowling1.name.replace(/\.[^.]+$/, '')}-ocr.png`, {
             type: 'image/png',
           });
         } catch {
-          bowlingFileForOcr = bowling1;
+          bowlingFileForOcr = normalizedBowling;
         }
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
@@ -264,7 +271,7 @@ export default function ScorecardForm({
         user_defined_dpi: '360',
         preserve_interword_spaces: '1',
       });
-      const [b1, b2] = await Promise.all([ocrOne(batting1), ocrOne(batting2)]);
+      const [b1, b2] = await Promise.all([ocrOne(prepBat1), ocrOne(prepBat2)]);
       await worker.terminate();
       const battingText = [b1, b2].filter(Boolean).join('\n');
       const bowlingText = bw || '';
@@ -609,8 +616,9 @@ export default function ScorecardForm({
             </button>
 
             <p className="text-xs text-slate-400">
-              One Read fills every uploaded sheet (batting and/or bowling). Enter catches and run outs manually under
-              Field if needed. Names must match this match’s squad list.
+              One Read fills every uploaded sheet (batting and/or bowling). HEIC/HEIF from iPhones is converted in your
+              browser before OCR; JPEG or PNG screenshots work too. Enter catches and run outs manually under Field if
+              needed. Names must match this match’s squad list.
             </p>
           </div>
         </div>

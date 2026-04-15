@@ -7,6 +7,26 @@ import { format } from 'date-fns';
 
 type Row = Contribution & { notes?: string | null; submitted_by_id?: string | null };
 
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export default function BudgetContributions({
   initial,
   isAdmin,
@@ -169,11 +189,9 @@ export default function BudgetContributions({
           <tr className="text-left text-slate-400 border-b border-slate-600">
             <th className="pb-2">
               {showViewerTable ? (
-                <span className="inline-flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5" title="Choose below who this fee is for">
                   Player name
-                  <span className="text-slate-500 text-[10px] leading-none" title="Choose below who this fee is for" aria-hidden>
-                    ▼
-                  </span>
+                  <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4 opacity-95" />
                 </span>
               ) : (
                 'Player'
@@ -323,13 +341,11 @@ export default function BudgetContributions({
             <label className="block text-sm text-slate-200">
               <span className="inline-flex items-center gap-1.5 text-slate-300 font-medium">
                 Player name
-                <span className="text-slate-500 font-normal text-xs" aria-hidden>
-                  ▼
-                </span>
+                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4 opacity-95" />
               </span>
               <div className="relative mt-1.5">
                 <select
-                  className="input-field w-full max-w-lg appearance-none pr-10 py-2.5 text-slate-100 cursor-pointer"
+                  className="input-field relative z-0 w-full max-w-lg appearance-none pr-11 py-2.5 text-slate-100 cursor-pointer"
                   value={playerForFee}
                   onChange={(e) => setPlayerForFee(e.target.value)}
                   aria-label="Player name — choose registered player"
@@ -342,10 +358,10 @@ export default function BudgetContributions({
                   ))}
                 </select>
                 <span
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"
+                  className="pointer-events-none absolute inset-y-0 right-3 z-10 flex items-center text-[var(--pirate-yellow)]"
                   aria-hidden
                 >
-                  ▼
+                  <ChevronDownIcon className="w-5 h-5 opacity-95" />
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">Tap the field to see every registered player.</p>
