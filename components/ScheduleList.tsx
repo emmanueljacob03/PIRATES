@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { format, addMonths, subMonths, startOfMonth, getDay, getDaysInMonth, parseISO } from 'date-fns';
 import type { Match } from '@/types/database';
+import { isScheduleFinishedAfterFourHours } from '@/lib/umpiring-duties';
 import ScheduleMatchWeather from './ScheduleMatchWeather';
 
 function isPractice(m: Match) {
@@ -100,6 +101,7 @@ export default function ScheduleList({ matches, isAdmin }: { matches: Match[]; i
           ) : (
             matches.map((m) => {
               const practice = isPractice(m);
+              const hideWeather = isScheduleFinishedAfterFourHours(m.date, m.time);
               return (
                 <li
                   key={m.id}
@@ -131,7 +133,7 @@ export default function ScheduleList({ matches, isAdmin }: { matches: Match[]; i
                     {formatMatchDate(m.date)} at {m.time}
                   </p>
                   <p className="text-slate-300">vs {m.opponent} · {m.ground}</p>
-                  <ScheduleMatchWeather match={m} />
+                  {!hideWeather && <ScheduleMatchWeather match={m} />}
                   {m.advisory && (
                     <p className="text-sm text-amber-400 mt-2">⚠ {m.advisory}</p>
                   )}

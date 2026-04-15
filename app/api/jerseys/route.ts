@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createServerSupabase } from '@/lib/supabase-server';
+import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,11 +112,18 @@ export async function PATCH(req: NextRequest) {
     const supabaseCheck = createAdminSupabase();
     const { data: row, error: fetchErr } = await (supabaseCheck as any)
       .from('jerseys')
-      .select('submitted_by_id')
+      .select('submitted_by_id, player_name')
       .eq('id', id)
       .maybeSingle();
     if (fetchErr || !row) return NextResponse.json({ error: 'Jersey not found' }, { status: 404 });
-    if ((row as { submitted_by_id?: string | null }).submitted_by_id !== userId) {
+    const r = row as { submitted_by_id?: string | null; player_name?: string };
+    let owns = r.submitted_by_id === userId;
+    if (!owns && !r.submitted_by_id) {
+      const { data: players } = await (supabaseCheck as any).from('players').select('name, profile_id');
+      const inferred = legacyJerseySubmitterProfileId(r.player_name, players ?? []);
+      owns = inferred === userId;
+    }
+    if (!owns) {
       return NextResponse.json({ error: 'You can only edit your own jersey request' }, { status: 403 });
     }
     if (body.paid !== undefined) {

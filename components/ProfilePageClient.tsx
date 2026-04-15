@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { format, parseISO, isValid } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
 import LogoutButton from '@/components/LogoutButton';
+import { isUmpiringDutyCompleted } from '@/lib/umpiring-duties';
 
 type Profile = {
   name: string | null;
@@ -332,11 +333,17 @@ export default function ProfilePageClient({
           <ul className="text-sm text-slate-300 space-y-2">
             {umpiringDuties.map((d, i) => {
               const t = (d.duty_time || '12:00').trim();
+              const done = isUmpiringDutyCompleted(d.duty_date, d.duty_time);
               return (
                 <li key={d.id ?? i} className="text-slate-300">
                   <span className="text-white">
                     {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
                     {` at ${t}`}
+                    {done && (
+                      <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
+                        Completed
+                      </span>
+                    )}
                   </span>
                   {d.notes ? (
                     <span className="text-slate-400 block sm:inline sm:ml-1"> · Note (admin): {d.notes}</span>

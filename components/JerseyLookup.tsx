@@ -87,8 +87,9 @@ export default function JerseyLookup({
   function canEditRow(j: JerseyRow): boolean {
     if (isAdmin) return true;
     const uid = currentUserId?.trim();
-    const sid = j.submitted_by_id ?? null;
-    return Boolean(uid && sid && sid === uid);
+    if (!uid) return false;
+    const ownerId = j.submitted_by_id ?? j.inferred_submitted_by_id ?? null;
+    return ownerId === uid;
   }
 
   async function saveEdit(id: string) {
@@ -129,6 +130,11 @@ export default function JerseyLookup({
 
   return (
     <div className="space-y-4">
+      {currentUserId && !isAdmin ? (
+        <p className="text-slate-500 text-xs">
+          Use the pencil on <span className="text-slate-400">your</span> jersey row to edit name, size, or notes.
+        </p>
+      ) : null}
       <input
         type="text"
         className="input-field"

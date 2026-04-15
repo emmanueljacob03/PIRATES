@@ -16,6 +16,11 @@ export function isUmpiringDutyCompleted(dutyDate: string, dutyTime?: string | nu
   return Date.now() >= start + 4 * 60 * 60 * 1000;
 }
 
+/** Match or practice is "finished" for schedule UI: same 4h rule — hide weather, etc. */
+export function isScheduleFinishedAfterFourHours(date: string, time?: string | null): boolean {
+  return isUmpiringDutyCompleted(date, time);
+}
+
 /** True from 72h before scheduled duty until duty start (reminder window for profile banner). */
 export function isWithinThreeDaysBeforeUmpiringDuty(dutyDate: string, dutyTime?: string | null): boolean {
   const start = dutyScheduledStartMs(dutyDate, dutyTime);

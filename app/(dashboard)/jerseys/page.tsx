@@ -39,6 +39,7 @@ export default async function JerseysPage() {
           ...r,
           jersey_number: String(r.jersey_number ?? ''),
           submitter_name: submitterName,
+          inferred_submitted_by_id: sid,
         };
       })
       .sort(sortJerseysByNumber);

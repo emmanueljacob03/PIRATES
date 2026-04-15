@@ -3,7 +3,11 @@ import type { Jersey } from '@/types/database';
 /** USD per unpaid new jersey (UI copy + pending totals). */
 export const NEW_JERSEY_AMOUNT_USD = 16;
 
-export type JerseyRow = Jersey & { submitter_name?: string | null };
+export type JerseyRow = Jersey & {
+  submitter_name?: string | null;
+  /** When DB `submitted_by_id` is null, server infers roster owner for legacy rows (same as submitter display). */
+  inferred_submitted_by_id?: string | null;
+};
 
 /** Strip [new]/[existing] prefix from stored notes for display. */
 export function stripJerseyRequestNotePrefix(notes: string | null | undefined): string {
