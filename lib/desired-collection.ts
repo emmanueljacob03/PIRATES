@@ -66,23 +66,81 @@ export async function readDesiredCollectionValue(): Promise<string> {
   return readFromFile();
 }
 
-export async function writeDesiredCollectionValue(value: string): Promise<void> {
+export type WriteDesiredCollectionResult = {
+  dbPersisted: boolean;
+  /** Set when dbPersisted is false (e.g. missing env, missing column, RLS). */
+  detail?: string;
+};
+
+/**
+ * Persists to `.data` (local dev) and Supabase `team_chat_settings` (production).
+ * Requires `SUPABASE_SERVICE_ROLE_KEY` on the server for DB write; run `alter_team_chat_settings_desired_collection.sql` for the column.
+ */
+export async function writeDesiredCollectionValue(value: string): Promise<WriteDesiredCollectionResult> {
   await writeToFile(value);
+
+  let supabase: ReturnType<typeof createAdminSupabase>;
   try {
-    const supabase = createAdminSupabase();
-    const { error } = await (supabase as any).from('team_chat_settings').upsert(
-      {
-        id: 1,
-        desired_collection: value,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'id' },
-    );
-    if (error) {
-      // Common: column not created yet — run supabase/alter_team_chat_settings_desired_collection.sql
-      console.warn('[desired-collection] Supabase upsert failed (file still saved locally):', error.message);
-    }
+    supabase = createAdminSupabase();
   } catch (e) {
-    console.warn('[desired-collection]', e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn('[desired-collection]', msg);
+    return {
+      dbPersisted: false,
+      detail:
+        'Server is missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL. Add them in Vercel (or .env.local) so the value saves to the database.',
+    };
   }
+
+  const { error } = await (supabase as any).from('team_chat_settings').upsert(
+    {
+      id: 1,
+      desired_collection: value,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' },
+  );
+
+  if (error) {
+    console.warn('[desired-collection] Supabase upsert failed:', error.message);
+    return {
+      dbPersisted: false,
+      detail: `${error.message} — If this mentions a missing column, run supabase/alter_team_chat_settings_desired_collection.sql in Supabase SQL Editor.`,
+    };
+  }
+
+  const { data, error: verifyErr } = await supabase
+    .from('team_chat_settings')
+    .select('desired_collection')
+    .eq('id', 1)
+    .maybeSingle();
+
+  if (verifyErr) {
+    console.warn('[desired-collection] verify select failed:', verifyErr.message);
+    return { dbPersisted: false, detail: verifyErr.message };
+  }
+
+  if (data == null) {
+    return {
+      dbPersisted: false,
+      detail: 'No row id=1 in team_chat_settings after save. Run supabase/team_chat_settings.sql then try again.',
+    };
+  }
+
+  const raw = (data as { desired_collection?: string | null }).desired_collection;
+  const gotStr = typeof raw === 'string' ? raw.trim() : raw != null ? String(raw).trim() : '';
+  const want = value.trim();
+  const sameText = gotStr === want;
+  const sameMoney =
+    !Number.isNaN(parseFloat(gotStr)) &&
+    !Number.isNaN(parseFloat(want)) &&
+    Math.abs(parseFloat(gotStr) - parseFloat(want)) < 0.005;
+  if (!sameText && !sameMoney) {
+    return {
+      dbPersisted: false,
+      detail: 'Saved but read-back did not match. Check that column desired_collection exists and RLS allows the service role.',
+    };
+  }
+
+  return { dbPersisted: true };
 }

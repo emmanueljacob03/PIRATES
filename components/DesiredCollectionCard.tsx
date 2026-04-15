@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdmin: boolean; initialValue: string }) {
@@ -9,20 +9,7 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(initialValue);
   const [saving, setSaving] = useState(false);
-
-  async function load() {
-    const res = await fetch('/api/desired-collection', { cache: 'no-store' });
-    const data = await res.json();
-    if (typeof data?.value === 'string') {
-      const next = data.value.trim() || '0.00';
-      setValue(next);
-      setInputVal(next);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const [persistWarning, setPersistWarning] = useState<string | null>(null);
 
   async function handleSave() {
     setSaving(true);
@@ -43,7 +30,17 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
         setValue(next);
         setInputVal(next);
         setEditing(false);
-        await load();
+        if ((data as { persisted?: boolean }).persisted === false) {
+          const d = (data as { detail?: string }).detail;
+          setPersistWarning(
+            d ??
+              'Value did not save to the database. Set SUPABASE_SERVICE_ROLE_KEY on the host and run the SQL migration for desired_collection.',
+          );
+        } else {
+          setPersistWarning(null);
+        }
+        // Do not GET /api/desired-collection here: on serverless, read can return 0.00 from another
+        // instance’s empty .data file and overwrite the value we just set from this POST response.
         router.refresh();
       }
     } finally {
@@ -56,6 +53,9 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
   return (
     <div className="card card-hover-lift">
       <p className="text-slate-400 text-sm">Desired collections (Current Season)</p>
+      {persistWarning && isAdmin && (
+        <p className="text-xs text-amber-400 mt-2 leading-snug">{persistWarning}</p>
+      )}
       {editing && isAdmin ? (
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           <span className="text-white">$</span>

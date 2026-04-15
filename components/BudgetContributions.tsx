@@ -43,6 +43,9 @@ export default function BudgetContributions({
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(initial);
   const [playerName, setPlayerName] = useState('');
+  /** Admin: roster dropdown selection; `__other__` shows free-text field. */
+  const [adminPlayerPick, setAdminPlayerPick] = useState('');
+  const [adminPlayerOther, setAdminPlayerOther] = useState('');
   const [amount, setAmount] = useState('');
   const [paid, setPaid] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
@@ -108,13 +111,19 @@ export default function BudgetContributions({
       return;
     }
 
-    if (!playerName.trim()) return;
+    const resolvedAdminName =
+      rosterPlayerNames.length > 0
+        ? adminPlayerPick === '__other__'
+          ? adminPlayerOther.trim()
+          : adminPlayerPick.trim()
+        : playerName.trim();
+    if (!resolvedAdminName) return;
     setLoading(true);
     const res = await fetch('/api/contributions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        player_name: playerName.trim(),
+        player_name: resolvedAdminName,
         amount: amt,
         paid,
         date: new Date().toISOString().slice(0, 10),
@@ -126,6 +135,8 @@ export default function BudgetContributions({
     if (data?.id) {
       setRows((prev) => [data as Row, ...prev]);
       setPlayerName('');
+      setAdminPlayerPick('');
+      setAdminPlayerOther('');
       setAmount('');
       setPaid(false);
       setAdminNotes('');
@@ -194,7 +205,12 @@ export default function BudgetContributions({
                   <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4 opacity-95" />
                 </span>
               ) : (
-                'Player'
+                <span className="inline-flex items-center gap-1.5">
+                  Player
+                  {rosterPlayerNames.length > 0 && (
+                    <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4" aria-hidden />
+                  )}
+                </span>
               )}
             </th>
             <th className="pb-2">Match fee</th>
@@ -338,14 +354,14 @@ export default function BudgetContributions({
             paid when received.
           </p>
           {rosterPlayerNames.length > 0 ? (
-            <label className="block text-sm text-slate-200">
-              <span className="inline-flex items-center gap-1.5 text-slate-300 font-medium">
+            <label className="block text-sm text-slate-200 overflow-visible">
+              <span className="inline-flex items-center gap-2 text-slate-300 font-medium">
                 Player name
-                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-4 h-4 opacity-95" />
+                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-5 h-5 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
               </span>
-              <div className="relative mt-1.5">
+              <div className="relative mt-1.5 overflow-visible">
                 <select
-                  className="input-field relative z-0 w-full max-w-lg appearance-none pr-11 py-2.5 text-slate-100 cursor-pointer"
+                  className="input-field relative z-0 w-full max-w-lg appearance-none pr-12 py-2.5 pl-3 text-slate-100 cursor-pointer"
                   value={playerForFee}
                   onChange={(e) => setPlayerForFee(e.target.value)}
                   aria-label="Player name — choose registered player"
@@ -358,10 +374,10 @@ export default function BudgetContributions({
                   ))}
                 </select>
                 <span
-                  className="pointer-events-none absolute inset-y-0 right-3 z-10 flex items-center text-[var(--pirate-yellow)]"
+                  className="pointer-events-none absolute inset-y-0 right-2 z-10 flex items-center rounded-md bg-slate-900/90 px-1 text-[var(--pirate-yellow)] ring-1 ring-[var(--pirate-yellow)]/40"
                   aria-hidden
                 >
-                  <ChevronDownIcon className="w-5 h-5 opacity-95" />
+                  <ChevronDownIcon className="w-6 h-6" />
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">Tap the field to see every registered player.</p>
@@ -404,14 +420,61 @@ export default function BudgetContributions({
 
       {isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">
+          {rosterPlayerNames.length > 0 ? (
+            <div className="space-y-2 max-w-lg">
+              <span className="inline-flex items-center gap-2 text-sm text-slate-300 font-medium">
+                Player name
+                <ChevronDownIcon className="text-[var(--pirate-yellow)] shrink-0 w-5 h-5 drop-shadow-[0_0_1px_rgba(0,0,0,0.9)]" />
+              </span>
+              <div className="relative overflow-visible">
+                <select
+                  className="input-field w-full appearance-none pr-12 py-2.5 pl-3 text-slate-100 cursor-pointer"
+                  value={adminPlayerPick}
+                  onChange={(e) => {
+                    setAdminPlayerPick(e.target.value);
+                    if (e.target.value !== '__other__') setAdminPlayerOther('');
+                  }}
+                  aria-label="Player name — choose from roster"
+                  required
+                >
+                  <option value="">Select player…</option>
+                  {rosterPlayerNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                  <option value="__other__">Other (type name)…</option>
+                </select>
+                <span
+                  className="pointer-events-none absolute inset-y-0 right-2 z-10 flex items-center rounded-md bg-slate-900/90 px-1 text-[var(--pirate-yellow)] ring-1 ring-[var(--pirate-yellow)]/40"
+                  aria-hidden
+                >
+                  <ChevronDownIcon className="w-6 h-6" />
+                </span>
+              </div>
+              {adminPlayerPick === '__other__' && (
+                <input
+                  className="input-field w-full"
+                  placeholder="Enter player name"
+                  value={adminPlayerOther}
+                  onChange={(e) => setAdminPlayerOther(e.target.value)}
+                  aria-label="Custom player name"
+                  required
+                />
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 items-end">
+              <input
+                className="input-field flex-1 min-w-[120px]"
+                placeholder="Player name"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                required
+              />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2 items-end">
-            <input
-              className="input-field flex-1 min-w-[120px]"
-              placeholder="Player name"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              required
-            />
             <input
               type="number"
               step="0.01"

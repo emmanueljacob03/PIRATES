@@ -91,10 +91,14 @@ export function scoreRosterNameAgainstBowlingOcrPrefix(
     if (x > best) best = x;
   };
 
-  if (roster.includes(ocr) && ocr.length >= 4) bump(88 + Math.min(ocr.length, 10) * 0.4);
-  if (ocr.includes(roster) && roster.length >= 5) bump(91);
-
   const rParts = roster.split(' ').filter((t) => t.length > 0);
+  /** Full roster name (2+ words) appears verbatim in OCR — strongest signal for batting/bowling rows. */
+  if (rParts.length >= 2 && roster.length >= 4 && ocr.includes(roster)) {
+    bump(100);
+  }
+
+  if (roster.includes(ocr) && ocr.length >= 4) bump(88 + Math.min(ocr.length, 10) * 0.4);
+  if (rParts.length < 2 && ocr.includes(roster) && roster.length >= 5) bump(91);
   const oParts = ocr.split(' ').filter((t) => t.length > 0);
 
   const cR = lettersOnly(roster);
@@ -187,6 +191,9 @@ export function scoreRosterAgainstFullBowlingLine(playerName: string, line: stri
   const fromBlob = scoreRosterNameAgainstBowlingOcrPrefix(playerName, blob);
   return Math.min(100, Math.round(Math.max(fromPrefix, fromBlob) * 10) / 10);
 }
+
+/** Prefer the batting row whose text best matches the roster (full-name hits score ~100). */
+const BATTING_LINE_SCORE_MIN = 52;
 
 /** High-confidence row ↔ player edges; second pass uses RELAXED for anyone still unmatched. */
 const BOWLING_GREEDY_MIN_SCORE = 72;
@@ -400,12 +407,28 @@ export function aliasesForScorecardName(name: string): string[] {
 
 /**
  * Pick the OCR line for this player; avoid reusing a line (claim indices).
+ * First: choose the unclaimed line with the best roster↔line score (full name in OCR ranks highest).
+ * Fallback: legacy substring / token heuristics.
  */
 export function findLineForPlayer(
   lines: string[],
   playerDisplayName: string,
   claimed: Set<number>,
 ): { line: string; lineIndex: number } | null {
+  let bestI = -1;
+  let bestScore = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (claimed.has(i)) continue;
+    const sc = scoreRosterAgainstFullBowlingLine(playerDisplayName, lines[i]!);
+    if (sc > bestScore) {
+      bestScore = sc;
+      bestI = i;
+    }
+  }
+  if (bestI >= 0 && bestScore >= BATTING_LINE_SCORE_MIN) {
+    return { line: lines[bestI]!, lineIndex: bestI };
+  }
+
   const lowerLines = lines.map((l) => l.toLowerCase());
   const aliases = aliasesForScorecardName(playerDisplayName);
 

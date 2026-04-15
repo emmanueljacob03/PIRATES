@@ -23,8 +23,12 @@ export async function POST(req: NextRequest) {
     const raw = typeof body?.value === 'string' ? body.value.trim() : String(body?.value ?? '0');
     const num = parseFloat(raw);
     const nextValue = isNaN(num) ? '0.00' : num.toFixed(2);
-    await writeDesiredCollectionValue(nextValue);
-    return NextResponse.json({ value: nextValue });
+    const result = await writeDesiredCollectionValue(nextValue);
+    return NextResponse.json({
+      value: nextValue,
+      persisted: result.dbPersisted,
+      ...(result.detail ? { detail: result.detail } : {}),
+    });
   } catch {
     const value = await readDesiredCollectionValue();
     return NextResponse.json({ value });

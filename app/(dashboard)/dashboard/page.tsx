@@ -10,9 +10,14 @@ import Playing11Widget from '@/components/Playing11Widget';
 import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
+import { unstable_noStore as noStore } from 'next/cache';
 import { readDesiredCollectionValue } from '@/lib/desired-collection';
 
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
+  noStore();
   const cookieStore = await cookies();
   const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
