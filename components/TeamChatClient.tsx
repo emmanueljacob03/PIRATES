@@ -11,7 +11,6 @@ import { compressImageForUpload } from '@/lib/image-compress';
 import { chatNameColorForUser } from '@/lib/chat-name-color';
 import { parseChatBody, formatPollBody, formatImageBody, formatAudioBody, SYS_ROOM_ICON_BODY } from '@/lib/chat-parse';
 import { CHAT_EMOJI_GRID } from '@/lib/chat-emojis';
-import { chatImageUrlsForUser } from '@/lib/chat-user-images';
 import TeamChatPollBlock from '@/components/TeamChatPollBlock';
 import ChatVoiceRecorder from '@/components/ChatVoiceRecorder';
 
@@ -466,10 +465,26 @@ export default function TeamChatClient({
 
   const sorted = useMemo(() => [...messages].sort((a, b) => a.created_at.localeCompare(b.created_at)), [messages]);
 
+  /** Image URLs per user (for “Photos” affordance — do not open gallery from plain name/message taps). */
+  const chatPhotoUrlsByUserId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const m of messages) {
+      const p = parseChatBody(m.body);
+      if (p.kind !== 'image') continue;
+      const list = map.get(m.user_id) ?? [];
+      list.push(p.url);
+      map.set(m.user_id, list);
+    }
+    for (const [uid, urls] of map) {
+      map.set(uid, Array.from(new Set(urls)));
+    }
+    return map;
+  }, [messages]);
+
   const userGalleryUrls = useMemo(() => {
     if (!userGallery) return [];
-    return chatImageUrlsForUser(messages, userGallery.userId);
-  }, [messages, userGallery]);
+    return chatPhotoUrlsByUserId.get(userGallery.userId) ?? [];
+  }, [chatPhotoUrlsByUserId, userGallery]);
 
   if (isDemo || !userId) {
     return (
@@ -625,15 +640,24 @@ export default function TeamChatClient({
                       Admin alert
                     </div>
                   )}
-                  <button
-                    type="button"
-                    className={`text-xs font-semibold mb-0.5 w-full text-left bg-transparent border-0 p-0 cursor-pointer hover:underline ${alert ? 'text-red-200' : ''}`}
-                    style={alert ? undefined : { color: nameColor }}
-                    onClick={() => setUserGallery({ userId: m.user_id, name: m.sender_name })}
-                  >
-                    {m.sender_name}
-                    {mine ? ' · you' : ''}
-                  </button>
+                  <div className="flex items-baseline gap-2 mb-0.5 flex-wrap">
+                    <span
+                      className={`text-xs font-semibold ${alert ? 'text-red-200' : ''}`}
+                      style={alert ? undefined : { color: nameColor }}
+                    >
+                      {m.sender_name}
+                      {mine ? ' · you' : ''}
+                    </span>
+                    {(chatPhotoUrlsByUserId.get(m.user_id)?.length ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        className="text-[10px] font-medium text-slate-400 hover:text-emerald-400 underline underline-offset-2 shrink-0 p-0 border-0 bg-transparent cursor-pointer"
+                        onClick={() => setUserGallery({ userId: m.user_id, name: m.sender_name })}
+                      >
+                        Photos
+                      </button>
+                    )}
+                  </div>
                   {isEditing ? (
                     <div className="space-y-2 mt-1" onClick={(e) => e.stopPropagation()}>
                       <textarea
