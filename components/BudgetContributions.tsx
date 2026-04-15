@@ -167,7 +167,18 @@ export default function BudgetContributions({
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-slate-400 border-b border-slate-600">
-            <th className="pb-2">{showViewerTable ? 'Account' : 'Player'}</th>
+            <th className="pb-2">
+              {showViewerTable ? (
+                <span className="inline-flex items-center gap-1.5">
+                  Player name
+                  <span className="text-slate-500 text-[10px] leading-none" title="Choose below who this fee is for" aria-hidden>
+                    ▼
+                  </span>
+                </span>
+              ) : (
+                'Player'
+              )}
+            </th>
             <th className="pb-2">Match fee</th>
             {showViewerTable ? (
               <th className="pb-2">Note</th>
@@ -304,18 +315,24 @@ export default function BudgetContributions({
       {viewerMode && !isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">
           <p className="text-xs text-slate-400">
-            Log your match fee or donation. Choose a registered player if this entry is for someone else; otherwise
-            it uses your account. Admin will mark paid when received.
+            Pick <strong>Player name</strong> from the list (opens all registered players), enter amount, then Add. The
+            fee is recorded for that player. Leave as &quot;My account&quot; to log under your own name. Admin marks
+            paid when received.
           </p>
-          {rosterPlayerNames.length > 0 && (
-            <label className="block text-sm text-slate-300">
-              <span className="text-slate-500 text-xs uppercase tracking-wide">Player</span>
-              <div className="relative mt-1">
+          {rosterPlayerNames.length > 0 ? (
+            <label className="block text-sm text-slate-200">
+              <span className="inline-flex items-center gap-1.5 text-slate-300 font-medium">
+                Player name
+                <span className="text-slate-500 font-normal text-xs" aria-hidden>
+                  ▼
+                </span>
+              </span>
+              <div className="relative mt-1.5">
                 <select
-                  className="input-field w-full max-w-md appearance-none pr-9 py-2"
+                  className="input-field w-full max-w-lg appearance-none pr-10 py-2.5 text-slate-100 cursor-pointer"
                   value={playerForFee}
                   onChange={(e) => setPlayerForFee(e.target.value)}
-                  aria-label="Select registered player"
+                  aria-label="Player name — choose registered player"
                 >
                   <option value="">My account (self)</option>
                   {rosterPlayerNames.map((n) => (
@@ -325,32 +342,44 @@ export default function BudgetContributions({
                   ))}
                 </select>
                 <span
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]"
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"
                   aria-hidden
                 >
                   ▼
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500 mt-1">Tap the field to see every registered player.</p>
             </label>
+          ) : (
+            <p className="text-xs text-amber-400/90">
+              Roster not loaded — you can still add a fee under your account only. Refresh or contact admin for the
+              player list.
+            </p>
           )}
-          <div className="flex flex-wrap gap-2 items-end">
-            <input
-              type="number"
-              step="0.01"
-              className="input-field w-32"
-              placeholder="Amount ($)"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              required
-            />
-            <input
-              className="input-field flex-1 min-w-[160px]"
-              placeholder="Optional: match fee, donation, etc."
-              value={viewerReason}
-              onChange={(e) => setViewerReason(e.target.value)}
-              maxLength={500}
-            />
-            <button type="submit" className="btn-primary" disabled={loading}>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:items-end">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="text-xs text-slate-500">Amount ($)</span>
+              <input
+                type="number"
+                step="0.01"
+                className="input-field w-full sm:w-36"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+              <span className="text-xs text-slate-500">Note (optional)</span>
+              <input
+                className="input-field w-full"
+                placeholder="Match fee, donation, etc."
+                value={viewerReason}
+                onChange={(e) => setViewerReason(e.target.value)}
+                maxLength={500}
+              />
+            </div>
+            <button type="submit" className="btn-primary self-start sm:self-end shrink-0" disabled={loading}>
               {loading ? 'Adding…' : 'Add'}
             </button>
           </div>
