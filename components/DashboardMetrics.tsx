@@ -24,7 +24,11 @@ export default function DashboardMetrics({
         <p className="text-slate-400 text-sm">Total Players</p>
         <p className="text-xl font-semibold text-white mt-1">{totalPlayers}</p>
       </div>
-      <DesiredCollectionCard isAdmin={isAdmin} initialValue={desiredCollectionsInitial} />
+      <DesiredCollectionCard
+        key={desiredCollectionsInitial}
+        isAdmin={isAdmin}
+        initialValue={desiredCollectionsInitial}
+      />
       <div className="card card-hover-lift min-w-0">
         <p className="text-slate-400 text-sm">Total Matches</p>
         <p className="text-xl font-semibold text-white mt-1">{totalMatches}</p>

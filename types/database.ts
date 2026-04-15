@@ -205,15 +205,18 @@ export interface Database {
         Row: {
           id: number;
           header_image_url: string | null;
+          desired_collection: string | null;
           updated_at: string;
         };
         Insert: {
           id?: number;
           header_image_url?: string | null;
+          desired_collection?: string | null;
           updated_at?: string;
         };
         Update: Partial<{
           header_image_url: string | null;
+          desired_collection?: string | null;
           updated_at: string;
         }>;
       };

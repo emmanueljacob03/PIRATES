@@ -10,6 +10,7 @@ import Playing11Widget from '@/components/Playing11Widget';
 import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
+import { readDesiredCollectionValue } from '@/lib/desired-collection';
 
 export default async function DashboardPage() {
   const cookieStore = await cookies();
@@ -22,6 +23,12 @@ export default async function DashboardPage() {
   let mvp: DashboardMvp | null = null;
   let desiredCollectionsInitial = '0.00';
   let pendingByPlayer: { name: string; jersey: number; contribution: number; total: number }[] = [];
+
+  try {
+    desiredCollectionsInitial = await readDesiredCollectionValue();
+  } catch {
+    desiredCollectionsInitial = '0.00';
+  }
 
   const supabase = codeVerified ? createAdminSupabase() : await createServerSupabase();
   try {

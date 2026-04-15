@@ -10,39 +10,40 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
   const [inputVal, setInputVal] = useState(initialValue);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setValue(initialValue);
-    setInputVal(initialValue);
-  }, [initialValue]);
-
   async function load() {
     const res = await fetch('/api/desired-collection', { cache: 'no-store' });
     const data = await res.json();
-    const v = typeof data?.value === 'string' && data.value.trim() ? data.value : value;
-    setValue(v);
-    setInputVal(v);
+    if (typeof data?.value === 'string') {
+      const next = data.value.trim() || '0.00';
+      setValue(next);
+      setInputVal(next);
+    }
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   async function handleSave() {
     setSaving(true);
-    const res = await fetch('/api/desired-collection', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: inputVal }),
-    });
-    const data = await res.json();
-    if (data?.value !== undefined) {
-      const next = String(data.value);
-      setValue(next);
-      setInputVal(next);
-      setEditing(false);
-      router.refresh();
+    try {
+      const res = await fetch('/api/desired-collection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: inputVal }),
+      });
+      const data = await res.json();
+      if (data?.value !== undefined) {
+        const next = String(data.value);
+        setValue(next);
+        setInputVal(next);
+        setEditing(false);
+        await load();
+        router.refresh();
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const display = value.startsWith('$') ? value : `$${value}`;
