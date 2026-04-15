@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdmin: boolean; initialValue: string }) {
+  const router = useRouter();
   const [value, setValue] = useState(initialValue);
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(initialValue);
@@ -14,7 +16,7 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
   }, [initialValue]);
 
   async function load() {
-    const res = await fetch('/api/desired-collection');
+    const res = await fetch('/api/desired-collection', { cache: 'no-store' });
     const data = await res.json();
     const v = typeof data?.value === 'string' && data.value.trim() ? data.value : value;
     setValue(v);
@@ -33,9 +35,12 @@ export default function DesiredCollectionCard({ isAdmin, initialValue }: { isAdm
       body: JSON.stringify({ value: inputVal }),
     });
     const data = await res.json();
-    if (data?.value) {
-      setValue(data.value);
+    if (data?.value !== undefined) {
+      const next = String(data.value);
+      setValue(next);
+      setInputVal(next);
       setEditing(false);
+      router.refresh();
     }
     setSaving(false);
   }

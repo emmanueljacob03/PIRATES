@@ -56,6 +56,10 @@ export default function JerseysPageClient({ initial, isAdmin }: { initial: Jerse
     setJerseys((prev) => prev.filter((j) => j.id !== id));
   }, [isAdmin]);
 
+  const handleJerseyUpdated = useCallback((row: JerseyRow) => {
+    setJerseys((prev) => prev.map((j) => (j.id === row.id ? { ...j, ...row } : j)));
+  }, []);
+
   const existingNumbers = jerseys.map((j) => String(j.jersey_number));
 
   return (
@@ -77,6 +81,7 @@ export default function JerseysPageClient({ initial, isAdmin }: { initial: Jerse
           isAdmin={isAdmin}
           onPaidToggle={isAdmin ? handlePaidToggle : undefined}
           onDeleteJersey={isAdmin ? handleDeleteJersey : undefined}
+          onJerseyUpdated={isAdmin ? handleJerseyUpdated : undefined}
         />
       </div>
       <div className="card">

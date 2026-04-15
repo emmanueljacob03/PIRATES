@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { scorecardDisplayName } from '@/lib/player-display-name';
+import { getPlayerCardBack } from '@/lib/player-card-bio';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 
 export default async function PlayerProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -55,7 +56,17 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
       displayName = scorecardDisplayName(player.name, null, null);
     }
 
-    const { data: statsData } = await supabase.from('match_stats').select('*').eq('player_id', id);
+    const nameNorm = (player.name ?? '').trim().toLowerCase();
+    const { data: sameNamePlayers } = await supabase.from('players').select('id, name');
+    const idsForName =
+      nameNorm.length > 0
+        ? (sameNamePlayers ?? [])
+            .filter((p: { name: string }) => (p.name ?? '').trim().toLowerCase() === nameNorm)
+            .map((p: { id: string }) => p.id)
+        : [id];
+    const statPlayerIds = idsForName.length > 0 ? idsForName : [id];
+
+    const { data: statsData } = await supabase.from('match_stats').select('*').in('player_id', statPlayerIds);
     type StatRow = { runs?: number; balls?: number; overs?: number; wickets?: number; runs_conceded?: number; catches?: number; runouts?: number; mvp?: boolean };
     const stats = (statsData ?? []) as StatRow[];
 
@@ -85,6 +96,8 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
 
   if (!player) notFound();
 
+  const cardBack = getPlayerCardBack(displayName, player.role);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -105,7 +118,25 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
           <div>
             <h2 className="text-2xl font-bold text-white">{displayName}</h2>
             {player.jersey_number != null && <p className="text-pirate-gold">Jersey #{player.jersey_number}</p>}
-            <p className="text-slate-400">Role: {player.role}</p>
+            <p className="text-slate-400">Role: {cardBack.role}</p>
+            {cardBack.records.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm text-slate-300 list-none pl-0">
+                {cardBack.records.map((r, i) => (
+                  <li
+                    key={i}
+                    className={
+                      r.tier === 'strong'
+                        ? 'font-semibold text-[var(--pirate-yellow)]'
+                        : r.tier === 'accent'
+                          ? 'text-slate-200'
+                          : 'text-slate-400'
+                    }
+                  >
+                    {r.text}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {profileContact && (
               <div className="mt-4 pt-4 border-t border-slate-600 space-y-1 text-sm">
                 <p className="text-slate-500 uppercase text-xs tracking-wide">Account / contact</p>

@@ -1,0 +1,6 @@
+-- Player roles and records are maintained in code: `lib/player-card-bio.ts`
+-- (used by the players grid flip card and `/players/[id]` profile).
+-- Use substring / “% name” style tests there (e.g. chandu + pammi, venkat + ponnam).
+--
+-- Optional: if you added an `honors` column only for the old SQL approach, you can drop it:
+-- ALTER TABLE players DROP COLUMN IF EXISTS honors;

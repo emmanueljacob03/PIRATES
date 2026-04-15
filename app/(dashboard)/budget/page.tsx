@@ -12,17 +12,23 @@ export default async function BudgetPage() {
 
   let contributions: Contribution[] = [];
   let expenses: (Expense & { bought?: boolean })[] = [];
+  let rosterPlayerNames: string[] = [];
   try {
     const supabase = codeVerified ? createAdminSupabase() : await createServerSupabase();
-    const [contributionsRes, expensesRes] = await Promise.all([
+    const [contributionsRes, expensesRes, playersRes] = await Promise.all([
       (supabase as any).from('contributions').select('*').order('date', { ascending: false }),
       (supabase as any).from('expenses').select('*').order('created_at', { ascending: false }),
+      (supabase as any).from('players').select('name').order('name'),
     ]);
     contributions = (contributionsRes.data ?? []) as Contribution[];
     expenses = (expensesRes.data ?? []) as (Expense & { bought?: boolean })[];
+    rosterPlayerNames = (playersRes.data ?? [])
+      .map((p: { name: string }) => (p.name ?? '').trim())
+      .filter(Boolean);
   } catch {
     contributions = [];
     expenses = [];
+    rosterPlayerNames = [];
   }
 
   const totalContributions = contributions.reduce((s, c) => s + Number(c.amount), 0);
@@ -34,6 +40,7 @@ export default async function BudgetPage() {
     initial: contributions,
     isAdmin,
     viewerMode: Boolean(codeVerified && !isAdmin),
+    rosterPlayerNames,
   };
 
   if (!codeVerified) {

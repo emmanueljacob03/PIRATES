@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 const STORE_PATH = path.join(process.cwd(), '.data', 'desired-collection.json');
 
 async function readValue() {
@@ -22,7 +24,10 @@ async function writeValue(value: string) {
 
 export async function GET() {
   const value = await readValue();
-  return NextResponse.json({ value });
+  return NextResponse.json(
+    { value },
+    { headers: { 'Cache-Control': 'no-store, must-revalidate' } },
+  );
 }
 
 export async function POST(req: NextRequest) {

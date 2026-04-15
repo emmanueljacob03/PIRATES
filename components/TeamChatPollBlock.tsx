@@ -21,7 +21,7 @@ export default function TeamChatPollBlock({
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [err, setErr] = useState('');
-  /** Tap the vote count to show who voted — names appear inline next to the option, not below. */
+  /** Tap the vote count to show who voted — names in a numbered list below the option. */
   const [namesOpenFor, setNamesOpenFor] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -133,19 +133,6 @@ export default function TeamChatPollBlock({
                   }`}
                 >
                   <span className="font-medium break-words">{opt}</span>
-                  {showNames ? (
-                    <span className="text-[11px] font-normal leading-snug">
-                      <span className="text-slate-500"> · </span>
-                      {votersHere.map((v, idx) => (
-                        <span key={v.user_id}>
-                          {idx > 0 ? <span className="text-slate-600"> · </span> : null}
-                          <span className="font-semibold" style={{ color: chatNameColorForUser(v.user_id) }}>
-                            {nameById.get(v.user_id) ?? v.user_id.slice(0, 8)}
-                          </span>
-                        </span>
-                      ))}
-                    </span>
-                  ) : null}
                 </button>
                 <button
                   type="button"
@@ -167,13 +154,26 @@ export default function TeamChatPollBlock({
                   {loading ? '…' : c}
                 </button>
               </div>
+              {showNames ? (
+                <ol className="list-decimal list-inside px-3 pb-2 space-y-0.5 text-[11px] text-slate-300 border-t border-slate-800/80 pt-1.5">
+                  {votersHere.map((v) => (
+                    <li
+                      key={v.user_id}
+                      className="font-medium break-words pl-0.5"
+                      style={{ color: chatNameColorForUser(v.user_id) }}
+                    >
+                      {nameById.get(v.user_id) ?? v.user_id.slice(0, 8)}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
             </li>
           );
         })}
       </ul>
       {err ? <p className="text-[11px] text-red-400">{err}</p> : null}
       {!userId ? <p className="text-[10px] text-slate-500">Sign in to vote · Tap the number to see names</p> : (
-        <p className="text-[10px] text-slate-500">Tap the vote count to show who voted (inline)</p>
+        <p className="text-[10px] text-slate-500">Tap the vote count to show who voted (numbered list)</p>
       )}
     </div>
   );

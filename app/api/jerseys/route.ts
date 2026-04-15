@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createServerSupabase } from '@/lib/supabase-server';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   if (cookieStore.get('pirates_code_verified')?.value !== 'true' && cookieStore.get('pirates_demo')?.value !== 'true') {
@@ -74,21 +76,47 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
-  let body: { id?: string; paid?: boolean } = {};
+  let body: {
+    id?: string;
+    paid?: boolean;
+    player_name?: string;
+    size?: string;
+    notes?: string | null;
+  } = {};
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const id = body.id;
-  const paid = body.paid;
-  if (!id || typeof paid !== 'boolean') {
-    return NextResponse.json({ error: 'id and paid required' }, { status: 400 });
+  const id = body.id?.trim();
+  if (!id) {
+    return NextResponse.json({ error: 'id required' }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (typeof body.paid === 'boolean') updates.paid = body.paid;
+  if (body.player_name !== undefined) {
+    const pn = String(body.player_name).trim();
+    if (!pn) return NextResponse.json({ error: 'player_name cannot be empty' }, { status: 400 });
+    updates.player_name = pn;
+  }
+  if (body.size !== undefined) {
+    const sz = String(body.size).trim();
+    if (!sz) return NextResponse.json({ error: 'size cannot be empty' }, { status: 400 });
+    updates.size = sz;
+  }
+  if (body.notes !== undefined) {
+    const n = body.notes === null ? null : String(body.notes).trim();
+    updates.notes = n || null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'id and at least one field required' }, { status: 400 });
   }
 
   try {
     const supabase = createAdminSupabase();
-    const { data, error } = await (supabase as any).from('jerseys').update({ paid }).eq('id', id).select().single();
+    const { data, error } = await (supabase as any).from('jerseys').update(updates).eq('id', id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json(data);
   } catch (e) {

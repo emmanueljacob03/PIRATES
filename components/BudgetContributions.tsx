@@ -11,11 +11,14 @@ export default function BudgetContributions({
   initial,
   isAdmin,
   viewerMode,
+  rosterPlayerNames = [],
 }: {
   initial: Row[];
   isAdmin?: boolean;
   /** Logged-in member: match fee form without paid checkbox; uses account name. */
   viewerMode?: boolean;
+  /** Roster names for “pay for” dropdown (viewer only). */
+  rosterPlayerNames?: string[];
 }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(initial);
@@ -24,6 +27,7 @@ export default function BudgetContributions({
   const [paid, setPaid] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [viewerReason, setViewerReason] = useState('');
+  const [playerForFee, setPlayerForFee] = useState('');
   const [loading, setLoading] = useState(false);
   const [viewMore, setViewMore] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -62,6 +66,7 @@ export default function BudgetContributions({
             amount: amt,
             notes: viewerReason.trim() || undefined,
             date: new Date().toISOString().slice(0, 10),
+            ...(playerForFee.trim() ? { player_name: playerForFee.trim() } : {}),
           }),
         });
         const data = await res.json().catch(() => null);
@@ -74,6 +79,7 @@ export default function BudgetContributions({
           setRows((prev) => [data as Row, ...prev]);
           setAmount('');
           setViewerReason('');
+          setPlayerForFee('');
           router.refresh();
         }
       } catch {
@@ -298,9 +304,35 @@ export default function BudgetContributions({
       {viewerMode && !isAdmin && (
         <form onSubmit={handleAdd} className="flex flex-col gap-3 pt-4 border-t border-slate-600">
           <p className="text-xs text-slate-400">
-            Log your match fee or donation. Your <strong>account name</strong> appears in the table. Admin will mark
-            paid when received.
+            Log your match fee or donation. Choose a registered player if this entry is for someone else; otherwise
+            it uses your account. Admin will mark paid when received.
           </p>
+          {rosterPlayerNames.length > 0 && (
+            <label className="block text-sm text-slate-300">
+              <span className="text-slate-500 text-xs uppercase tracking-wide">Player</span>
+              <div className="relative mt-1">
+                <select
+                  className="input-field w-full max-w-md appearance-none pr-9 py-2"
+                  value={playerForFee}
+                  onChange={(e) => setPlayerForFee(e.target.value)}
+                  aria-label="Select registered player"
+                >
+                  <option value="">My account (self)</option>
+                  {rosterPlayerNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]"
+                  aria-hidden
+                >
+                  ▼
+                </span>
+              </div>
+            </label>
+          )}
           <div className="flex flex-wrap gap-2 items-end">
             <input
               type="number"

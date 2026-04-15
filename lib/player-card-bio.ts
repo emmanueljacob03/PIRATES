@@ -13,6 +13,35 @@ export type PlayerCardBack = {
 };
 
 const ENTRIES: Array<{ test: (displayName: string) => boolean; back: PlayerCardBack }> = [
+  /** “% name” style: both substrings must appear (order-free). More specific chandu rules before generic `chandu`. */
+  {
+    test: (dn) => /chandu/i.test(dn) && /pammi/i.test(dn),
+    back: {
+      role: 'Bowling all rounder',
+      records: [],
+    },
+  },
+  {
+    test: (dn) => /venkat/i.test(dn) && /ponnam/i.test(dn),
+    back: {
+      role: 'Bowling all rounder',
+      records: [{ text: 'Man of the Match in 2025 summer season final', tier: 'accent' }],
+    },
+  },
+  {
+    test: (dn) => /hemanth/i.test(dn),
+    back: {
+      role: 'Bowling all rounder',
+      records: [],
+    },
+  },
+  {
+    test: (dn) => /\bsiddarth\b/i.test(dn),
+    back: {
+      role: 'Bowling all rounder',
+      records: [],
+    },
+  },
   {
     test: (dn) => /chandu/i.test(dn),
     back: {
@@ -119,7 +148,7 @@ const ENTRIES: Array<{ test: (displayName: string) => boolean; back: PlayerCardB
     },
   },
   {
-    test: (dn) => /sidd(h)?arth/i.test(dn),
+    test: (dn) => /\bsiddharth\b/i.test(dn),
     back: {
       role: 'Bowler',
       records: [],

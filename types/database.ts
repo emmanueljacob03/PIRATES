@@ -120,13 +120,18 @@ export interface Database {
           jersey_number: number | null;
           role: string;
           profile_id: string | null;
+          honors: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['players']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+        Insert: Omit<
+          Database['public']['Tables']['players']['Row'],
+          'id' | 'created_at' | 'updated_at' | 'honors'
+        > & {
           id?: string;
           created_at?: string;
           updated_at?: string;
+          honors?: string | null;
         };
         Update: Partial<Database['public']['Tables']['players']['Insert']>;
       };

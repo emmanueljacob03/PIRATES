@@ -70,10 +70,23 @@ export async function POST(req: NextRequest) {
     const { data: prof } = await userClient.from('profiles').select('name').eq('id', user.id).maybeSingle();
     const displayName = ((prof as { name?: string } | null)?.name || user.email || 'Member').trim();
 
+    const requestedFor = (body.player_name ?? '').trim();
+    let player_name = displayName;
+    if (requestedFor) {
+      const { data: rosterRows } = await (supabase as any).from('players').select('name');
+      const allowed = new Set(
+        (rosterRows ?? []).map((r: { name: string }) => String(r.name ?? '').trim().toLowerCase()).filter(Boolean),
+      );
+      if (!allowed.has(requestedFor.toLowerCase())) {
+        return NextResponse.json({ error: 'Choose a player from the team list.' }, { status: 400 });
+      }
+      player_name = requestedFor;
+    }
+
     const { data, error } = await (supabase as any)
       .from('contributions')
       .insert({
-        player_name: displayName,
+        player_name,
         amount,
         paid: false,
         date,
