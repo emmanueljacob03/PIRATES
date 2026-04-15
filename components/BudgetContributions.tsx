@@ -47,7 +47,6 @@ export default function BudgetContributions({
   const [adminRosterOpen, setAdminRosterOpen] = useState(false);
   const adminRosterWrapRef = useRef<HTMLDivElement>(null);
   const [amount, setAmount] = useState('');
-  const [paid, setPaid] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [viewerReason, setViewerReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -128,7 +127,7 @@ export default function BudgetContributions({
       body: JSON.stringify({
         player_name: name,
         amount: amt,
-        paid,
+        paid: false,
         date: new Date().toISOString().slice(0, 10),
         notes: adminNotes.trim() || undefined,
       }),
@@ -139,7 +138,6 @@ export default function BudgetContributions({
       setRows((prev) => [data as Row, ...prev]);
       setAdminPlayerName('');
       setAmount('');
-      setPaid(false);
       setAdminNotes('');
       router.refresh();
     }
@@ -208,7 +206,10 @@ export default function BudgetContributions({
             </th>
             <th className="pb-2">Match fee</th>
             {showViewerTable ? (
-              <th className="pb-2">Note</th>
+              <>
+                <th className="pb-2">Status</th>
+                <th className="pb-2">Note</th>
+              </>
             ) : (
               <>
                 <th className="pb-2">Paid</th>
@@ -238,9 +239,21 @@ export default function BudgetContributions({
                 )}
               </td>
               {showViewerTable ? (
-                <td className="py-2 text-slate-300 max-w-[200px]">
-                  {r.notes ? <span className="text-sm">{r.notes}</span> : <span className="text-slate-500">—</span>}
-                </td>
+                <>
+                  <td className="py-2">
+                    {r.paid ? (
+                      <span className="text-emerald-400 text-sm">Paid</span>
+                    ) : (
+                      <span className="text-amber-300 text-sm inline-flex items-center gap-1 flex-wrap">
+                        <span aria-hidden>⚠</span>
+                        <span>Pay ASAP</span>
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 text-slate-300 max-w-[200px]">
+                    {r.notes ? <span className="text-sm">{r.notes}</span> : <span className="text-slate-500">—</span>}
+                  </td>
+                </>
               ) : (
                 <>
                   <td className="py-2">
@@ -444,14 +457,13 @@ export default function BudgetContributions({
               onChange={(e) => setAmount(e.target.value)}
               required
             />
-            <label className="flex items-center gap-2 text-slate-300">
-              <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} />
-              Paid
-            </label>
             <button type="submit" className="btn-primary" disabled={loading}>
               Add
             </button>
           </div>
+          <p className="text-xs text-slate-500 max-w-lg">
+            New entries are added as unpaid. Use the Paid checkbox in the table when money is received.
+          </p>
           <input
             className="input-field w-full max-w-md"
             placeholder="Optional note (e.g. cash, Venmo)"

@@ -25,7 +25,13 @@ function formatDobDisplay(ymd: string | null): string {
     return '—';
   }
 }
-type Duty = { who: string; duty_date: string; notes: string };
+type Duty = {
+  id?: string;
+  who: string;
+  duty_date: string;
+  duty_time?: string | null;
+  notes: string | null;
+};
 
 export type ProfileContributionEntry = {
   id: string;
@@ -55,6 +61,7 @@ export default function ProfilePageClient({
   contributionEntries = [],
   matchesPlayed,
   umpiringDuties,
+  umpiringReminder = null,
   pendingJersey = 0,
   pendingContribution = 0,
   playerId,
@@ -64,6 +71,7 @@ export default function ProfilePageClient({
   contributionEntries?: ProfileContributionEntry[];
   matchesPlayed: number;
   umpiringDuties: Duty[];
+  umpiringReminder?: string | null;
   pendingJersey?: number;
   pendingContribution?: number;
   playerId?: string | null;
@@ -221,6 +229,14 @@ export default function ProfilePageClient({
           {saveNotice}
         </p>
       ) : null}
+      {umpiringReminder ? (
+        <p
+          className="rounded-lg bg-amber-900/35 border border-amber-400/45 text-amber-100 text-sm px-3 py-2"
+          role="status"
+        >
+          {umpiringReminder}
+        </p>
+      ) : null}
       <div className="flex flex-col sm:flex-row gap-6 items-start">
         <div className="relative w-28 h-28 rounded-full overflow-hidden border-2 border-[var(--pirate-yellow)] bg-[var(--pirate-navy)] flex-shrink-0">
           {headerPhotoSrc ? (
@@ -313,10 +329,21 @@ export default function ProfilePageClient({
         {umpiringDuties.length === 0 ? (
           <p className="text-slate-400 text-sm">Nothing yet</p>
         ) : (
-          <ul className="text-sm text-slate-300 space-y-1">
-            {umpiringDuties.map((d, i) => (
-              <li key={i}>{d.who} — {format(new Date(d.duty_date), 'MMM d, yyyy')} {d.notes && `(${d.notes})`}</li>
-            ))}
+          <ul className="text-sm text-slate-300 space-y-2">
+            {umpiringDuties.map((d, i) => {
+              const t = (d.duty_time || '12:00').trim();
+              return (
+                <li key={d.id ?? i}>
+                  <span className="text-white font-medium">{d.who}</span>
+                  {' — '}
+                  {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
+                  {` at ${t}`}
+                  {d.notes ? (
+                    <span className="text-slate-400 block sm:inline sm:ml-1">Note (admin): {d.notes}</span>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

@@ -7,6 +7,8 @@ import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
 import { buildSelfNameVariants, nameMatchesSelfVariants } from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
+import { format, parseISO } from 'date-fns';
+import { dutyScheduledStartMs, isWithinThreeDaysBeforeUmpiringDuty } from '@/lib/umpiring-duties';
 
 export default async function ProfilesPage() {
   const cookieStore = await cookies();
@@ -36,10 +38,18 @@ export default async function ProfilesPage() {
     paid: boolean;
   }[] = [];
   let matchesPlayed = 0;
-  let umpiringDuties: { who: string; duty_date: string; notes: string }[] = [];
+  let umpiringDuties: {
+    id: string;
+    who: string;
+    duty_date: string;
+    duty_time?: string | null;
+    notes: string | null;
+    player_id?: string | null;
+  }[] = [];
   let pendingJersey = 0;
   let pendingContribution = 0;
   let playerId: string | null = null;
+  let umpiringReminder: string | null = null;
 
   if (demo) {
     return (
@@ -229,15 +239,36 @@ export default async function ProfilesPage() {
       0,
     );
 
-    // Umpiring duties for this player
+    // Umpiring duties for this player (linked player_id or legacy name match)
     try {
       const { data: duties } = await (supabase as any)
         .from('umpiring_duties')
-        .select('who, duty_date, notes');
-      const all = (duties ?? []) as { who: string; duty_date: string; notes: string }[];
-      umpiringDuties = all.filter((d) =>
-        (d.who ?? '').toLowerCase().includes((profile.name ?? '').toLowerCase()),
+        .select('id, who, duty_date, duty_time, notes, player_id');
+      type URow = {
+        id: string;
+        who: string;
+        duty_date: string;
+        duty_time?: string | null;
+        notes: string | null;
+        player_id?: string | null;
+      };
+      const all = (duties ?? []) as URow[];
+      const filtered = all.filter(
+        (d) =>
+          (playerId && d.player_id === playerId) ||
+          (d.who ?? '').toLowerCase().includes((profile.name ?? '').toLowerCase()),
       );
+      umpiringDuties = filtered.sort(
+        (a, b) => dutyScheduledStartMs(a.duty_date, a.duty_time) - dutyScheduledStartMs(b.duty_date, b.duty_time),
+      );
+      for (const d of umpiringDuties) {
+        if (isWithinThreeDaysBeforeUmpiringDuty(d.duty_date, d.duty_time)) {
+          const t = (d.duty_time || '12:00').trim();
+          const day = format(parseISO(d.duty_date.slice(0, 10)), 'EEEE, MMM d');
+          umpiringReminder = `You have an umpiring duty — ${day} at ${t}.`;
+          break;
+        }
+      }
     } catch {
       /* no table */
     }
@@ -259,6 +290,7 @@ export default async function ProfilesPage() {
         contributionEntries={contributionEntries}
         matchesPlayed={matchesPlayed}
         umpiringDuties={umpiringDuties}
+        umpiringReminder={umpiringReminder}
         pendingJersey={pendingJersey}
         pendingContribution={pendingContribution}
         playerId={playerId}

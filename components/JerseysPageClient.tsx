@@ -35,7 +35,15 @@ function downloadJerseyCsv(jerseys: JerseyRow[]) {
   URL.revokeObjectURL(url);
 }
 
-export default function JerseysPageClient({ initial, isAdmin }: { initial: JerseyRow[]; isAdmin?: boolean }) {
+export default function JerseysPageClient({
+  initial,
+  isAdmin,
+  currentUserId = null,
+}: {
+  initial: JerseyRow[];
+  isAdmin?: boolean;
+  currentUserId?: string | null;
+}) {
   const [jerseys, setJerseys] = useState(initial);
 
   const handleNewJersey = useCallback((jersey: Jersey) => {
@@ -79,9 +87,10 @@ export default function JerseysPageClient({ initial, isAdmin }: { initial: Jerse
         <JerseyLookup
           jerseys={jerseys}
           isAdmin={isAdmin}
+          currentUserId={currentUserId}
           onPaidToggle={isAdmin ? handlePaidToggle : undefined}
           onDeleteJersey={isAdmin ? handleDeleteJersey : undefined}
-          onJerseyUpdated={isAdmin ? handleJerseyUpdated : undefined}
+          onJerseyUpdated={handleJerseyUpdated}
         />
       </div>
       <div className="card">

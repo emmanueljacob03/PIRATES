@@ -212,6 +212,8 @@ CREATE TABLE IF NOT EXISTS public.umpiring_duties (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   who TEXT NOT NULL,
   duty_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  duty_time TEXT DEFAULT '12:00',
+  player_id UUID REFERENCES public.players(id) ON DELETE SET NULL,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

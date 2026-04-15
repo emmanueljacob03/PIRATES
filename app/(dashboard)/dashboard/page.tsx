@@ -12,6 +12,7 @@ import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { unstable_noStore as noStore } from 'next/cache';
 import { readDesiredCollectionValue } from '@/lib/desired-collection';
+import { isPracticeOpponent } from '@/lib/match-opponent';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,8 @@ export default async function DashboardPage() {
 
   let totalPlayers = 0;
   let totalMatches = 0;
+  let regularMatches = 0;
+  let practiceMatches = 0;
   let mvp: DashboardMvp | null = null;
   let desiredCollectionsInitial = '0.00';
   let pendingByPlayer: { name: string; jersey: number; contribution: number; total: number }[] = [];
@@ -37,9 +40,9 @@ export default async function DashboardPage() {
 
   const supabase = codeVerified ? createAdminSupabase() : await createServerSupabase();
   try {
-    const [playersRes, matchesRes, statsRes, jerseysRes, contribsRes] = await Promise.all([
+    const [playersRes, matchRowsRes, statsRes, jerseysRes, contribsRes] = await Promise.all([
       (supabase as any).from('players').select('id', { count: 'exact', head: true }),
-      (supabase as any).from('matches').select('id', { count: 'exact', head: true }),
+      (supabase as any).from('matches').select('opponent'),
       (supabase as any).from('match_stats').select('*'),
       isAdmin
         ? (supabase as any).from('jerseys').select('player_name, paid, submitted_by_id')
@@ -49,7 +52,10 @@ export default async function DashboardPage() {
         : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
-    totalMatches = matchesRes.count ?? 0;
+    const matchRows = (matchRowsRes.data ?? []) as { opponent?: string }[];
+    totalMatches = matchRows.length;
+    practiceMatches = matchRows.filter((r) => isPracticeOpponent(r.opponent)).length;
+    regularMatches = totalMatches - practiceMatches;
     type StatRow = Record<string, unknown> & { player_id: string };
     const stats = (statsRes.data ?? []) as StatRow[];
     const groups = new Map<string, StatRow[]>();
@@ -166,6 +172,20 @@ export default async function DashboardPage() {
     // use defaults
   }
 
+  let umpiringRoster: { id: string; name: string }[] = [];
+  try {
+    if (codeVerified) {
+      const sup = createAdminSupabase();
+      const { data: rosterRows } = await sup.from('players').select('id, name').order('name');
+      umpiringRoster = (rosterRows ?? []).map((p: { id: string; name: string | null }) => ({
+        id: p.id,
+        name: (p.name ?? '').trim() || 'Player',
+      }));
+    }
+  } catch {
+    umpiringRoster = [];
+  }
+
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 [&>*]:min-w-0">
@@ -173,13 +193,15 @@ export default async function DashboardPage() {
           totalPlayers={totalPlayers}
           desiredCollectionsInitial={desiredCollectionsInitial}
           totalMatches={totalMatches}
+          regularMatches={regularMatches}
+          practiceMatches={practiceMatches}
           mvp={mvp}
           isAdmin={isAdmin}
         />
         {isAdmin && <TotalPendingCard pendingByPlayer={pendingByPlayer} />}
         <Playing11Widget isAdmin={isAdmin} variant="metrics" />
       </div>
-      <UmpiringDuties isAdmin={isAdmin} canEdit={isAdmin} />
+      <UmpiringDuties canEdit={isAdmin} roster={umpiringRoster} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Match } from '@/types/database';
-import { weatherAdvisoryFromConditions } from '@/lib/weather-advisory';
+import { weatherAdvisoryFromConditions, weatherFriendlyTipFromConditions } from '@/lib/weather-advisory';
 import { weatherCityForScheduleGround } from '@/lib/schedule-grounds';
 
 type WeatherState = {
@@ -10,6 +10,9 @@ type WeatherState = {
   description?: string;
   main?: string | null;
   advisory?: string | null;
+  friendlyTip?: string;
+  forecastForMatch?: boolean;
+  forecastHint?: string | null;
 };
 
 /** `matches.weather` JSON: temp is °C if unit === 'C'; legacy rows omit unit and are °F. */
@@ -64,18 +67,28 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   useEffect(() => {
     const tempC = storedTempToCelsius(stored);
     if (tempC != null) {
+      const desc = stored?.description ?? '';
+      const main = stored?.main ?? null;
       setWeather({
         temp: tempC,
-        description: stored?.description ?? '',
-        main: stored?.main ?? null,
-        advisory: weatherAdvisoryFromConditions(tempC, stored?.main ?? null) || null,
+        description: desc,
+        main,
+        advisory: weatherAdvisoryFromConditions(tempC, main) || null,
+        friendlyTip: weatherFriendlyTipFromConditions(tempC, main, desc, null),
+        forecastForMatch: false,
+        forecastHint: null,
       });
       return;
     }
     setLoading(true);
     setLoadError(null);
     const city = weatherCityForScheduleGround(match.ground);
-    fetch(`/api/weather?city=${encodeURIComponent(city)}`, { credentials: 'same-origin' })
+    const datePart = typeof match.date === 'string' ? match.date.slice(0, 10) : '';
+    const timePart = (match.time || '12:00').trim();
+    const qs = new URLSearchParams({ city });
+    if (datePart) qs.set('date', datePart);
+    if (timePart) qs.set('time', timePart);
+    fetch(`/api/weather?${qs.toString()}`, { credentials: 'same-origin' })
       .then(async (r) => {
         const d = (await r.json()) as {
           error?: string;
@@ -83,6 +96,11 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           temp?: number;
           description?: string;
           main?: string | null;
+          wind?: number;
+          advisory?: string | null;
+          friendlyTip?: string;
+          forecastForMatch?: boolean;
+          forecastHint?: string | null;
         };
         if (!r.ok || d.error) {
           const hint =
@@ -96,14 +114,19 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           temp: d.temp,
           description: d.description ?? '',
           main: d.main ?? null,
-          advisory: weatherAdvisoryFromConditions(d.temp ?? null, d.main ?? null) || null,
+          advisory: (d.advisory ?? weatherAdvisoryFromConditions(d.temp ?? null, d.main ?? null)) || null,
+          friendlyTip:
+            d.friendlyTip ??
+            weatherFriendlyTipFromConditions(d.temp ?? null, d.main ?? null, d.description ?? null, d.wind ?? null),
+          forecastForMatch: d.forecastForMatch,
+          forecastHint: d.forecastHint ?? null,
         });
       })
       .catch(() =>
         setLoadError('Could not reach weather service. Check connection or try again.'),
       )
       .finally(() => setLoading(false));
-  }, [match.ground, match.id, stored?.temp, stored?.unit, stored?.description, stored?.main]);
+  }, [match.ground, match.id, match.date, match.time, stored?.temp, stored?.unit, stored?.description, stored?.main]);
 
   const clearHide = useCallback(() => {
     if (hideRef.current) {
@@ -134,12 +157,14 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
   }, [panelMode]);
 
   const advisoryText = (weather?.advisory ?? '').trim();
+  const friendlyText = (weather?.friendlyTip ?? '').trim();
   const tempRounded = weather?.temp != null ? Math.round(weather.temp) : null;
   const desc = (weather?.description ?? '').trim();
   const titleParts: string[] = [];
   if (tempRounded != null) titleParts.push(`${tempRounded}°C`);
   if (desc) titleParts.push(desc);
   if (advisoryText) titleParts.push(advisoryText);
+  if (friendlyText) titleParts.push(friendlyText);
   const titleAttr = titleParts.length > 0 ? titleParts.join(' — ') : undefined;
 
   if (loading && !weather) {
@@ -152,9 +177,10 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
 
   if (loadError && !weather) {
     return (
-      <p className="text-slate-500 text-sm mt-1 max-w-md leading-snug" role="alert">
-        <span className="text-amber-300/90">Weather unavailable.</span>{' '}
-        {loadError}
+      <p className="text-slate-400 text-sm mt-1 max-w-md leading-snug" role="alert">
+        <span className="text-slate-200">Couldn&apos;t load weather for match time.</span>{' '}
+        Bring layers, check the sky on game day, and stay hydrated.{' '}
+        <span className="text-slate-500 text-xs block sm:inline sm:ml-1 mt-1 sm:mt-0">{loadError}</span>
       </p>
     );
   }
@@ -163,7 +189,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
     return null;
   }
 
-  const showPanel = open && (advisoryText || tempRounded != null);
+  const showPanel = open && (advisoryText || friendlyText || tempRounded != null);
 
   return (
     <div
@@ -187,6 +213,9 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           }`}
         >
           🌡 {tempRounded}°C{desc ? ` · ${desc}` : ''}
+          {weather?.forecastForMatch ? (
+            <span className="text-slate-500 text-xs font-normal ml-1">(match time)</span>
+          ) : null}
         </span>
       </button>
       {showPanel && (
@@ -197,12 +226,17 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
         >
           <p className="text-white font-medium mb-1">
             {tempRounded}°C{desc ? ` · ${desc}` : ''}
+            {weather?.forecastForMatch ? (
+              <span className="text-slate-400 text-xs font-normal block mt-0.5">Forecast for scheduled match time</span>
+            ) : null}
           </p>
+          {weather?.forecastHint ? (
+            <p className="text-slate-400 text-xs leading-snug mb-2">{weather.forecastHint}</p>
+          ) : null}
           {advisoryText ? (
-            <p className="text-amber-400 leading-snug">⚠ {advisoryText}</p>
-          ) : (
-            <p className="text-slate-400 text-xs">No advisory for current conditions.</p>
-          )}
+            <p className="text-amber-400 leading-snug mb-2">⚠ {advisoryText}</p>
+          ) : null}
+          <p className="text-slate-200/95 leading-snug text-sm">{friendlyText || 'Conditions look playable — stay sharp.'}</p>
         </div>
       )}
     </div>

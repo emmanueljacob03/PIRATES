@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { format, parseISO, isValid } from 'date-fns';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { scorecardDisplayName } from '@/lib/player-display-name';
 import { getPlayerCardBack } from '@/lib/player-card-bio';
+import { dutyScheduledStartMs, isUmpiringDutyCompleted } from '@/lib/umpiring-duties';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 
 export default async function PlayerProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +26,13 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
   let highestScore = 0;
   let strikeRate = 0;
   let economy = 0;
+  let umpiringDuties: {
+    id: string;
+    who: string;
+    duty_date: string;
+    duty_time: string | null;
+    notes: string | null;
+  }[] = [];
 
   try {
     const supabase = await createServerSupabase();
@@ -90,6 +99,33 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
     economy = totals.overs > 0 ? totals.runs_conceded / totals.overs : 0;
     const highScoreRow = [...stats].sort((a, b) => (b.runs ?? 0) - (a.runs ?? 0))[0];
     highestScore = highScoreRow?.runs ?? 0;
+
+    try {
+      const pl = player;
+      const { data: uall } = await supabase
+        .from('umpiring_duties')
+        .select('id, who, duty_date, duty_time, notes, player_id');
+      const pn = (pl.name ?? '').trim().toLowerCase();
+      umpiringDuties = (uall ?? [])
+        .filter(
+          (d: { player_id?: string | null; who?: string }) =>
+            d.player_id === pl.id ||
+            (!d.player_id && pn.length > 0 && (d.who ?? '').toLowerCase().includes(pn)),
+        )
+        .map((d: { id: string; who: string; duty_date: string; duty_time?: string | null; notes?: string | null }) => ({
+          id: d.id,
+          who: d.who,
+          duty_date: d.duty_date,
+          duty_time: d.duty_time ?? null,
+          notes: d.notes ?? null,
+        }))
+        .sort(
+          (a, b) =>
+            dutyScheduledStartMs(a.duty_date, a.duty_time) - dutyScheduledStartMs(b.duty_date, b.duty_time),
+        );
+    } catch {
+      umpiringDuties = [];
+    }
   } catch {
     notFound();
   }
@@ -158,6 +194,43 @@ export default async function PlayerProfilePage({ params }: { params: Promise<{ 
           <StatCard label="Catches" value={String(totals.catches)} />
           <StatCard label="Run Outs" value={String(totals.runouts)} />
           <StatCard label="MVP Awards" value={String(totals.mvpAwards)} />
+        </div>
+
+        <div className="mt-8 border-t border-slate-600 pt-6">
+          <h3 className="text-lg font-semibold mb-3" style={{ color: 'var(--pirate-yellow)' }}>
+            Umpiring duties
+          </h3>
+          {umpiringDuties.length === 0 ? (
+            <p className="text-slate-500 text-sm">No duties assigned.</p>
+          ) : (
+            <ul className="space-y-3 text-sm">
+              {umpiringDuties.map((d) => {
+                const done = isUmpiringDutyCompleted(d.duty_date, d.duty_time);
+                const t = (d.duty_time || '12:00').trim();
+                let dateStr = d.duty_date;
+                try {
+                  const x = parseISO(d.duty_date.slice(0, 10));
+                  dateStr = isValid(x) ? format(x, 'MMM d, yyyy') : d.duty_date;
+                } catch {
+                  /* keep */
+                }
+                return (
+                  <li key={d.id} className="text-slate-300">
+                    <span className="font-medium text-white">{d.who}</span>
+                    {done && (
+                      <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
+                        Completed
+                      </span>
+                    )}
+                    <span className="block text-slate-400 mt-0.5">
+                      {dateStr} at {t}
+                      {d.notes ? <span className="text-slate-500"> — Note (admin): {d.notes}</span> : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </div>
     </div>

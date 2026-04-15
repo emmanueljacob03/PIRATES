@@ -52,12 +52,15 @@ function TrashIcon() {
 export default function JerseyLookup({
   jerseys,
   isAdmin,
+  currentUserId = null,
   onPaidToggle,
   onDeleteJersey,
   onJerseyUpdated,
 }: {
   jerseys: JerseyRow[];
   isAdmin?: boolean;
+  /** Logged-in user: may edit own jersey row (name, size, notes) via pen when it matches submitted_by_id. */
+  currentUserId?: string | null;
   onPaidToggle?: (id: string, paid: boolean) => void;
   onDeleteJersey?: (id: string) => void;
   onJerseyUpdated?: (row: JerseyRow) => void;
@@ -81,8 +84,14 @@ export default function JerseyLookup({
     );
   }, [jerseys, query]);
 
+  function canEditRow(j: JerseyRow): boolean {
+    if (isAdmin) return true;
+    const uid = currentUserId?.trim();
+    const sid = j.submitted_by_id ?? null;
+    return Boolean(uid && sid && sid === uid);
+  }
+
   async function saveEdit(id: string) {
-    if (!isAdmin) return;
     const pn = editPlayer.trim();
     const sz = editSize.trim();
     if (!pn || !sz) return;
@@ -90,6 +99,7 @@ export default function JerseyLookup({
     try {
       const res = await fetch('/api/jerseys', {
         method: 'PATCH',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
@@ -223,7 +233,7 @@ export default function JerseyLookup({
                   </div>
 
                   <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    {isAdmin && !isEditing && (
+                    {canEditRow(j) && !isEditing && (
                       <button
                         type="button"
                         onClick={() => startEdit(j)}

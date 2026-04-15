@@ -11,8 +11,14 @@ export default async function JerseysPage() {
   const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
   const codeVerified = cookieStore.get('pirates_code_verified')?.value === 'true';
   let jerseys: JerseyRow[] = [];
+  let currentUserId: string | null = null;
   try {
-    const supabase = codeVerified ? createAdminSupabase() : await createServerSupabase();
+    const userSupabase = await createServerSupabase();
+    const {
+      data: { user },
+    } = await userSupabase.auth.getUser();
+    currentUserId = user?.id ?? null;
+    const supabase = codeVerified ? createAdminSupabase() : userSupabase;
     const [{ data }, { data: allProfs }, { data: allPlayers }] = await Promise.all([
       (supabase as any).from('jerseys').select('*'),
       (supabase as any).from('profiles').select('id, name'),
@@ -43,7 +49,7 @@ export default async function JerseysPage() {
   return (
     <div>
       <h2 className="text-2xl font-bold text-pirate-gold mb-6">Jerseys</h2>
-      <JerseysPageClient initial={jerseys} isAdmin={isAdmin} />
+      <JerseysPageClient initial={jerseys} isAdmin={isAdmin} currentUserId={currentUserId} />
     </div>
   );
 }

@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const cookieStore = await cookies();
-  if (cookieStore.get('pirates_admin')?.value !== 'true') {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
-  }
+  const isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
+  const codeOk =
+    cookieStore.get('pirates_code_verified')?.value === 'true' || cookieStore.get('pirates_demo')?.value === 'true';
 
   let body: {
     id?: string;
@@ -93,8 +93,38 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'id required' }, { status: 400 });
   }
 
+  let userId: string | null = null;
+  try {
+    const userClient = await createServerSupabase();
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
+    userId = user?.id ?? null;
+  } catch {
+    /* ignore */
+  }
+
+  if (!isAdmin) {
+    if (!codeOk || !userId) {
+      return NextResponse.json({ error: 'Sign in with team code to edit your request' }, { status: 403 });
+    }
+    const supabaseCheck = createAdminSupabase();
+    const { data: row, error: fetchErr } = await (supabaseCheck as any)
+      .from('jerseys')
+      .select('submitted_by_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (fetchErr || !row) return NextResponse.json({ error: 'Jersey not found' }, { status: 404 });
+    if ((row as { submitted_by_id?: string | null }).submitted_by_id !== userId) {
+      return NextResponse.json({ error: 'You can only edit your own jersey request' }, { status: 403 });
+    }
+    if (body.paid !== undefined) {
+      return NextResponse.json({ error: 'Only admin can change paid status' }, { status: 403 });
+    }
+  }
+
   const updates: Record<string, unknown> = {};
-  if (typeof body.paid === 'boolean') updates.paid = body.paid;
+  if (isAdmin && typeof body.paid === 'boolean') updates.paid = body.paid;
   if (body.player_name !== undefined) {
     const pn = String(body.player_name).trim();
     if (!pn) return NextResponse.json({ error: 'player_name cannot be empty' }, { status: 400 });
@@ -118,7 +148,17 @@ export async function PATCH(req: NextRequest) {
     const supabase = createAdminSupabase();
     const { data, error } = await (supabase as any).from('jerseys').update(updates).eq('id', id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json(data);
+    let out = data as Record<string, unknown>;
+    const sid = (out as { submitted_by_id?: string | null }).submitted_by_id;
+    if (sid) {
+      const { data: prof } = await (supabase as any)
+        .from('profiles')
+        .select('name')
+        .eq('id', sid)
+        .maybeSingle();
+      out = { ...out, submitter_name: (prof as { name?: string } | null)?.name ?? null };
+    }
+    return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
