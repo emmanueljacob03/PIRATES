@@ -71,7 +71,6 @@ export default function ProfilePageClient({
   pendingContribution = 0,
   jerseyEntries = [],
   playerId,
-  assignedPlayerMatchFeeUsd = null,
 }: {
   initialProfile: Profile;
   contributionEntries?: ProfileContributionEntry[];
@@ -83,8 +82,6 @@ export default function ProfilePageClient({
   /** User's jersey rows (paid status mirrors admin / jerseys page). */
   jerseyEntries?: { id: string; jerseyNumber: string; paid: boolean }[];
   playerId?: string | null;
-  /** Team Budget standard player match fee (admin); optional. */
-  assignedPlayerMatchFeeUsd?: number | null;
 }) {
   const router = useRouter();
   /** Server-sourced pending sums; coerce so header never fights string-concat or stale shapes. */
@@ -92,21 +89,11 @@ export default function ProfilePageClient({
   const jerseyCount = jerseyEntries.length;
   const contribCount = contributionEntries.length;
   const totalFinanceItems = jerseyCount + contribCount;
-  const hasTeamStandardFee =
-    assignedPlayerMatchFeeUsd != null && assignedPlayerMatchFeeUsd > 0;
-  /** Show match-fee summary when team set a standard or the player has contribution rows. */
-  const showPlayerMatchFeeBlock = hasTeamStandardFee || contribCount > 0;
-  const matchFeeAmountLabelCount =
-    contribCount > 0 ? contribCount : hasTeamStandardFee ? 1 : 0;
-  const matchFeeDisplayAmountUsd = hasTeamStandardFee
-    ? Number(assignedPlayerMatchFeeUsd)
-    : contribCount > 0
-      ? contributionEntries.reduce((s, e) => s + e.amount, 0)
-      : 0;
-  const matchFeeLinePaid =
-    contribCount === 0
-      ? false
-      : contributionEntries.every((e) => isPaid(e.paid));
+  /** Match fee lines = same `contributions` rows as Team Budget → Player match fees for this player. */
+  const showPlayerMatchFeeBlock = contribCount > 0;
+  const matchFeeAmountLabelCount = contribCount;
+  const matchFeeDisplayAmountUsd = contributionEntries.reduce((s, e) => s + e.amount, 0);
+  const matchFeeLinePaid = contributionEntries.every((e) => isPaid(e.paid));
   const cents = Math.round(matchFeeDisplayAmountUsd * 100);
   const matchFeeAmountStr = cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
   const hasLedgerLines = totalFinanceItems > 0;
@@ -116,13 +103,11 @@ export default function ProfilePageClient({
   /** Must match totals: “All paid” only when nothing owed (same as $0 total) and every line marked paid. */
   type OweTone = 'empty' | 'all' | 'outstanding';
   const oweTone: OweTone =
-    !hasLedgerLines && !showPlayerMatchFeeBlock
+    totalFinanceItems === 0
       ? 'empty'
-      : !hasLedgerLines && showPlayerMatchFeeBlock
-        ? 'empty'
-        : anyUnpaidLine || totalPending > 0.005
-          ? 'outstanding'
-          : 'all';
+      : anyUnpaidLine || totalPending > 0.005
+        ? 'outstanding'
+        : 'all';
   const oweBlockClass =
     oweTone === 'all'
       ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
@@ -383,18 +368,12 @@ export default function ProfilePageClient({
           role="region"
           aria-label="Jersey and contribution balances"
         >
-          {oweTone === 'empty' && !showPlayerMatchFeeBlock ? (
+          {oweTone === 'empty' ? (
             <p className="text-slate-400 text-sm leading-relaxed">
               No jersey orders or match fees / contributions on your record yet.
             </p>
           ) : (
             <>
-              {!hasLedgerLines && showPlayerMatchFeeBlock ? (
-                <p className="text-xs text-slate-400 border-b border-white/10 pb-3 mb-4">
-                  Standard match fee is set in <span className="text-slate-300">Team Budget → Player match fees</span>. Your
-                  payment lines appear below when recorded.
-                </p>
-              ) : null}
               {hasLedgerLines ? (
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 border-b border-white/10 pb-3 mb-4">
                 <div>

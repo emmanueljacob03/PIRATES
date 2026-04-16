@@ -13,7 +13,6 @@ import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { format, parseISO } from 'date-fns';
 import { dutyScheduledStartMs, isWithinThreeDaysBeforeUmpiringDuty } from '@/lib/umpiring-duties';
 import { isPaid } from '@/lib/is-paid';
-import { createAdminSupabase } from '@/lib/supabase-admin';
 
 export default async function ProfilesPage() {
   noStore();
@@ -56,8 +55,6 @@ export default async function ProfilesPage() {
   let jerseyEntries: { id: string; jerseyNumber: string; paid: boolean }[] = [];
   let playerId: string | null = null;
   let umpiringReminder: string | null = null;
-  /** Team Budget → standard player match fee (admin sets on budget page). */
-  let assignedPlayerMatchFeeUsd: number | null = null;
 
   if (demo) {
     return (
@@ -186,40 +183,6 @@ export default async function ProfilesPage() {
       matchesPlayed = count ?? 0;
     }
 
-    {
-      const parsePlayerMatchFee = (row: unknown): number | null => {
-        if (!row || typeof row !== 'object') return null;
-        const raw = (row as { player_match_fee?: string | null }).player_match_fee;
-        const n = parseFloat(String(raw ?? '').trim());
-        return !Number.isNaN(n) && n > 0 ? n : null;
-      };
-      try {
-        let feeVal: number | null = null;
-        try {
-          const admin = createAdminSupabase();
-          const { data, error } = await admin
-            .from('team_chat_settings')
-            .select('player_match_fee')
-            .eq('id', 1)
-            .maybeSingle();
-          if (!error) feeVal = parsePlayerMatchFee(data);
-        } catch {
-          /* SUPABASE_SERVICE_ROLE_KEY missing locally — fall back */
-        }
-        if (feeVal == null) {
-          const { data, error } = await supabase
-            .from('team_chat_settings')
-            .select('player_match_fee')
-            .eq('id', 1)
-            .maybeSingle();
-          if (!error) feeVal = parsePlayerMatchFee(data);
-        }
-        if (feeVal != null) assignedPlayerMatchFeeUsd = feeVal;
-      } catch {
-        assignedPlayerMatchFeeUsd = null;
-      }
-    }
-
     // Contributions and pending amounts (legacy rows: partial names vs full profile / roster)
     const nameVariants = buildSelfNameVariants(profile.name, linkedPlayer?.name ?? null);
     const nameMatchesSelf = (playerName: string | null | undefined): boolean =>
@@ -337,7 +300,6 @@ export default async function ProfilesPage() {
         pendingContribution={pendingContribution}
         jerseyEntries={jerseyEntries}
         playerId={playerId}
-        assignedPlayerMatchFeeUsd={assignedPlayerMatchFeeUsd}
       />
     </div>
   );
