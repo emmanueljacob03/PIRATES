@@ -89,17 +89,22 @@ export default function ProfilePageClient({
   playerId?: string | null;
 }) {
   const router = useRouter();
-  const totalPending = pendingJersey + pendingContribution;
+  /** Server-sourced pending sums; coerce so header never fights string-concat or stale shapes. */
+  const totalPending = Number(pendingJersey) + Number(pendingContribution);
   const jerseyCount = jerseyEntries.length;
   const contribCount = contributionEntries.length;
   const totalFinanceItems = jerseyCount + contribCount;
-  const paidJerseys = jerseyEntries.filter((j) => isPaid(j.paid)).length;
-  const paidContribs = contributionEntries.filter((e) => isPaid(e.paid)).length;
-  const paidFinanceCount = paidJerseys + paidContribs;
-  /** Green only if every jersey + every contribution is paid; otherwise red (no in-between). */
+  const anyUnpaidLine =
+    jerseyEntries.some((j) => !isPaid(j.paid)) ||
+    contributionEntries.some((e) => !isPaid(e.paid));
+  /** Must match totals: “All paid” only when nothing owed (same as $0 total) and every line marked paid. */
   type OweTone = 'empty' | 'all' | 'outstanding';
   const oweTone: OweTone =
-    totalFinanceItems === 0 ? 'empty' : paidFinanceCount === totalFinanceItems ? 'all' : 'outstanding';
+    totalFinanceItems === 0
+      ? 'empty'
+      : anyUnpaidLine || totalPending > 0.005
+        ? 'outstanding'
+        : 'all';
   const oweBlockClass =
     oweTone === 'all'
       ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
@@ -407,8 +412,11 @@ export default function ProfilePageClient({
                         key={j.id}
                         className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0"
                       >
+                        <p className="text-white/90 text-[11px] font-semibold uppercase tracking-[0.12em] mb-1">
+                          Jersey order
+                        </p>
                         <p className="text-white font-medium leading-snug">
-                          {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(0)}{' '}
+                          {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(2)}{' '}
                           {isPaid(j.paid) ? (
                             <span className="text-emerald-300">paid</span>
                           ) : (
@@ -429,8 +437,11 @@ export default function ProfilePageClient({
                   <ul className="space-y-2.5 text-sm list-none pl-0">
                     {contributionEntries.map((e) => (
                       <li key={e.id} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
+                        <p className="text-white/90 text-[11px] font-semibold uppercase tracking-[0.12em] mb-1">
+                          {contributionKindLabel(e.notes)}
+                        </p>
                         <p className="text-white font-medium leading-snug">
-                          {contributionKindLabel(e.notes)} — ${e.amount.toFixed(2)}{' '}
+                          ${e.amount.toFixed(2)}{' '}
                           {isPaid(e.paid) ? (
                             <span className="text-emerald-300">paid</span>
                           ) : (
