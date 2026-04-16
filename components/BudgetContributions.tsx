@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { Contribution } from '@/types/database';
 import { format } from 'date-fns';
 import { dispatchFinanceUpdated } from '@/lib/finance-events';
+import { isPaid } from '@/lib/is-paid';
 
 type Row = Contribution & { notes?: string | null; submitted_by_id?: string | null };
 
@@ -62,8 +63,8 @@ export default function BudgetContributions({
   const sortedRows = useMemo(() => {
     const copy = [...rows];
     copy.sort((a, b) => {
-      const ap = !!a.paid;
-      const bp = !!b.paid;
+      const ap = isPaid(a.paid);
+      const bp = isPaid(b.paid);
       if (ap !== bp) return ap ? -1 : 1;
       const at = new Date(a.date).getTime();
       const bt = new Date(b.date).getTime();
@@ -173,11 +174,22 @@ export default function BudgetContributions({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, paid: paidVal }),
     });
-    const data = await res.json().catch(() => null);
-    if (data?.id) {
-      setRows((prev) => prev.map((r) => (r.id === id ? data : r)));
+    const data = (await res.json().catch(() => null)) as Row | { error?: string } | null;
+    if (res.ok) {
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== id) return r;
+          if (data && typeof data === 'object' && 'id' in data && data.id) {
+            const row = data as Row;
+            return { ...r, ...row, paid: isPaid(row.paid) };
+          }
+          return { ...r, paid: paidVal };
+        }),
+      );
       router.refresh();
       dispatchFinanceUpdated();
+    } else if (data && typeof data === 'object' && 'error' in data && data.error) {
+      alert(String(data.error));
     }
   }
 
@@ -254,7 +266,7 @@ export default function BudgetContributions({
               {showViewerTable ? (
                 <>
                   <td className="py-2">
-                    {r.paid ? (
+                    {isPaid(r.paid) ? (
                       <span className="text-emerald-400 text-sm">Paid</span>
                     ) : (
                       <span className="text-amber-300 text-sm inline-flex items-center gap-1 flex-wrap">
@@ -274,11 +286,11 @@ export default function BudgetContributions({
                       <label className="flex items-center gap-1 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={!!r.paid}
-                          onChange={() => handlePaidToggle(r.id, !r.paid)}
+                          checked={isPaid(r.paid)}
+                          onChange={() => handlePaidToggle(r.id, !isPaid(r.paid))}
                           className="rounded border-slate-500"
                         />
-                        {r.paid ? (
+                        {isPaid(r.paid) ? (
                           'Paid'
                         ) : (
                           <span className="text-amber-300 flex items-center gap-1">
@@ -286,7 +298,7 @@ export default function BudgetContributions({
                           </span>
                         )}
                       </label>
-                    ) : r.paid ? (
+                    ) : isPaid(r.paid) ? (
                       '✔ Paid'
                     ) : (
                       <span className="text-amber-300">⚠ Pending admin</span>

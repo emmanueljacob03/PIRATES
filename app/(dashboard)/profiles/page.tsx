@@ -12,6 +12,7 @@ import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { format, parseISO } from 'date-fns';
 import { dutyScheduledStartMs, isWithinThreeDaysBeforeUmpiringDuty } from '@/lib/umpiring-duties';
+import { isPaid } from '@/lib/is-paid';
 
 export default async function ProfilesPage() {
   noStore();
@@ -33,7 +34,6 @@ export default async function ProfilesPage() {
     avatar_url: null,
     date_of_birth: null,
   };
-  let contributionTotal = 0;
   let contributionEntries: {
     id: string;
     amount: number;
@@ -195,10 +195,6 @@ export default async function ProfilesPage() {
       (c: { player_name?: string; submitted_by_id?: string | null }) =>
         c.submitted_by_id === user.id || nameMatchesSelf(c.player_name),
     );
-    contributionTotal = byName.reduce(
-      (s: number, c: { amount: number }) => s + Number(c.amount),
-      0,
-    );
     const contributionEntries = [...byName]
       .map(
         (c: {
@@ -212,7 +208,7 @@ export default async function ProfilesPage() {
           amount: Number(c.amount),
           date: c.date,
           notes: c.notes?.trim() ? c.notes.trim() : null,
-          paid: !!c.paid,
+          paid: isPaid(c.paid),
         }),
       )
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -233,19 +229,17 @@ export default async function ProfilesPage() {
         return nameMatchesSelf(j.player_name);
       },
     );
-    const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
+    const unpaidJerseys = myJerseys.filter((j: { paid?: unknown }) => !isPaid(j.paid));
     pendingJersey = unpaidJerseys.length * NEW_JERSEY_AMOUNT_USD;
     jerseyEntries = myJerseys
       .map((j: { id: string; jersey_number?: string; paid?: boolean }) => ({
         id: j.id,
         jerseyNumber: String(j.jersey_number ?? '').trim(),
-        paid: !!j.paid,
+        paid: isPaid(j.paid),
       }))
       .sort((a, b) => a.jerseyNumber.localeCompare(b.jerseyNumber, undefined, { numeric: true }));
 
-    const unpaidContribs = byName.filter(
-      (c: { paid?: boolean }) => !(c as { paid?: boolean }).paid,
-    );
+    const unpaidContribs = byName.filter((c: { paid?: unknown }) => !isPaid(c.paid));
     pendingContribution = unpaidContribs.reduce(
       (s: number, c: { amount: number }) => s + Number(c.amount),
       0,
@@ -298,7 +292,6 @@ export default async function ProfilesPage() {
       </div>
       <ProfilePageClient
         initialProfile={profile}
-        contributionTotal={contributionTotal}
         contributionEntries={contributionEntries}
         matchesPlayed={matchesPlayed}
         umpiringDuties={umpiringDuties}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
@@ -52,6 +53,12 @@ export async function POST(req: NextRequest) {
         .select()
         .single();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      try {
+        revalidatePath('/dashboard');
+        revalidatePath('/profiles');
+      } catch {
+        /* ignore */
+      }
       return NextResponse.json(data);
     }
 
@@ -96,6 +103,12 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      revalidatePath('/dashboard');
+      revalidatePath('/profiles');
+    } catch {
+      /* ignore */
+    }
     return NextResponse.json(data);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -128,6 +141,12 @@ export async function PATCH(req: NextRequest) {
     const supabase = createAdminSupabase();
     const { data, error } = await (supabase as any).from('contributions').update(updates).eq('id', id).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      revalidatePath('/dashboard');
+      revalidatePath('/profiles');
+    } catch {
+      /* ignore revalidate errors */
+    }
     return NextResponse.json(data);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -153,6 +172,12 @@ export async function DELETE(req: NextRequest) {
     const supabase = createAdminSupabase();
     const { error } = await (supabase as any).from('contributions').delete().eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    try {
+      revalidatePath('/dashboard');
+      revalidatePath('/profiles');
+    } catch {
+      /* ignore */
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

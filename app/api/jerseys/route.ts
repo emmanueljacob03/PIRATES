@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createServerSupabase } from '@/lib/supabase-server';
@@ -165,6 +166,12 @@ export async function PATCH(req: NextRequest) {
         .eq('id', sid)
         .maybeSingle();
       out = { ...out, submitter_name: (prof as { name?: string } | null)?.name ?? null };
+    }
+    try {
+      revalidatePath('/dashboard');
+      revalidatePath('/profiles');
+    } catch {
+      /* ignore */
     }
     return NextResponse.json(out);
   } catch (e) {

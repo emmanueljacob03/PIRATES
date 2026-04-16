@@ -13,6 +13,7 @@ import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { unstable_noStore as noStore } from 'next/cache';
 import { readDesiredCollectionValue } from '@/lib/desired-collection';
 import { isPracticeOpponent } from '@/lib/match-opponent';
+import { isPaid } from '@/lib/is-paid';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -110,8 +111,8 @@ export default async function DashboardPage() {
       type JRow = { player_name?: string; paid?: boolean; submitted_by_id?: string | null };
       type CRow = { player_name?: string; amount?: number; paid?: boolean; submitted_by_id?: string | null };
       /** Only unpaid rows count toward dashboard pending (paid must not appear). */
-      const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => j.paid !== true);
-      const contribRows = (contribsRes.data as CRow[]).filter((c) => c.paid !== true);
+      const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => !isPaid(j.paid));
+      const contribRows = (contribsRes.data as CRow[]).filter((c) => !isPaid(c.paid));
       const oweIds = new Set<string>();
       jerseyRows.forEach((j) => {
         if (j.submitted_by_id) oweIds.add(j.submitted_by_id);
@@ -150,9 +151,12 @@ export default async function DashboardPage() {
         if (sid) return profileIdToName[sid] || (j.player_name ?? '').trim();
         return legacyOweName(j.player_name);
       };
+      /** Prefer profile roster name for submitter id so one person never splits into two pending buckets. */
       const oweKeyContrib = (c: CRow): string => {
         if (c.submitted_by_id) {
-          return displayByUserId[c.submitted_by_id] || (c.player_name ?? '').trim();
+          const fromProfile = profileIdToName[c.submitted_by_id];
+          if (fromProfile) return fromProfile;
+          return displayByUserId[c.submitted_by_id] || legacyOweName(c.player_name);
         }
         return legacyOweName(c.player_name);
       };

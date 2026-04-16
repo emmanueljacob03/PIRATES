@@ -8,6 +8,8 @@ import { format, parseISO, isValid } from 'date-fns';
 import { compressImageForUpload } from '@/lib/image-compress';
 import LogoutButton from '@/components/LogoutButton';
 import { isUmpiringDutyCompleted } from '@/lib/umpiring-duties';
+import { isPaid } from '@/lib/is-paid';
+import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 
 type Profile = {
   name: string | null;
@@ -56,9 +58,16 @@ function formatContributionDate(ymd: string): string {
   }
 }
 
+/** Display like #03 for numeric jersey numbers. */
+function formatJerseyHash(num: string): string {
+  const t = num.trim();
+  if (!t) return '#—';
+  if (/^\d+$/.test(t)) return `#${t.padStart(2, '0')}`;
+  return `#${t}`;
+}
+
 export default function ProfilePageClient({
   initialProfile,
-  contributionTotal,
   contributionEntries = [],
   matchesPlayed,
   umpiringDuties,
@@ -69,7 +78,6 @@ export default function ProfilePageClient({
   playerId,
 }: {
   initialProfile: Profile;
-  contributionTotal: number;
   contributionEntries?: ProfileContributionEntry[];
   matchesPlayed: number;
   umpiringDuties: Duty[];
@@ -82,9 +90,30 @@ export default function ProfilePageClient({
 }) {
   const router = useRouter();
   const totalPending = pendingJersey + pendingContribution;
-  const unpaidJerseysCount = jerseyEntries.filter((j) => !j.paid).length;
+  const jerseyCount = jerseyEntries.length;
+  const contribCount = contributionEntries.length;
+  const totalFinanceItems = jerseyCount + contribCount;
+  const paidJerseys = jerseyEntries.filter((j) => isPaid(j.paid)).length;
+  const paidContribs = contributionEntries.filter((e) => isPaid(e.paid)).length;
+  const paidFinanceCount = paidJerseys + paidContribs;
+  type OweTone = 'empty' | 'all' | 'partial' | 'none';
+  const oweTone: OweTone =
+    totalFinanceItems === 0
+      ? 'empty'
+      : paidFinanceCount === totalFinanceItems
+        ? 'all'
+        : paidFinanceCount === 0
+          ? 'none'
+          : 'partial';
+  const oweBlockClass =
+    oweTone === 'all'
+      ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
+      : oweTone === 'partial'
+        ? 'border-orange-500/75 bg-orange-950/50 shadow-[inset_0_1px_0_0_rgba(249,115,22,0.12)]'
+        : oweTone === 'none'
+          ? 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)]'
+          : 'border-slate-600/80 bg-slate-900/55';
   const [profile, setProfile] = useState(initialProfile);
-  const [viewMoreContrib, setViewMoreContrib] = useState(false);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialProfile.name ?? '');
   const [phone, setPhone] = useState(initialProfile.phone ?? '');
@@ -329,51 +358,112 @@ export default function ProfilePageClient({
         </div>
       </div>
 
-      {(jerseyEntries.length > 0 || contributionEntries.length > 0) && (
-        <div className="space-y-3" aria-label="Payment status">
-          {jerseyEntries.length > 0 &&
-            (pendingJersey > 0 ? (
-              <div
-                role="status"
-                className="rounded-lg border border-amber-500/65 bg-amber-950/40 px-3 py-2.5 text-sm text-amber-100 shadow-sm"
-              >
-                <p className="font-semibold text-amber-50">Jersey — order on file</p>
-                <p className="text-amber-200/90 mt-0.5 text-xs">
-                  Payment pending · ${pendingJersey.toFixed(0)} for {unpaidJerseysCount} unpaid jersey
-                  {unpaidJerseysCount === 1 ? '' : 's'}
-                </p>
+      <div>
+        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">What you owe</h3>
+        <div
+          className={`rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 ${oweBlockClass}`}
+          role="region"
+          aria-label="Jersey and contribution balances"
+        >
+          {oweTone === 'empty' ? (
+            <p className="text-slate-400 text-sm leading-relaxed">
+              No jersey orders or match fees / contributions on your record yet.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 border-b border-white/10 pb-3 mb-4">
+                <div>
+                  <p
+                    className={`text-sm font-semibold uppercase tracking-wide ${
+                      oweTone === 'all'
+                        ? 'text-emerald-200'
+                        : oweTone === 'partial'
+                          ? 'text-orange-200'
+                          : 'text-red-200'
+                    }`}
+                  >
+                    {oweTone === 'all'
+                      ? 'All paid'
+                      : oweTone === 'partial'
+                        ? 'Partially paid'
+                        : 'Payment required'}
+                  </p>
+                  <p className="text-xs opacity-90 mt-1">
+                    {oweTone === 'all'
+                      ? 'Jersey and contribution lines below are all marked paid.'
+                      : oweTone === 'partial'
+                        ? 'Some items are still unpaid — see below.'
+                        : 'Nothing is marked paid yet — see below.'}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right shrink-0">
+                  <p className="text-[11px] uppercase tracking-wide opacity-80">Total still owed</p>
+                  <p className="text-2xl font-bold tabular-nums text-white">${totalPending.toFixed(2)}</p>
+                  {(pendingJersey > 0 || pendingContribution > 0) && (
+                    <p className="text-[11px] opacity-80 mt-1">
+                      Jersey ${pendingJersey.toFixed(0)}
+                      {pendingJersey > 0 && pendingContribution > 0 ? ' · ' : ''}
+                      {pendingContribution > 0 ? `Fees $${pendingContribution.toFixed(2)}` : ''}
+                    </p>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div
-                role="status"
-                className="rounded-lg border border-emerald-600/65 bg-emerald-950/45 px-3 py-2.5 text-sm text-emerald-100 shadow-sm"
-              >
-                <p className="font-semibold text-emerald-50">Jersey paid</p>
-                <p className="text-emerald-200/90 mt-0.5 text-xs">All your jersey orders are marked paid.</p>
-              </div>
-            ))}
-          {contributionEntries.length > 0 &&
-            (pendingContribution > 0 ? (
-              <div
-                role="status"
-                className="rounded-lg border border-amber-500/65 bg-amber-950/40 px-3 py-2.5 text-sm text-amber-100 shadow-sm"
-              >
-                <p className="font-semibold text-amber-50">Match fee — payment pending</p>
-                <p className="text-amber-200/90 mt-0.5 text-xs">
-                  ${pendingContribution.toFixed(2)} unpaid on your record
-                </p>
-              </div>
-            ) : (
-              <div
-                role="status"
-                className="rounded-lg border border-emerald-600/65 bg-emerald-950/45 px-3 py-2.5 text-sm text-emerald-100 shadow-sm"
-              >
-                <p className="font-semibold text-emerald-50">Match fee paid</p>
-                <p className="text-emerald-200/90 mt-0.5 text-xs">All your match fee entries are marked paid.</p>
-              </div>
-            ))}
+
+              {jerseyCount > 0 && (
+                <div className="mb-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-2">Jersey orders</p>
+                  <ul className="space-y-2.5 text-sm list-none pl-0">
+                    {jerseyEntries.map((j) => (
+                      <li
+                        key={j.id}
+                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-white/5 pb-2 last:border-0 last:pb-0"
+                      >
+                        <span className="text-white font-medium">
+                          {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(0)}{' '}
+                          {isPaid(j.paid) ? (
+                            <span className="text-emerald-300">paid</span>
+                          ) : (
+                            <span className="text-amber-200">unpaid</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {contribCount > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-2">
+                    Match fee / contributions
+                  </p>
+                  <ul className="space-y-3 text-sm list-none pl-0">
+                    {contributionEntries.map((e) => (
+                      <li key={e.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <span className="text-white/95">
+                            <span className="font-medium">{contributionKindLabel(e.notes)}</span>
+                            <span className="text-white/80"> — </span>
+                            <span className="font-medium tabular-nums">${e.amount.toFixed(2)}</span>
+                          </span>
+                          <span className="tabular-nums shrink-0">
+                            {isPaid(e.paid) ? (
+                              <span className="text-emerald-300 font-medium">paid</span>
+                            ) : (
+                              <span className="text-amber-200 font-medium">unpaid</span>
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50 mt-1">{formatContributionDate(e.date)}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       <div>
         <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Umpire duties</h3>
@@ -403,63 +493,6 @@ export default function ProfilePageClient({
             })}
           </ul>
         )}
-      </div>
-
-      <div>
-        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">What you owe</h3>
-        <p className="text-white text-lg">${totalPending.toFixed(2)}</p>
-        <p className="text-slate-400 text-sm mt-1">
-          Jersey: ${pendingJersey.toFixed(0)} &nbsp;|&nbsp; Player contribution / match fee: $
-          {pendingContribution.toFixed(2)}
-        </p>
-      </div>
-
-      {jerseyEntries.length > 0 ? (
-        <div>
-          <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Jersey orders</h3>
-          <ul className="text-sm text-slate-300 space-y-2 list-none pl-0">
-            {jerseyEntries.map((j) => (
-              <li key={j.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-700/50 pb-2 last:border-0 last:pb-0">
-                <span className="text-white">
-                  #{j.jerseyNumber || '—'}
-                </span>
-                {j.paid ? (
-                  <span className="text-[10px] uppercase tracking-wide text-emerald-500/90">Paid</span>
-                ) : (
-                  <span className="text-[10px] uppercase tracking-wide text-amber-500/90">Unpaid</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      <div>
-        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Contribution did</h3>
-        <p className="text-white">${contributionTotal.toFixed(2)}</p>
-        {contributionEntries.length > 0 ? (
-          <button type="button" onClick={() => setViewMoreContrib(!viewMoreContrib)} className="text-sm text-[var(--pirate-yellow)] hover:underline mt-1">
-            {viewMoreContrib ? 'Show less' : 'View more'}
-          </button>
-        ) : null}
-        {viewMoreContrib && contributionEntries.length > 0 ? (
-          <ul className="mt-2 space-y-2 text-sm text-slate-300 list-none pl-0">
-            {contributionEntries.map((e) => (
-              <li key={e.id} className="border-b border-slate-700/50 pb-2 last:border-0 last:pb-0">
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-white font-medium tabular-nums">${e.amount.toFixed(2)}</span>
-                  <span className="text-slate-500 text-xs">{formatContributionDate(e.date)}</span>
-                  {e.paid ? (
-                    <span className="text-[10px] uppercase tracking-wide text-emerald-500/90">Paid</span>
-                  ) : (
-                    <span className="text-[10px] uppercase tracking-wide text-amber-500/90">Unpaid</span>
-                  )}
-                </div>
-                <p className="text-slate-400 mt-0.5">{contributionKindLabel(e.notes)}</p>
-              </li>
-            ))}
-          </ul>
-        ) : null}
       </div>
 
       <div>
