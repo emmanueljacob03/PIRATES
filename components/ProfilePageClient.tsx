@@ -44,11 +44,6 @@ export type ProfileContributionEntry = {
   paid: boolean;
 };
 
-function contributionKindLabel(notes: string | null): string {
-  if (notes?.trim()) return notes.trim();
-  return 'Match fee';
-}
-
 function formatContributionDate(ymd: string): string {
   try {
     const d = parseISO(ymd.slice(0, 10));
@@ -403,8 +398,11 @@ export default function ProfilePageClient({
 
               {jerseyCount > 0 && (
                 <div className="mb-6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
-                    Jersey orders
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">
+                    Jersey orders and details
+                  </p>
+                  <p className="text-xs text-white/55 mt-1 mb-3">
+                    {jerseyCount} jersey order{jerseyCount === 1 ? '' : 's'}
                   </p>
                   <ul className="space-y-2.5 text-sm list-none pl-0">
                     {jerseyEntries.map((j) => (
@@ -412,11 +410,8 @@ export default function ProfilePageClient({
                         key={j.id}
                         className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0"
                       >
-                        <p className="text-white/90 text-[11px] font-semibold uppercase tracking-[0.12em] mb-1">
-                          Jersey order
-                        </p>
                         <p className="text-white font-medium leading-snug">
-                          {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(2)}{' '}
+                          {formatJerseyHash(j.jerseyNumber)} - ${NEW_JERSEY_AMOUNT_USD.toFixed(0)}{' '}
                           {isPaid(j.paid) ? (
                             <span className="text-emerald-300">paid</span>
                           ) : (
@@ -432,14 +427,11 @@ export default function ProfilePageClient({
               {contribCount > 0 && (
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
-                    Match fee / player contributions
+                    Match fee / player contribution
                   </p>
                   <ul className="space-y-2.5 text-sm list-none pl-0">
                     {contributionEntries.map((e) => (
                       <li key={e.id} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
-                        <p className="text-white/90 text-[11px] font-semibold uppercase tracking-[0.12em] mb-1">
-                          {contributionKindLabel(e.notes)}
-                        </p>
                         <p className="text-white font-medium leading-snug">
                           ${e.amount.toFixed(2)}{' '}
                           {isPaid(e.paid) ? (
@@ -448,7 +440,10 @@ export default function ProfilePageClient({
                             <span className="text-amber-200">unpaid</span>
                           )}
                         </p>
-                        <p className="text-[11px] text-white/45 mt-1">{formatContributionDate(e.date)}</p>
+                        <p className="text-[11px] text-white/45 mt-1">
+                          {e.notes?.trim() ? `${e.notes.trim()} · ` : ''}
+                          {formatContributionDate(e.date)}
+                        </p>
                       </li>
                     ))}
                   </ul>
