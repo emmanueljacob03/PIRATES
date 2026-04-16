@@ -49,11 +49,14 @@ export default async function DashboardPage() {
         ? createAdminSupabase()
             .from('jerseys')
             .select('player_name, paid, submitted_by_id')
+            /** Unpaid only: IS NOT TRUE (excludes paid = true; includes false + null). */
+            .or('paid.eq.false,paid.is.null')
         : Promise.resolve({ data: [] }),
       isAdmin
         ? createAdminSupabase()
             .from('contributions')
             .select('player_name, amount, paid, submitted_by_id')
+            .or('paid.eq.false,paid.is.null')
         : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
@@ -107,10 +110,10 @@ export default async function DashboardPage() {
         }
       }
     }
-    if (isAdmin && jerseysRes.data && contribsRes.data) {
+    if (isAdmin && jerseysRes.data != null && contribsRes.data != null) {
       type JRow = { player_name?: string; paid?: boolean; submitted_by_id?: string | null };
       type CRow = { player_name?: string; amount?: number; paid?: boolean; submitted_by_id?: string | null };
-      /** Only unpaid rows count toward dashboard pending (paid must not appear). */
+      /** Query already excludes paid=true; filter again for odd API shapes. */
       const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => !isPaid(j.paid));
       const contribRows = (contribsRes.data as CRow[]).filter((c) => !isPaid(c.paid));
       const oweIds = new Set<string>();

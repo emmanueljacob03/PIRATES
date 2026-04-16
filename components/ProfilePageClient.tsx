@@ -105,14 +105,13 @@ export default function ProfilePageClient({
         : paidFinanceCount === 0
           ? 'none'
           : 'partial';
+  /** Green only when everything paid; red for partial or nothing paid (no orange). */
   const oweBlockClass =
     oweTone === 'all'
       ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
-      : oweTone === 'partial'
-        ? 'border-orange-500/75 bg-orange-950/50 shadow-[inset_0_1px_0_0_rgba(249,115,22,0.12)]'
-        : oweTone === 'none'
-          ? 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)]'
-          : 'border-slate-600/80 bg-slate-900/55';
+      : oweTone === 'empty'
+        ? 'border-slate-600/80 bg-slate-900/55'
+        : 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)]';
   const [profile, setProfile] = useState(initialProfile);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialProfile.name ?? '');
@@ -359,7 +358,9 @@ export default function ProfilePageClient({
       </div>
 
       <div>
-        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">What you owe</h3>
+        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2 tracking-[0.12em] font-['Times_New_Roman',Times,serif] text-lg">
+          WHAT YOU OWE
+        </h3>
         <div
           className={`rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 ${oweBlockClass}`}
           role="region"
@@ -374,49 +375,49 @@ export default function ProfilePageClient({
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 border-b border-white/10 pb-3 mb-4">
                 <div>
                   <p
-                    className={`text-sm font-semibold uppercase tracking-wide ${
-                      oweTone === 'all'
-                        ? 'text-emerald-200'
-                        : oweTone === 'partial'
-                          ? 'text-orange-200'
-                          : 'text-red-200'
+                    className={`flex items-center gap-2 flex-wrap text-sm font-semibold uppercase tracking-wide ${
+                      oweTone === 'all' ? 'text-emerald-200' : 'text-red-200'
                     }`}
                   >
+                    {oweTone !== 'all' && (
+                      <span className="inline-flex shrink-0 text-red-400" aria-hidden>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M12 8v4" />
+                          <path d="M12 16h.01" />
+                        </svg>
+                      </span>
+                    )}
                     {oweTone === 'all'
                       ? 'All paid'
                       : oweTone === 'partial'
                         ? 'Partially paid'
                         : 'Payment required'}
                   </p>
-                  <p className="text-xs opacity-90 mt-1">
+                  <p className={`text-xs mt-1 ${oweTone === 'all' ? 'text-emerald-100/90' : 'text-red-100/85'}`}>
                     {oweTone === 'all'
-                      ? 'Jersey and contribution lines below are all marked paid.'
+                      ? 'Jersey and match fee / player contribution lines below are all marked paid.'
                       : oweTone === 'partial'
-                        ? 'Some items are still unpaid — see below.'
-                        : 'Nothing is marked paid yet — see below.'}
+                        ? 'Some items are still unpaid — details under Jersey orders and Match fee / player contributions.'
+                        : 'Nothing is marked paid yet — details below.'}
                   </p>
                 </div>
                 <div className="text-left sm:text-right shrink-0">
-                  <p className="text-[11px] uppercase tracking-wide opacity-80">Total still owed</p>
+                  <p className="text-[11px] uppercase tracking-wide opacity-80 text-white/80">Total still owed</p>
                   <p className="text-2xl font-bold tabular-nums text-white">${totalPending.toFixed(2)}</p>
-                  {(pendingJersey > 0 || pendingContribution > 0) && (
-                    <p className="text-[11px] opacity-80 mt-1">
-                      Jersey ${pendingJersey.toFixed(0)}
-                      {pendingJersey > 0 && pendingContribution > 0 ? ' · ' : ''}
-                      {pendingContribution > 0 ? `Fees $${pendingContribution.toFixed(2)}` : ''}
-                    </p>
-                  )}
                 </div>
               </div>
 
               {jerseyCount > 0 && (
-                <div className="mb-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-2">Jersey orders</p>
+                <div className="mb-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
+                    Jersey orders
+                  </p>
                   <ul className="space-y-2.5 text-sm list-none pl-0">
                     {jerseyEntries.map((j) => (
                       <li
                         key={j.id}
-                        className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-white/5 pb-2 last:border-0 last:pb-0"
+                        className="border-b border-white/5 pb-2 last:border-0 last:pb-0"
                       >
                         <span className="text-white font-medium">
                           {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(0)}{' '}
@@ -434,19 +435,20 @@ export default function ProfilePageClient({
 
               {contribCount > 0 && (
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70 mb-2">
-                    Match fee / contributions
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
+                    Match fee / player contributions
                   </p>
                   <ul className="space-y-3 text-sm list-none pl-0">
                     {contributionEntries.map((e) => (
                       <li key={e.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <span className="text-white/95">
-                            <span className="font-medium">{contributionKindLabel(e.notes)}</span>
-                            <span className="text-white/80"> — </span>
+                          <span className="text-white/95 min-w-0">
+                            <span className="font-semibold uppercase tracking-wide text-[10px] text-white/60 block mb-0.5">
+                              {contributionKindLabel(e.notes)}
+                            </span>
                             <span className="font-medium tabular-nums">${e.amount.toFixed(2)}</span>
                           </span>
-                          <span className="tabular-nums shrink-0">
+                          <span className="tabular-nums shrink-0 self-start">
                             {isPaid(e.paid) ? (
                               <span className="text-emerald-300 font-medium">paid</span>
                             ) : (
@@ -454,7 +456,7 @@ export default function ProfilePageClient({
                             )}
                           </span>
                         </div>
-                        <p className="text-[11px] text-white/50 mt-1">{formatContributionDate(e.date)}</p>
+                        <p className="text-[11px] text-white/45 mt-1">{formatContributionDate(e.date)}</p>
                       </li>
                     ))}
                   </ul>
