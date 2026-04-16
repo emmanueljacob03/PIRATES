@@ -94,6 +94,21 @@ export default function ProfilePageClient({
   const totalFinanceItems = jerseyCount + contribCount;
   const hasTeamStandardFee =
     assignedPlayerMatchFeeUsd != null && assignedPlayerMatchFeeUsd > 0;
+  /** Show match-fee summary when team set a standard or the player has contribution rows. */
+  const showPlayerMatchFeeBlock = hasTeamStandardFee || contribCount > 0;
+  const matchFeeAmountLabelCount =
+    contribCount > 0 ? contribCount : hasTeamStandardFee ? 1 : 0;
+  const matchFeeDisplayAmountUsd = hasTeamStandardFee
+    ? Number(assignedPlayerMatchFeeUsd)
+    : contribCount > 0
+      ? contributionEntries.reduce((s, e) => s + e.amount, 0)
+      : 0;
+  const matchFeeLinePaid =
+    contribCount === 0
+      ? false
+      : contributionEntries.every((e) => isPaid(e.paid));
+  const cents = Math.round(matchFeeDisplayAmountUsd * 100);
+  const matchFeeAmountStr = cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2);
   const hasLedgerLines = totalFinanceItems > 0;
   const anyUnpaidLine =
     jerseyEntries.some((j) => !isPaid(j.paid)) ||
@@ -101,9 +116,9 @@ export default function ProfilePageClient({
   /** Must match totals: “All paid” only when nothing owed (same as $0 total) and every line marked paid. */
   type OweTone = 'empty' | 'all' | 'outstanding';
   const oweTone: OweTone =
-    !hasLedgerLines && !hasTeamStandardFee
+    !hasLedgerLines && !showPlayerMatchFeeBlock
       ? 'empty'
-      : !hasLedgerLines && hasTeamStandardFee
+      : !hasLedgerLines && showPlayerMatchFeeBlock
         ? 'empty'
         : anyUnpaidLine || totalPending > 0.005
           ? 'outstanding'
@@ -368,13 +383,13 @@ export default function ProfilePageClient({
           role="region"
           aria-label="Jersey and contribution balances"
         >
-          {oweTone === 'empty' && !hasTeamStandardFee ? (
+          {oweTone === 'empty' && !showPlayerMatchFeeBlock ? (
             <p className="text-slate-400 text-sm leading-relaxed">
               No jersey orders or match fees / contributions on your record yet.
             </p>
           ) : (
             <>
-              {!hasLedgerLines && hasTeamStandardFee ? (
+              {!hasLedgerLines && showPlayerMatchFeeBlock ? (
                 <p className="text-xs text-slate-400 border-b border-white/10 pb-3 mb-4">
                   Standard match fee is set in <span className="text-slate-300">Team Budget → Player match fees</span>. Your
                   payment lines appear below when recorded.
@@ -440,41 +455,37 @@ export default function ProfilePageClient({
                 </div>
               )}
 
-              {assignedPlayerMatchFeeUsd != null && assignedPlayerMatchFeeUsd > 0 && (
+              {showPlayerMatchFeeBlock && matchFeeDisplayAmountUsd > 0 && (
                 <div className="mb-6">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">
                     Player match fee
                   </p>
-                  <p className="text-xs text-white/55 mt-1 mb-2">
-                    Team Budget — standard amount (Player match fees)
-                  </p>
-                  <p className="text-white font-medium tabular-nums">${assignedPlayerMatchFeeUsd.toFixed(2)}</p>
-                </div>
-              )}
-
-              {contribCount > 0 && (
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
-                    Match fee / player contribution
+                  <p className="text-xs text-white/55 mt-1 mb-3">
+                    {matchFeeAmountLabelCount} amount{matchFeeAmountLabelCount !== 1 ? 's' : ''}
                   </p>
                   <ul className="space-y-2.5 text-sm list-none pl-0">
-                    {contributionEntries.map((e) => (
-                      <li key={e.id} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
-                        <p className="text-white font-medium leading-snug">
-                          ${e.amount.toFixed(2)}{' '}
-                          {isPaid(e.paid) ? (
-                            <span className="text-emerald-300">paid</span>
-                          ) : (
-                            <span className="text-amber-200">unpaid</span>
-                          )}
-                        </p>
-                        <p className="text-[11px] text-white/45 mt-1">
-                          {e.notes?.trim() ? `${e.notes.trim()} · ` : ''}
-                          {formatContributionDate(e.date)}
-                        </p>
-                      </li>
-                    ))}
+                    <li className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
+                      <p className="text-white font-medium leading-snug tabular-nums">
+                        ${matchFeeAmountStr} -{' '}
+                        {matchFeeLinePaid ? (
+                          <span className="text-emerald-300">paid</span>
+                        ) : (
+                          <span className="text-amber-200">unpaid</span>
+                        )}
+                      </p>
+                    </li>
                   </ul>
+                  {contribCount > 1 ? (
+                    <ul className="mt-3 space-y-2 text-[11px] text-white/45 list-none pl-0 border-t border-white/5 pt-3">
+                      {contributionEntries.map((e) => (
+                        <li key={e.id}>
+                          ${e.amount.toFixed(2)} · {formatContributionDate(e.date)}
+                          {e.notes?.trim() ? ` · ${e.notes.trim()}` : ''}
+                          {isPaid(e.paid) ? ' · paid' : ' · unpaid'}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               )}
             </>
