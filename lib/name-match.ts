@@ -72,7 +72,8 @@ type PlayerRow = { name: string | null; profile_id: string | null };
  * If form name matches exactly one account (profile id), return that profile’s full name for display / owe grouping.
  * Ambiguous or no match → null (keep raw form name).
  */
-export function uniqueInferredProfileFullNameForLegacyFormName(
+/** When legacy `player_name` matches exactly one profile account, return that profile id (else null). */
+export function uniqueInferredProfileIdForLegacyFormName(
   formName: string | null | undefined,
   profiles: ProfileRow[],
   players: PlayerRow[],
@@ -90,8 +91,17 @@ export function uniqueInferredProfileFullNameForLegacyFormName(
     if (prof && playerEnteredNameMatchesProfile(formName, prof.name)) matchedProfileIds.add(pl.profile_id);
   }
   if (matchedProfileIds.size !== 1) return null;
-  const onlyId = Array.from(matchedProfileIds)[0];
-  const name = profileById.get(onlyId)?.name;
+  return Array.from(matchedProfileIds)[0];
+}
+
+export function uniqueInferredProfileFullNameForLegacyFormName(
+  formName: string | null | undefined,
+  profiles: ProfileRow[],
+  players: PlayerRow[],
+): string | null {
+  const onlyId = uniqueInferredProfileIdForLegacyFormName(formName, profiles, players);
+  if (!onlyId) return null;
+  const name = profiles.find((p) => p.id === onlyId)?.name;
   const trimmed = (name ?? '').trim();
   return trimmed || null;
 }

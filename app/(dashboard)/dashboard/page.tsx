@@ -7,7 +7,11 @@ import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name'
 import UmpiringDuties from '@/components/UmpiringDuties';
 import TotalPendingCard from '@/components/TotalPendingCard';
 import Playing11Widget from '@/components/Playing11Widget';
-import { uniqueInferredProfileFullNameForLegacyFormName } from '@/lib/name-match';
+import {
+  normalizeNameForMatch,
+  uniqueInferredProfileFullNameForLegacyFormName,
+  uniqueInferredProfileIdForLegacyFormName,
+} from '@/lib/name-match';
 import { legacyJerseySubmitterProfileId } from '@/lib/jersey-legacy-account';
 import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -46,17 +50,10 @@ export default async function DashboardPage() {
       (supabase as any).from('matches').select('opponent'),
       (supabase as any).from('match_stats').select('*'),
       isAdmin
-        ? createAdminSupabase()
-            .from('jerseys')
-            .select('player_name, paid, submitted_by_id')
-            /** Unpaid only: IS NOT TRUE (excludes paid = true; includes false + null). */
-            .or('paid.eq.false,paid.is.null')
+        ? createAdminSupabase().from('jerseys').select('player_name, paid, submitted_by_id')
         : Promise.resolve({ data: [] }),
       isAdmin
-        ? createAdminSupabase()
-            .from('contributions')
-            .select('player_name, amount, paid, submitted_by_id')
-            .or('paid.eq.false,paid.is.null')
+        ? createAdminSupabase().from('contributions').select('player_name, amount, paid, submitted_by_id')
         : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;
@@ -113,7 +110,7 @@ export default async function DashboardPage() {
     if (isAdmin && jerseysRes.data != null && contribsRes.data != null) {
       type JRow = { player_name?: string; paid?: boolean; submitted_by_id?: string | null };
       type CRow = { player_name?: string; amount?: number; paid?: boolean; submitted_by_id?: string | null };
-      /** Query already excludes paid=true; filter again for odd API shapes. */
+      /** Same unpaid rule as profiles; drop paid rows even if filter/encoding differs in PostgREST. */
       const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => !isPaid(j.paid));
       const contribRows = (contribsRes.data as CRow[]).filter((c) => !isPaid(c.paid));
       const oweIds = new Set<string>();
@@ -149,36 +146,70 @@ export default async function DashboardPage() {
         );
         return inferred || trimmed;
       };
-      const oweKeyJersey = (j: JRow): string => {
-        const sid = j.submitted_by_id ?? legacyJerseySubmitterProfileId(j.player_name, playersForInfer);
-        if (sid) return profileIdToName[sid] || (j.player_name ?? '').trim();
-        return legacyOweName(j.player_name);
-      };
-      /** Prefer profile roster name for submitter id so one person never splits into two pending buckets. */
-      const oweKeyContrib = (c: CRow): string => {
-        if (c.submitted_by_id) {
-          const fromProfile = profileIdToName[c.submitted_by_id];
-          if (fromProfile) return fromProfile;
-          return displayByUserId[c.submitted_by_id] || legacyOweName(c.player_name);
+      /** Stable bucket = one person: profile id when known; else normalized legacy label (never mix pid vs string display names). */
+      const displayForProfileId = (id: string): string =>
+        profileIdToName[id] || displayByUserId[id] || id;
+      const jerseyBucket = (j: JRow): { key: string; display: string } => {
+        if (j.submitted_by_id) {
+          const id = j.submitted_by_id;
+          return { key: `pid:${id}`, display: displayForProfileId(id) };
         }
-        return legacyOweName(c.player_name);
+        const rosterPid = legacyJerseySubmitterProfileId(j.player_name, playersForInfer);
+        if (rosterPid) {
+          return { key: `pid:${rosterPid}`, display: displayForProfileId(rosterPid) };
+        }
+        const label = legacyOweName(j.player_name);
+        const nk = `legacy:${normalizeNameForMatch(label)}`;
+        return { key: nk, display: label.trim() || nk };
       };
-      const jerseyByPerson: Record<string, number> = {};
+      const contribBucket = (c: CRow): { key: string; display: string } => {
+        if (c.submitted_by_id) {
+          const id = c.submitted_by_id;
+          return { key: `pid:${id}`, display: displayForProfileId(id) };
+        }
+        const inferredPid = uniqueInferredProfileIdForLegacyFormName(
+          (c.player_name ?? '').trim() || null,
+          profilesForInfer,
+          playersForInfer,
+        );
+        if (inferredPid) {
+          return { key: `pid:${inferredPid}`, display: displayForProfileId(inferredPid) };
+        }
+        const label = legacyOweName(c.player_name);
+        const nk = `legacy:${normalizeNameForMatch(label)}`;
+        return { key: nk, display: label.trim() || nk };
+      };
+      const displayForBucket = new Map<string, string>();
+      const pickBetterDisplay = (key: string, candidate: string) => {
+        const c = candidate.trim();
+        if (!c) return;
+        const prev = displayForBucket.get(key);
+        if (!prev || c.length > prev.length) displayForBucket.set(key, c);
+      };
+      const jerseyByBucket: Record<string, number> = {};
       jerseyRows.forEach((j) => {
-        const n = oweKeyJersey(j);
-        if (n) jerseyByPerson[n] = (jerseyByPerson[n] ?? 0) + NEW_JERSEY_AMOUNT_USD;
+        const { key, display } = jerseyBucket(j);
+        if (!key) return;
+        pickBetterDisplay(key, display);
+        jerseyByBucket[key] = (jerseyByBucket[key] ?? 0) + NEW_JERSEY_AMOUNT_USD;
       });
-      const contribByPerson: Record<string, number> = {};
+      const contribByBucket: Record<string, number> = {};
       contribRows.forEach((c) => {
-        const n = oweKeyContrib(c);
-        if (n) contribByPerson[n] = (contribByPerson[n] ?? 0) + Number(c.amount ?? 0);
+        const { key, display } = contribBucket(c);
+        if (!key) return;
+        pickBetterDisplay(key, display);
+        contribByBucket[key] = (contribByBucket[key] ?? 0) + Number(c.amount ?? 0);
       });
-      const names = new Set([...Object.keys(jerseyByPerson), ...Object.keys(contribByPerson)]);
-      pendingByPlayer = Array.from(names).map((name) => {
-        const jersey = jerseyByPerson[name] ?? 0;
-        const contribution = contribByPerson[name] ?? 0;
-        return { name, jersey, contribution, total: jersey + contribution };
-      }).filter((p) => p.total > 0).sort((a, b) => b.total - a.total);
+      const bucketKeys = new Set([...Object.keys(jerseyByBucket), ...Object.keys(contribByBucket)]);
+      pendingByPlayer = Array.from(bucketKeys)
+        .map((key) => {
+          const jersey = jerseyByBucket[key] ?? 0;
+          const contribution = contribByBucket[key] ?? 0;
+          const name = displayForBucket.get(key) ?? key.replace(/^pid:/, '').replace(/^legacy:/, '');
+          return { name, jersey, contribution, total: jersey + contribution };
+        })
+        .filter((p) => p.total > 0)
+        .sort((a, b) => b.total - a.total);
     }
   } catch {
     // use defaults

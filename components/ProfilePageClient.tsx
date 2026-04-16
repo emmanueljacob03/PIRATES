@@ -96,16 +96,10 @@ export default function ProfilePageClient({
   const paidJerseys = jerseyEntries.filter((j) => isPaid(j.paid)).length;
   const paidContribs = contributionEntries.filter((e) => isPaid(e.paid)).length;
   const paidFinanceCount = paidJerseys + paidContribs;
-  type OweTone = 'empty' | 'all' | 'partial' | 'none';
+  /** Green only if every jersey + every contribution is paid; otherwise red (no in-between). */
+  type OweTone = 'empty' | 'all' | 'outstanding';
   const oweTone: OweTone =
-    totalFinanceItems === 0
-      ? 'empty'
-      : paidFinanceCount === totalFinanceItems
-        ? 'all'
-        : paidFinanceCount === 0
-          ? 'none'
-          : 'partial';
-  /** Green only when everything paid; red for partial or nothing paid (no orange). */
+    totalFinanceItems === 0 ? 'empty' : paidFinanceCount === totalFinanceItems ? 'all' : 'outstanding';
   const oweBlockClass =
     oweTone === 'all'
       ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
@@ -388,18 +382,12 @@ export default function ProfilePageClient({
                         </svg>
                       </span>
                     )}
-                    {oweTone === 'all'
-                      ? 'All paid'
-                      : oweTone === 'partial'
-                        ? 'Partially paid'
-                        : 'Payment required'}
+                    {oweTone === 'all' ? 'All paid' : 'Outstanding'}
                   </p>
                   <p className={`text-xs mt-1 ${oweTone === 'all' ? 'text-emerald-100/90' : 'text-red-100/85'}`}>
                     {oweTone === 'all'
-                      ? 'Jersey and match fee / player contribution lines below are all marked paid.'
-                      : oweTone === 'partial'
-                        ? 'Some items are still unpaid — details under Jersey orders and Match fee / player contributions.'
-                        : 'Nothing is marked paid yet — details below.'}
+                      ? 'All jersey orders and match fee / player contribution lines below are paid.'
+                      : 'Jersey orders and match fee / player contributions — amounts and paid / unpaid status are listed below.'}
                   </p>
                 </div>
                 <div className="text-left sm:text-right shrink-0">
@@ -417,16 +405,16 @@ export default function ProfilePageClient({
                     {jerseyEntries.map((j) => (
                       <li
                         key={j.id}
-                        className="border-b border-white/5 pb-2 last:border-0 last:pb-0"
+                        className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0"
                       >
-                        <span className="text-white font-medium">
+                        <p className="text-white font-medium leading-snug">
                           {formatJerseyHash(j.jerseyNumber)} — ${NEW_JERSEY_AMOUNT_USD.toFixed(0)}{' '}
                           {isPaid(j.paid) ? (
                             <span className="text-emerald-300">paid</span>
                           ) : (
                             <span className="text-amber-200">unpaid</span>
                           )}
-                        </span>
+                        </p>
                       </li>
                     ))}
                   </ul>
@@ -438,24 +426,17 @@ export default function ProfilePageClient({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75 mb-3">
                     Match fee / player contributions
                   </p>
-                  <ul className="space-y-3 text-sm list-none pl-0">
+                  <ul className="space-y-2.5 text-sm list-none pl-0">
                     {contributionEntries.map((e) => (
-                      <li key={e.id} className="border-b border-white/5 pb-3 last:border-0 last:pb-0">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <span className="text-white/95 min-w-0">
-                            <span className="font-semibold uppercase tracking-wide text-[10px] text-white/60 block mb-0.5">
-                              {contributionKindLabel(e.notes)}
-                            </span>
-                            <span className="font-medium tabular-nums">${e.amount.toFixed(2)}</span>
-                          </span>
-                          <span className="tabular-nums shrink-0 self-start">
-                            {isPaid(e.paid) ? (
-                              <span className="text-emerald-300 font-medium">paid</span>
-                            ) : (
-                              <span className="text-amber-200 font-medium">unpaid</span>
-                            )}
-                          </span>
-                        </div>
+                      <li key={e.id} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
+                        <p className="text-white font-medium leading-snug">
+                          {contributionKindLabel(e.notes)} — ${e.amount.toFixed(2)}{' '}
+                          {isPaid(e.paid) ? (
+                            <span className="text-emerald-300">paid</span>
+                          ) : (
+                            <span className="text-amber-200">unpaid</span>
+                          )}
+                        </p>
                         <p className="text-[11px] text-white/45 mt-1">{formatContributionDate(e.date)}</p>
                       </li>
                     ))}
