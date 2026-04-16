@@ -71,6 +71,7 @@ export default function ProfilePageClient({
   pendingContribution = 0,
   jerseyEntries = [],
   playerId,
+  assignedPlayerMatchFeeUsd = null,
 }: {
   initialProfile: Profile;
   contributionEntries?: ProfileContributionEntry[];
@@ -82,6 +83,8 @@ export default function ProfilePageClient({
   /** User's jersey rows (paid status mirrors admin / jerseys page). */
   jerseyEntries?: { id: string; jerseyNumber: string; paid: boolean }[];
   playerId?: string | null;
+  /** Team Budget standard player match fee (admin); optional. */
+  assignedPlayerMatchFeeUsd?: number | null;
 }) {
   const router = useRouter();
   /** Server-sourced pending sums; coerce so header never fights string-concat or stale shapes. */
@@ -89,17 +92,22 @@ export default function ProfilePageClient({
   const jerseyCount = jerseyEntries.length;
   const contribCount = contributionEntries.length;
   const totalFinanceItems = jerseyCount + contribCount;
+  const hasTeamStandardFee =
+    assignedPlayerMatchFeeUsd != null && assignedPlayerMatchFeeUsd > 0;
+  const hasLedgerLines = totalFinanceItems > 0;
   const anyUnpaidLine =
     jerseyEntries.some((j) => !isPaid(j.paid)) ||
     contributionEntries.some((e) => !isPaid(e.paid));
   /** Must match totals: “All paid” only when nothing owed (same as $0 total) and every line marked paid. */
   type OweTone = 'empty' | 'all' | 'outstanding';
   const oweTone: OweTone =
-    totalFinanceItems === 0
+    !hasLedgerLines && !hasTeamStandardFee
       ? 'empty'
-      : anyUnpaidLine || totalPending > 0.005
-        ? 'outstanding'
-        : 'all';
+      : !hasLedgerLines && hasTeamStandardFee
+        ? 'empty'
+        : anyUnpaidLine || totalPending > 0.005
+          ? 'outstanding'
+          : 'all';
   const oweBlockClass =
     oweTone === 'all'
       ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
@@ -360,12 +368,19 @@ export default function ProfilePageClient({
           role="region"
           aria-label="Jersey and contribution balances"
         >
-          {oweTone === 'empty' ? (
+          {oweTone === 'empty' && !hasTeamStandardFee ? (
             <p className="text-slate-400 text-sm leading-relaxed">
               No jersey orders or match fees / contributions on your record yet.
             </p>
           ) : (
             <>
+              {!hasLedgerLines && hasTeamStandardFee ? (
+                <p className="text-xs text-slate-400 border-b border-white/10 pb-3 mb-4">
+                  Standard match fee is set in <span className="text-slate-300">Team Budget → Player match fees</span>. Your
+                  payment lines appear below when recorded.
+                </p>
+              ) : null}
+              {hasLedgerLines ? (
               <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 border-b border-white/10 pb-3 mb-4">
                 <div>
                   <p
@@ -384,17 +399,18 @@ export default function ProfilePageClient({
                     )}
                     {oweTone === 'all' ? 'All paid' : 'Outstanding'}
                   </p>
-                  <p className={`text-xs mt-1 ${oweTone === 'all' ? 'text-emerald-100/90' : 'text-red-100/85'}`}>
-                    {oweTone === 'all'
-                      ? 'All jersey orders and match fee / player contribution lines below are paid.'
-                      : 'Jersey orders and match fee / player contributions — amounts and paid / unpaid status are listed below.'}
-                  </p>
+                  {oweTone === 'all' ? (
+                    <p className="text-xs mt-1 text-emerald-100/90">
+                      All jersey orders and match fee / player contribution lines below are paid.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="text-left sm:text-right shrink-0">
                   <p className="text-[11px] uppercase tracking-wide opacity-80 text-white/80">Total still owed</p>
                   <p className="text-2xl font-bold tabular-nums text-white">${totalPending.toFixed(2)}</p>
                 </div>
               </div>
+              ) : null}
 
               {jerseyCount > 0 && (
                 <div className="mb-6">
@@ -421,6 +437,18 @@ export default function ProfilePageClient({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {assignedPlayerMatchFeeUsd != null && assignedPlayerMatchFeeUsd > 0 && (
+                <div className="mb-6">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">
+                    Player match fee
+                  </p>
+                  <p className="text-xs text-white/55 mt-1 mb-2">
+                    Team Budget — standard amount (Player match fees)
+                  </p>
+                  <p className="text-white font-medium tabular-nums">${assignedPlayerMatchFeeUsd.toFixed(2)}</p>
                 </div>
               )}
 

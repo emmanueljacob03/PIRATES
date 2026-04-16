@@ -3,6 +3,7 @@ import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import BudgetContributions from '@/components/BudgetContributions';
 import BudgetExpenses from '@/components/BudgetExpenses';
+import PlayerMatchFeeSetting from '@/components/PlayerMatchFeeSetting';
 import type { Contribution, Expense } from '@/types/database';
 
 export default async function BudgetPage() {
@@ -13,8 +14,21 @@ export default async function BudgetPage() {
   let contributions: Contribution[] = [];
   let expenses: (Expense & { bought?: boolean })[] = [];
   let rosterPlayerNames: string[] = [];
+  let playerMatchFeeFormatted = '0.00';
   try {
     const supabase = codeVerified ? createAdminSupabase() : await createServerSupabase();
+    try {
+      const { data: feeRow } = await supabase
+        .from('team_chat_settings')
+        .select('player_match_fee')
+        .eq('id', 1)
+        .maybeSingle();
+      const raw = (feeRow as { player_match_fee?: string | null } | null)?.player_match_fee;
+      const n = parseFloat(String(raw ?? '').trim());
+      if (!Number.isNaN(n)) playerMatchFeeFormatted = n.toFixed(2);
+    } catch {
+      playerMatchFeeFormatted = '0.00';
+    }
     const [contributionsRes, expensesRes, playersRes] = await Promise.all([
       (supabase as any).from('contributions').select('*').order('date', { ascending: false }),
       (supabase as any).from('expenses').select('*').order('created_at', { ascending: false }),
@@ -50,6 +64,7 @@ export default async function BudgetPage() {
         <p className="text-slate-400 mb-4">Enter the team code to view budget and add match fees or expenses.</p>
         <div className="card max-w-2xl mx-auto">
           <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
+          {isAdmin ? <PlayerMatchFeeSetting initialFormatted={playerMatchFeeFormatted} /> : null}
           <BudgetContributions {...contribProps} viewerMode={false} />
         </div>
       </div>
@@ -63,6 +78,13 @@ export default async function BudgetPage() {
         <div className="grid md:grid-cols-2 gap-8">
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
+            {isAdmin ? <PlayerMatchFeeSetting initialFormatted={playerMatchFeeFormatted} /> : null}
+            {!isAdmin && parseFloat(playerMatchFeeFormatted) > 0 ? (
+              <p className="text-slate-400 text-sm mb-3">
+                Standard fee:{' '}
+                <span className="text-white font-semibold">${playerMatchFeeFormatted}</span>
+              </p>
+            ) : null}
             <BudgetContributions {...contribProps} hideTeamTotal />
           </div>
           <div className="card">
@@ -95,6 +117,7 @@ export default async function BudgetPage() {
       <div className="grid md:grid-cols-2 gap-8">
         <div className="card">
           <h3 className="text-lg font-semibold mb-4">Player Match Fees</h3>
+          <PlayerMatchFeeSetting initialFormatted={playerMatchFeeFormatted} />
           <BudgetContributions {...contribProps} viewerMode={false} />
         </div>
         <div className="card">

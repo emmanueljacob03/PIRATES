@@ -55,6 +55,8 @@ export default async function ProfilesPage() {
   let jerseyEntries: { id: string; jerseyNumber: string; paid: boolean }[] = [];
   let playerId: string | null = null;
   let umpiringReminder: string | null = null;
+  /** Team Budget → standard player match fee (admin sets on budget page). */
+  let assignedPlayerMatchFeeUsd: number | null = null;
 
   if (demo) {
     return (
@@ -183,6 +185,20 @@ export default async function ProfilesPage() {
       matchesPlayed = count ?? 0;
     }
 
+    try {
+      const { data: feeRow, error: feeErr } = await supabase
+        .from('team_chat_settings')
+        .select('player_match_fee')
+        .eq('id', 1)
+        .maybeSingle();
+      if (!feeErr && feeRow) {
+        const n = parseFloat(String((feeRow as { player_match_fee?: string | null }).player_match_fee ?? '').trim());
+        if (!Number.isNaN(n) && n > 0) assignedPlayerMatchFeeUsd = n;
+      }
+    } catch {
+      assignedPlayerMatchFeeUsd = null;
+    }
+
     // Contributions and pending amounts (legacy rows: partial names vs full profile / roster)
     const nameVariants = buildSelfNameVariants(profile.name, linkedPlayer?.name ?? null);
     const nameMatchesSelf = (playerName: string | null | undefined): boolean =>
@@ -300,6 +316,7 @@ export default async function ProfilesPage() {
         pendingContribution={pendingContribution}
         jerseyEntries={jerseyEntries}
         playerId={playerId}
+        assignedPlayerMatchFeeUsd={assignedPlayerMatchFeeUsd}
       />
     </div>
   );
