@@ -109,8 +109,9 @@ export default async function DashboardPage() {
     if (isAdmin && jerseysRes.data && contribsRes.data) {
       type JRow = { player_name?: string; paid?: boolean; submitted_by_id?: string | null };
       type CRow = { player_name?: string; amount?: number; paid?: boolean; submitted_by_id?: string | null };
-      const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => !j.paid);
-      const contribRows = (contribsRes.data as CRow[]).filter((c) => !c.paid);
+      /** Only unpaid rows count toward dashboard pending (paid must not appear). */
+      const jerseyRows = (jerseysRes.data as JRow[]).filter((j) => j.paid !== true);
+      const contribRows = (contribsRes.data as CRow[]).filter((c) => c.paid !== true);
       const oweIds = new Set<string>();
       jerseyRows.forEach((j) => {
         if (j.submitted_by_id) oweIds.add(j.submitted_by_id);

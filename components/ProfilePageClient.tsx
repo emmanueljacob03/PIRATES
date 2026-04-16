@@ -82,6 +82,7 @@ export default function ProfilePageClient({
 }) {
   const router = useRouter();
   const totalPending = pendingJersey + pendingContribution;
+  const unpaidJerseysCount = jerseyEntries.filter((j) => !j.paid).length;
   const [profile, setProfile] = useState(initialProfile);
   const [viewMoreContrib, setViewMoreContrib] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -327,6 +328,52 @@ export default function ProfilePageClient({
           )}
         </div>
       </div>
+
+      {(jerseyEntries.length > 0 || contributionEntries.length > 0) && (
+        <div className="space-y-3" aria-label="Payment status">
+          {jerseyEntries.length > 0 &&
+            (pendingJersey > 0 ? (
+              <div
+                role="status"
+                className="rounded-lg border border-amber-500/65 bg-amber-950/40 px-3 py-2.5 text-sm text-amber-100 shadow-sm"
+              >
+                <p className="font-semibold text-amber-50">Jersey — order on file</p>
+                <p className="text-amber-200/90 mt-0.5 text-xs">
+                  Payment pending · ${pendingJersey.toFixed(0)} for {unpaidJerseysCount} unpaid jersey
+                  {unpaidJerseysCount === 1 ? '' : 's'}
+                </p>
+              </div>
+            ) : (
+              <div
+                role="status"
+                className="rounded-lg border border-emerald-600/65 bg-emerald-950/45 px-3 py-2.5 text-sm text-emerald-100 shadow-sm"
+              >
+                <p className="font-semibold text-emerald-50">Jersey paid</p>
+                <p className="text-emerald-200/90 mt-0.5 text-xs">All your jersey orders are marked paid.</p>
+              </div>
+            ))}
+          {contributionEntries.length > 0 &&
+            (pendingContribution > 0 ? (
+              <div
+                role="status"
+                className="rounded-lg border border-amber-500/65 bg-amber-950/40 px-3 py-2.5 text-sm text-amber-100 shadow-sm"
+              >
+                <p className="font-semibold text-amber-50">Match fee — payment pending</p>
+                <p className="text-amber-200/90 mt-0.5 text-xs">
+                  ${pendingContribution.toFixed(2)} unpaid on your record
+                </p>
+              </div>
+            ) : (
+              <div
+                role="status"
+                className="rounded-lg border border-emerald-600/65 bg-emerald-950/45 px-3 py-2.5 text-sm text-emerald-100 shadow-sm"
+              >
+                <p className="font-semibold text-emerald-50">Match fee paid</p>
+                <p className="text-emerald-200/90 mt-0.5 text-xs">All your match fee entries are marked paid.</p>
+              </div>
+            ))}
+        </div>
+      )}
 
       <div>
         <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Umpire duties</h3>
