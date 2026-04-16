@@ -195,7 +195,7 @@ export default async function ProfilesPage() {
       (c: { player_name?: string; submitted_by_id?: string | null }) =>
         c.submitted_by_id === user.id || nameMatchesSelf(c.player_name),
     );
-    const contributionEntries = [...byName]
+    contributionEntries = [...byName]
       .map(
         (c: {
           id: string;
