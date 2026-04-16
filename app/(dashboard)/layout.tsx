@@ -12,6 +12,8 @@ import NotificationBar from '@/components/NotificationBar';
 import ExpenseApprovalNotification from '@/components/ExpenseApprovalNotification';
 import SignupApprovalRequests from '@/components/SignupApprovalRequests';
 import ProfileIcon from '@/components/ProfileIcon';
+import FinanceRefreshListener from '@/components/FinanceRefreshListener';
+
 export default async function DashboardLayout({
   children,
 }: {
@@ -51,6 +53,7 @@ export default async function DashboardLayout({
   if (demo || (hasSession && codeVerified)) {
     return (
       <div className="min-h-screen bg-pirate-dark">
+        <FinanceRefreshListener />
         <MatchNotification />
         {!demo && <BirthdaySlideNotification />}
         <header className="border-b border-slate-700 px-3 sm:px-4 py-3 flex flex-col gap-2 min-w-0">

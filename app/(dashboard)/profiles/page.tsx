@@ -1,6 +1,9 @@
 import { createServerSupabase } from '@/lib/supabase-server';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
+import { unstable_noStore as noStore } from 'next/cache';
+
+export const dynamic = 'force-dynamic';
 import ProfilePageClient from '@/components/ProfilePageClient';
 import ModeAccessBadge from '@/components/ModeAccessBadge';
 import { profilePatchFromAuthMetadata } from '@/lib/profile-metadata-sync';
@@ -11,6 +14,7 @@ import { format, parseISO } from 'date-fns';
 import { dutyScheduledStartMs, isWithinThreeDaysBeforeUmpiringDuty } from '@/lib/umpiring-duties';
 
 export default async function ProfilesPage() {
+  noStore();
   const cookieStore = await cookies();
   const demo = cookieStore.get('pirates_demo')?.value === 'true';
   const isAdminCode = cookieStore.get('pirates_admin')?.value === 'true';
@@ -48,6 +52,7 @@ export default async function ProfilesPage() {
   }[] = [];
   let pendingJersey = 0;
   let pendingContribution = 0;
+  let jerseyEntries: { id: string; jerseyNumber: string; paid: boolean }[] = [];
   let playerId: string | null = null;
   let umpiringReminder: string | null = null;
 
@@ -213,7 +218,7 @@ export default async function ProfilesPage() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     const [{ data: jerseyRows }, { data: rosterForJerseyInfer }] = await Promise.all([
-      supabase.from('jerseys').select('player_name, paid, submitted_by_id'),
+      supabase.from('jerseys').select('id, player_name, paid, submitted_by_id, jersey_number'),
       supabase.from('players').select('name, profile_id'),
     ]);
     const playersForJersey = (rosterForJerseyInfer ?? []) as {
@@ -230,6 +235,13 @@ export default async function ProfilesPage() {
     );
     const unpaidJerseys = myJerseys.filter((j: { paid?: boolean }) => !j.paid);
     pendingJersey = unpaidJerseys.length * NEW_JERSEY_AMOUNT_USD;
+    jerseyEntries = myJerseys
+      .map((j: { id: string; jersey_number?: string; paid?: boolean }) => ({
+        id: j.id,
+        jerseyNumber: String(j.jersey_number ?? '').trim(),
+        paid: !!j.paid,
+      }))
+      .sort((a, b) => a.jerseyNumber.localeCompare(b.jerseyNumber, undefined, { numeric: true }));
 
     const unpaidContribs = byName.filter(
       (c: { paid?: boolean }) => !(c as { paid?: boolean }).paid,
@@ -293,6 +305,7 @@ export default async function ProfilesPage() {
         umpiringReminder={umpiringReminder}
         pendingJersey={pendingJersey}
         pendingContribution={pendingContribution}
+        jerseyEntries={jerseyEntries}
         playerId={playerId}
       />
     </div>

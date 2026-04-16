@@ -45,10 +45,14 @@ export default async function DashboardPage() {
       (supabase as any).from('matches').select('opponent'),
       (supabase as any).from('match_stats').select('*'),
       isAdmin
-        ? (supabase as any).from('jerseys').select('player_name, paid, submitted_by_id')
+        ? createAdminSupabase()
+            .from('jerseys')
+            .select('player_name, paid, submitted_by_id')
         : Promise.resolve({ data: [] }),
       isAdmin
-        ? (supabase as any).from('contributions').select('player_name, amount, paid, submitted_by_id')
+        ? createAdminSupabase()
+            .from('contributions')
+            .select('player_name, amount, paid, submitted_by_id')
         : Promise.resolve({ data: [] }),
     ]);
     totalPlayers = playersRes.count ?? 0;

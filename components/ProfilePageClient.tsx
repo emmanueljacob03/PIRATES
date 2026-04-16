@@ -65,6 +65,7 @@ export default function ProfilePageClient({
   umpiringReminder = null,
   pendingJersey = 0,
   pendingContribution = 0,
+  jerseyEntries = [],
   playerId,
 }: {
   initialProfile: Profile;
@@ -75,6 +76,8 @@ export default function ProfilePageClient({
   umpiringReminder?: string | null;
   pendingJersey?: number;
   pendingContribution?: number;
+  /** User's jersey rows (paid status mirrors admin / jerseys page). */
+  jerseyEntries?: { id: string; jerseyNumber: string; paid: boolean }[];
   playerId?: string | null;
 }) {
   const router = useRouter();
@@ -363,6 +366,26 @@ export default function ProfilePageClient({
           {pendingContribution.toFixed(2)}
         </p>
       </div>
+
+      {jerseyEntries.length > 0 ? (
+        <div>
+          <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Jersey orders</h3>
+          <ul className="text-sm text-slate-300 space-y-2 list-none pl-0">
+            {jerseyEntries.map((j) => (
+              <li key={j.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-slate-700/50 pb-2 last:border-0 last:pb-0">
+                <span className="text-white">
+                  #{j.jerseyNumber || '—'}
+                </span>
+                {j.paid ? (
+                  <span className="text-[10px] uppercase tracking-wide text-emerald-500/90">Paid</span>
+                ) : (
+                  <span className="text-[10px] uppercase tracking-wide text-amber-500/90">Unpaid</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div>
         <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Contribution did</h3>

@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import JerseyLookup from '@/components/JerseyLookup';
+import { dispatchFinanceUpdated } from '@/lib/finance-events';
 import JerseyRequestForm from '@/components/JerseyRequestForm';
 import type { Jersey } from '@/types/database';
 import {
@@ -44,25 +46,35 @@ export default function JerseysPageClient({
   isAdmin?: boolean;
   currentUserId?: string | null;
 }) {
+  const router = useRouter();
   const [jerseys, setJerseys] = useState(initial);
 
-  const handleNewJersey = useCallback((jersey: Jersey) => {
-    const row = jersey as JerseyRow;
-    setJerseys((prev) => [...prev, row].sort(sortJerseysByNumber));
-  }, []);
+  const handleNewJersey = useCallback(
+    (jersey: Jersey) => {
+      const row = jersey as JerseyRow;
+      setJerseys((prev) => [...prev, row].sort(sortJerseysByNumber));
+      router.refresh();
+      dispatchFinanceUpdated();
+    },
+    [router],
+  );
 
   const handlePaidToggle = useCallback(async (id: string, paid: boolean) => {
     const res = await fetch('/api/jerseys', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, paid }) });
     if (!res.ok) return;
     setJerseys((prev) => prev.map((j) => (j.id === id ? { ...j, paid } : j)));
-  }, []);
+    router.refresh();
+    dispatchFinanceUpdated();
+  }, [router]);
 
   const handleDeleteJersey = useCallback(async (id: string) => {
     if (!isAdmin) return;
     const res = await fetch(`/api/jerseys/${id}`, { method: 'DELETE', credentials: 'same-origin' });
     if (!res.ok) return;
     setJerseys((prev) => prev.filter((j) => j.id !== id));
-  }, [isAdmin]);
+    router.refresh();
+    dispatchFinanceUpdated();
+  }, [isAdmin, router]);
 
   const handleJerseyUpdated = useCallback((row: JerseyRow) => {
     setJerseys((prev) => prev.map((j) => (j.id === row.id ? { ...j, ...row } : j)));

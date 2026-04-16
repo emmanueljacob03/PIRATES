@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Contribution } from '@/types/database';
 import { format } from 'date-fns';
+import { dispatchFinanceUpdated } from '@/lib/finance-events';
 
 type Row = Contribution & { notes?: string | null; submitted_by_id?: string | null };
 
@@ -111,9 +112,10 @@ export default function BudgetContributions({
         }
         if (data?.id) {
           setRows((prev) => [data as Row, ...prev]);
-            setAmount('');
-            setViewerReason('');
-            router.refresh();
+          setAmount('');
+          setViewerReason('');
+          router.refresh();
+          dispatchFinanceUpdated();
         }
       } catch {
         setLoading(false);
@@ -143,6 +145,7 @@ export default function BudgetContributions({
       setAmount('');
       setAdminNotes('');
       router.refresh();
+      dispatchFinanceUpdated();
     }
   }
 
@@ -159,6 +162,8 @@ export default function BudgetContributions({
       setRows((prev) => prev.map((r) => (r.id === id ? data : r)));
       setEditingId(null);
       setEditAmount('');
+      router.refresh();
+      dispatchFinanceUpdated();
     }
   }
 
@@ -169,7 +174,11 @@ export default function BudgetContributions({
       body: JSON.stringify({ id, paid: paidVal }),
     });
     const data = await res.json().catch(() => null);
-    if (data?.id) setRows((prev) => prev.map((r) => (r.id === id ? data : r)));
+    if (data?.id) {
+      setRows((prev) => prev.map((r) => (r.id === id ? data : r)));
+      router.refresh();
+      dispatchFinanceUpdated();
+    }
   }
 
   async function handleDeleteContribution(id: string) {
@@ -191,6 +200,7 @@ export default function BudgetContributions({
       setEditAmount('');
     }
     router.refresh();
+    dispatchFinanceUpdated();
   }
 
   const showViewerTable = viewerMode && !isAdmin;
