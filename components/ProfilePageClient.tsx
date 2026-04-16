@@ -455,7 +455,7 @@ export default function ProfilePageClient({
                 </div>
               )}
 
-              {showPlayerMatchFeeBlock && matchFeeDisplayAmountUsd > 0 && (
+              {showPlayerMatchFeeBlock && (
                 <div className="mb-6">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">
                     Player match fee
