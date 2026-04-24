@@ -2,6 +2,10 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { compressImageForUpload } from '@/lib/image-compress';
+import { supabase } from '@/lib/supabase';
+
+const UPLOAD_TIMEOUT_MS = 120_000;
 
 /** Uploads to team-level Others (`match_id` null). Team code + sign-in — same API as match media. */
 export default function TeamOthersMediaClient({ canUpload = false }: { canUpload?: boolean }) {
@@ -17,26 +21,63 @@ export default function TeamOthersMediaClient({ canUpload = false }: { canUpload
     if (!file) return;
     setLoading(true);
     setMessage('');
+    const ac = new AbortController();
+    const t = window.setTimeout(() => ac.abort(), UPLOAD_TIMEOUT_MS);
     try {
-      const formData = new FormData();
-      formData.append('team_others', 'true');
-      formData.append('type', type);
-      formData.append('file', file);
+      const uploadFile =
+        type === 'photo' ? await compressImageForUpload(file, { maxBytes: 1_600_000, maxEdge: 1600 }) : file;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in to upload media.');
+      const ext = uploadFile.name.split('.').pop() || (type === 'video' ? 'mp4' : 'jpg');
+      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || (type === 'video' ? 'mp4' : 'jpg');
+      const path = `${user.id}/team-media-others/${type}-${Date.now()}-${crypto.randomUUID()}.${safeExt}`;
+      const { error: storageError } = await supabase.storage.from('avatars').upload(path, uploadFile, {
+        upsert: true,
+        contentType: uploadFile.type || (type === 'video' ? 'video/mp4' : 'image/jpeg'),
+      });
+      if (storageError) throw new Error(storageError.message);
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(path);
       const res = await fetch('/api/match-media', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
+        signal: ac.signal,
+        body: JSON.stringify({
+          team_others: true,
+          type,
+          url: publicData.publicUrl,
+        }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Upload failed');
+      const text = await res.text();
+      let data: { error?: string } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        if (!res.ok) throw new Error(text.slice(0, 200) || `Upload failed (${res.status})`);
+      }
+      if (!res.ok) {
+        const hint =
+          res.status === 413 || text.includes('FUNCTION_PAYLOAD_TOO_LARGE') || text.includes('Too Large')
+            ? ' Photo is too large. Try a smaller image.'
+            : '';
+        throw new Error((data?.error || `Upload failed (${res.status})`) + hint);
+      }
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setMessage('Uploaded.');
       router.refresh();
     } catch (err) {
-      setMessage((err as Error).message);
+      const msg =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Upload timed out. Try a smaller photo or check your connection.'
+          : (err as Error).message;
+      setMessage(msg);
+    } finally {
+      window.clearTimeout(t);
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   if (!canUpload) return null;
