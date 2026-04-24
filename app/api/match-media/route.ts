@@ -31,13 +31,14 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = file.name.split('.').pop() || (type === 'video' ? 'mp4' : 'jpg');
+    const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || (type === 'video' ? 'mp4' : 'jpg');
     const supabase = createAdminSupabase();
 
     let path: string;
     let insertPayload: Record<string, unknown>;
 
     if (teamOthers) {
-      path = `team-media-others/${type}-${Date.now()}.${ext}`;
+      path = `team-media-others/${type}-${Date.now()}-${crypto.randomUUID()}.${safeExt}`;
       insertPayload = {
         match_id: null,
         type,
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       if (!match_id) {
         return NextResponse.json({ error: 'match_id is required unless uploading to team Others' }, { status: 400 });
       }
-      path = `match-media/${match_id}/${album}/${type}-${Date.now()}.${ext}`;
+      path = `match-media/${match_id}/${album}/${type}-${Date.now()}-${crypto.randomUUID()}.${safeExt}`;
       insertPayload = {
         match_id,
         type,
@@ -59,19 +60,47 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
+      upsert: true,
+      contentType: file.type || (type === 'video' ? 'video/mp4' : 'image/jpeg'),
+    });
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 400 });
 
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     insertPayload.url = data.publicUrl;
 
-    const { data: inserted, error: insertError } = await (supabase as any)
-      .from('match_media')
-      .insert(insertPayload)
-      .select()
-      .single();
+    const table = (supabase as any).from('match_media');
+    let inserted: unknown = null;
+    let insertError: { message?: string } | null = null;
 
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
+    {
+      const res = await table.insert(insertPayload).select().single();
+      inserted = res.data;
+      insertError = res.error;
+    }
+
+    // Backward compatibility for DBs that don't have the album column yet.
+    if (insertError?.message?.toLowerCase().includes('column') && insertError.message.toLowerCase().includes('album')) {
+      const fallbackPayload = { ...insertPayload };
+      delete (fallbackPayload as { album?: string }).album;
+      const res = await table.insert(fallbackPayload).select().single();
+      inserted = res.data;
+      insertError = res.error;
+    }
+
+    if (insertError) {
+      const msg = insertError.message ?? 'Insert failed';
+      if (teamOthers && msg.toLowerCase().includes('null value') && msg.toLowerCase().includes('match_id')) {
+        return NextResponse.json(
+          {
+            error:
+              'Team Others requires match_media.match_id to allow NULL. Run supabase/alter_match_media_null_match_for_team_others.sql in Supabase SQL Editor.',
+          },
+          { status: 400 },
+        );
+      }
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
     return NextResponse.json(inserted);
   } catch (e) {
     const msg = (e as Error).message;
