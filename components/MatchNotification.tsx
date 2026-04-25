@@ -8,7 +8,6 @@ import {
 } from '@/lib/upcoming-notifications';
 import { formatCentralNow } from '@/lib/app-timezone';
 import { consumeSlideReminderCookieInBrowser } from '@/lib/slide-reminder-cookie';
-import { formatMatchDate } from '@/lib/match-date';
 
 type Row = {
   id: string;
@@ -17,13 +16,9 @@ type Row = {
   opponent: string;
   is_practice?: boolean;
   playing11_added?: boolean;
-  /** Max lineup `created_at` ms as string; changes when admin saves Playing 11. */
-  playing11_revision?: string | null;
 };
 
 const DISMISS_KEY = 'pirates_reminder_slide_dismissed';
-const P11_REV_KEY = 'pirates_p11_revisions';
-/** Short interval so viewers see Playing 11 updates without same-tab CustomEvents. */
 const REFRESH_MS = 15_000;
 
 function loadDismissedIds(): string[] {
@@ -89,58 +84,9 @@ export default function MatchNotification() {
     return () => window.removeEventListener('playing11-updated', handler);
   }, [load]);
 
-  // Playing 11 revision changed (admin saved) → re-show that match for viewers and admins.
-  useEffect(() => {
-    if (reminderRows.length === 0) return;
-    try {
-      const raw = sessionStorage.getItem(P11_REV_KEY);
-      let prev: Record<string, string> = {};
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          prev = parsed as Record<string, string>;
-        }
-      }
-
-      const next: Record<string, string> = {};
-      const toUndismiss = new Set<string>();
-
-      for (const m of reminderRows) {
-        if (m.playing11_added && m.playing11_revision) {
-          const rev = m.playing11_revision;
-          const old = prev[m.id];
-          if (old !== rev) {
-            toUndismiss.add(m.id);
-          }
-          next[m.id] = rev;
-        }
-      }
-
-      sessionStorage.setItem(P11_REV_KEY, JSON.stringify(next));
-
-      if (toUndismiss.size > 0) {
-        setDismissedIds((d) => {
-          const filtered = d.filter((id) => !toUndismiss.has(id));
-          try {
-            sessionStorage.setItem(DISMISS_KEY, JSON.stringify(filtered));
-          } catch {}
-          return filtered;
-        });
-      }
-    } catch {}
-  }, [reminderRows]);
-
   const visible = useMemo(
-    () => reminderRows.filter((m) => !dismissedIds.includes(m.id)),
+    () => reminderRows.filter((m) => !m.playing11_added && !dismissedIds.includes(m.id)),
     [reminderRows, dismissedIds],
-  );
-  const playing11Visible = useMemo(
-    () => visible.filter((m) => m.playing11_added && !m.is_practice),
-    [visible],
-  );
-  const regularVisible = useMemo(
-    () => visible.filter((m) => !m.playing11_added),
-    [visible],
   );
 
   const dismissAllVisible = (ids: string[]) => {
@@ -159,54 +105,28 @@ export default function MatchNotification() {
     <div
       className="fixed top-4 right-4 z-50 w-full max-w-sm px-3 sm:px-0"
       role="region"
-      aria-label="Upcoming reminders and playing eleven updates"
+      aria-label="Upcoming match and practice reminders"
     >
-      <div className="space-y-3">
-        {playing11Visible.length > 0 && (
-          <div className="relative overflow-hidden rounded-lg border border-[var(--pirate-yellow)]/75 bg-gradient-to-br from-amber-950/80 via-slate-900 to-[var(--pirate-navy)] p-4 shadow-[0_0_30px_rgba(245,158,11,0.28)]">
-            <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.20),transparent_42%),radial-gradient(circle_at_85%_85%,rgba(253,224,71,0.14),transparent_45%)]" />
-            <div className="relative flex items-start gap-3 pr-8">
-              <span className="text-2xl shrink-0" aria-hidden>
-                ✨
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-200 tracking-wide uppercase text-xs">Playing 11 Updated</p>
-                <p className="text-[11px] text-amber-100/70 mt-0.5">CST now: {centralClock}</p>
-                <ul className="mt-3 max-h-44 overflow-y-auto space-y-0 text-sm text-amber-50 leading-snug">
-                  {playing11Visible.map((m, i) => (
-                    <li key={m.id} className={i > 0 ? 'pt-3 mt-3 border-t border-amber-300/30' : ''}>
-                      {`Match vs ${m.opponent} — ${formatMatchDate(m.date, 'MMM d, yyyy')} · ${m.time}`}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+      <div className="bg-slate-800 border border-amber-500/50 rounded-lg shadow-xl p-4 relative overflow-hidden">
+        <div className="flex items-start gap-3 pr-8">
+          <span className="text-2xl shrink-0" aria-hidden>
+            🏏
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-400">Reminder</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">CST now: {centralClock}</p>
+            <ul className="mt-3 max-h-52 overflow-y-auto space-y-0 text-sm text-slate-200 leading-snug">
+              {visible.map((m, i) => (
+                <li
+                  key={m.id}
+                  className={i > 0 ? 'pt-3 mt-3 border-t border-slate-600/80' : ''}
+                >
+                  {formatReminderLine(m)}
+                </li>
+              ))}
+            </ul>
           </div>
-        )}
-
-        {regularVisible.length > 0 && (
-          <div className="bg-slate-800 border border-amber-500/50 rounded-lg shadow-xl p-4 relative overflow-hidden">
-            <div className="flex items-start gap-3 pr-8">
-              <span className="text-2xl shrink-0" aria-hidden>
-                🏏
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-amber-400">Reminder</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">CST now: {centralClock}</p>
-                <ul className="mt-3 max-h-52 overflow-y-auto space-y-0 text-sm text-slate-200 leading-snug">
-                  {regularVisible.map((m, i) => (
-                    <li
-                      key={m.id}
-                      className={i > 0 ? 'pt-3 mt-3 border-t border-slate-600/80' : ''}
-                    >
-                      {formatReminderLine(m)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         <button
           type="button"

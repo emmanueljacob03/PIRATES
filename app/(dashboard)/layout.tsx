@@ -7,6 +7,7 @@ import DashboardNav from '@/components/DashboardNav';
 import TeamChatNavButton from '@/components/TeamChatNavButton';
 import PiratesHeader from '@/components/PiratesHeader';
 import MatchNotification from '@/components/MatchNotification';
+import Playing11Notification from '@/components/Playing11Notification';
 import BirthdaySlideNotification from '@/components/BirthdaySlideNotification';
 import NotificationBar from '@/components/NotificationBar';
 import ExpenseApprovalNotification from '@/components/ExpenseApprovalNotification';
@@ -55,6 +56,7 @@ export default async function DashboardLayout({
       <div className="min-h-screen bg-pirate-dark">
         <FinanceRefreshListener />
         <MatchNotification />
+        <Playing11Notification />
         {!demo && <BirthdaySlideNotification />}
         <header className="border-b border-slate-700 px-3 sm:px-4 py-3 flex flex-col gap-2 min-w-0">
           <div className="flex items-center justify-between gap-2 sm:gap-4 min-w-0 w-full">

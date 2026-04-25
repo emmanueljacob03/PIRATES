@@ -1,0 +1,165 @@
+'use client';
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { buildUpcomingMatchesSearchParams, selectMatchesForReminderWindow } from '@/lib/upcoming-notifications';
+import { formatCentralNow } from '@/lib/app-timezone';
+import { formatMatchDate } from '@/lib/match-date';
+
+type Row = {
+  id: string;
+  date: string;
+  time: string;
+  opponent: string;
+  is_practice?: boolean;
+  playing11_added?: boolean;
+  playing11_revision?: string | null;
+};
+
+const DISMISS_KEY = 'pirates_playing11_slide_dismissed';
+const REV_KEY = 'pirates_p11_revisions';
+const REFRESH_MS = 15_000;
+
+function loadDismissedIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem(DISMISS_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as string[];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+export default function Playing11Notification() {
+  const [rows, setRows] = useState<Row[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => loadDismissedIds());
+  const [centralClock, setCentralClock] = useState('');
+
+  const load = useCallback(() => {
+    const qs = buildUpcomingMatchesSearchParams();
+    fetch(`/api/upcoming-matches?${qs}`, { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setRows(selectMatchesForReminderWindow(data, new Date()));
+      })
+      .catch(() => {});
+    setCentralClock(formatCentralNow());
+  }, []);
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const ce = ev as CustomEvent<{ matchId?: string }>;
+      const mid = ce.detail?.matchId?.trim();
+      if (mid) {
+        setDismissedIds((prev) => {
+          const next = prev.filter((id) => id !== mid);
+          try {
+            sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
+      load();
+    };
+    window.addEventListener('playing11-updated', handler);
+    return () => window.removeEventListener('playing11-updated', handler);
+  }, [load]);
+
+  useEffect(() => {
+    if (rows.length === 0) return;
+    try {
+      const raw = sessionStorage.getItem(REV_KEY);
+      let prev: Record<string, string> = {};
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          prev = parsed as Record<string, string>;
+        }
+      }
+      const next: Record<string, string> = {};
+      const toUndismiss = new Set<string>();
+
+      for (const m of rows) {
+        if (m.playing11_added && m.playing11_revision) {
+          const rev = m.playing11_revision;
+          const old = prev[m.id];
+          if (old !== rev) toUndismiss.add(m.id);
+          next[m.id] = rev;
+        }
+      }
+
+      sessionStorage.setItem(REV_KEY, JSON.stringify(next));
+      if (toUndismiss.size > 0) {
+        setDismissedIds((d) => {
+          const filtered = d.filter((id) => !toUndismiss.has(id));
+          try {
+            sessionStorage.setItem(DISMISS_KEY, JSON.stringify(filtered));
+          } catch {}
+          return filtered;
+        });
+      }
+    } catch {}
+  }, [rows]);
+
+  const visible = useMemo(
+    () =>
+      rows.filter(
+        (m) =>
+          !dismissedIds.includes(m.id) &&
+          !!m.playing11_added &&
+          !m.is_practice,
+      ),
+    [rows, dismissedIds],
+  );
+
+  const dismissAll = () => {
+    setDismissedIds((prev) => {
+      const next = Array.from(new Set([...prev, ...visible.map((m) => m.id)]));
+      try {
+        sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="fixed top-4 right-4 z-[60] w-full max-w-sm px-3 sm:px-0" role="region" aria-label="Playing eleven notifications">
+      <div className="relative overflow-hidden rounded-lg border border-[var(--pirate-yellow)]/75 bg-gradient-to-br from-amber-950/80 via-slate-900 to-[var(--pirate-navy)] p-4 shadow-[0_0_30px_rgba(245,158,11,0.28)]">
+        <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.20),transparent_42%),radial-gradient(circle_at_85%_85%,rgba(253,224,71,0.14),transparent_45%)]" />
+        <div className="relative flex items-start gap-3 pr-8">
+          <span className="text-2xl shrink-0" aria-hidden>
+            ✨
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-amber-200 tracking-wide uppercase text-xs">Playing 11 Updated</p>
+            <p className="text-[11px] text-amber-100/70 mt-0.5">CST now: {centralClock}</p>
+            <ul className="mt-3 max-h-44 overflow-y-auto space-y-0 text-sm text-amber-50 leading-snug">
+              {visible.map((m, i) => (
+                <li key={m.id} className={i > 0 ? 'pt-3 mt-3 border-t border-amber-300/30' : ''}>
+                  {`Match vs ${m.opponent} — ${formatMatchDate(m.date, 'MMM d, yyyy')} · ${m.time}`}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={dismissAll}
+          className="absolute top-2 right-2 text-amber-100/80 hover:text-white text-xl leading-none w-8 h-8 flex items-center justify-center rounded hover:bg-amber-700/20"
+          aria-label="Dismiss Playing 11 notifications"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  );
+}
