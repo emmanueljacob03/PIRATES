@@ -10,6 +10,7 @@ const links = [
   { href: '/budget', label: 'Team Budget' },
   { href: '/schedule', label: 'Match Schedule' },
   { href: '/media', label: 'Match Media' },
+  { href: '/live', label: 'Live Stream' },
   { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/players', label: 'Players' },
 ];

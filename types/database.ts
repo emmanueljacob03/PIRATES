@@ -207,6 +207,9 @@ export interface Database {
           header_image_url: string | null;
           desired_collection: string | null;
           player_match_fee: string | null;
+          live_stream_url: string | null;
+          live_stream_active: boolean;
+          live_stream_title: string | null;
           updated_at: string;
         };
         Insert: {
@@ -214,12 +217,18 @@ export interface Database {
           header_image_url?: string | null;
           desired_collection?: string | null;
           player_match_fee?: string | null;
+          live_stream_url?: string | null;
+          live_stream_active?: boolean;
+          live_stream_title?: string | null;
           updated_at?: string;
         };
         Update: Partial<{
           header_image_url: string | null;
           desired_collection?: string | null;
           player_match_fee?: string | null;
+          live_stream_url: string | null;
+          live_stream_active: boolean;
+          live_stream_title: string | null;
           updated_at: string;
         }>;
       };

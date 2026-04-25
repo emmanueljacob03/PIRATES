@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import {
   buildUpcomingMatchesSearchParams,
   selectMatchesForReminderWindow,
@@ -46,7 +46,8 @@ export default function MatchNotification() {
   const [reminderRows, setReminderRows] = useState<Row[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => loadDismissedIds());
   const [centralClock, setCentralClock] = useState('');
-  const [playing11Active, setPlaying11Active] = useState(false);
+  /** Wait for `Playing11Notification` first fetch so the match card does not flash before P11. */
+  const [p11Gate, setP11Gate] = useState({ ready: false, active: false });
 
   // After login / team code / gate / demo: one-time cookie — clear both reminder and Playing 11 dismiss lists.
   useEffect(() => {
@@ -76,10 +77,14 @@ export default function MatchNotification() {
     return () => clearInterval(interval);
   }, [load]);
 
-  useEffect(() => {
+  // useLayoutEffect so listener exists before `Playing11Notification` first `useEffect` dispatches.
+  useLayoutEffect(() => {
     const handler = (ev: Event) => {
-      const ce = ev as CustomEvent<{ active?: boolean }>;
-      setPlaying11Active(Boolean(ce.detail?.active));
+      const ce = ev as CustomEvent<{ ready?: boolean; active?: boolean }>;
+      setP11Gate({
+        ready: Boolean(ce.detail?.ready),
+        active: Boolean(ce.detail?.active),
+      });
     };
     window.addEventListener(PLAYING11_ACTIVE_EVENT, handler);
     return () => window.removeEventListener(PLAYING11_ACTIVE_EVENT, handler);
@@ -119,7 +124,7 @@ export default function MatchNotification() {
     });
   };
 
-  if (visible.length === 0 || playing11Active) return null;
+  if (visible.length === 0 || !p11Gate.ready || p11Gate.active) return null;
 
   return (
     <div

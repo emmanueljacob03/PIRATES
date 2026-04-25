@@ -35,6 +35,7 @@ function loadDismissedIds(): string[] {
 export default function Playing11Notification() {
   const [rows, setRows] = useState<Row[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => loadDismissedIds());
+  const [p11DataReady, setP11DataReady] = useState(false);
   const [centralClock, setCentralClock] = useState('');
 
   // After login / team code / gate: same behavior as `MatchNotification` — clear both dismiss stores.
@@ -55,7 +56,8 @@ export default function Playing11Notification() {
       .then((data) => {
         if (Array.isArray(data)) setRows(selectMatchesForReminderWindow(data, new Date()));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setP11DataReady(true));
     setCentralClock(formatCentralNow());
   }, []);
 
@@ -97,19 +99,20 @@ export default function Playing11Notification() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const active = p11DataReady && visible.length > 0;
     window.dispatchEvent(
       new CustomEvent(ACTIVE_EVENT, {
-        detail: { active: visible.length > 0 },
+        detail: { ready: p11DataReady, active },
       }),
     );
     return () => {
       window.dispatchEvent(
         new CustomEvent(ACTIVE_EVENT, {
-          detail: { active: false },
+          detail: { ready: true, active: false },
         }),
       );
     };
-  }, [visible.length]);
+  }, [p11DataReady, visible.length]);
 
   const dismissAll = () => {
     setDismissedIds((prev) => {
