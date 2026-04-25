@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminSupabase();
     const table = (supabase as any).from('match_media');
-    async function insertMediaRow(insertPayload: Record<string, unknown>, teamOthers: boolean) {
+    const insertMediaRow = async (insertPayload: Record<string, unknown>, teamOthers: boolean) => {
       let inserted: unknown = null;
       let insertError: { message?: string } | null = null;
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 });
       }
       return NextResponse.json(inserted);
-    }
+    };
 
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
