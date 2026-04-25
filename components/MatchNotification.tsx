@@ -19,6 +19,8 @@ type Row = {
 };
 
 const DISMISS_KEY = 'pirates_reminder_slide_dismissed';
+const PLAYING11_DISMISS_KEY = 'pirates_playing11_slide_dismissed';
+const PLAYING11_ACTIVE_EVENT = 'playing11-notification-active';
 const REFRESH_MS = 15_000;
 
 function loadDismissedIds(): string[] {
@@ -44,12 +46,14 @@ export default function MatchNotification() {
   const [reminderRows, setReminderRows] = useState<Row[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => loadDismissedIds());
   const [centralClock, setCentralClock] = useState('');
+  const [playing11Active, setPlaying11Active] = useState(false);
 
-  // After login / team code / gate / demo: one-time cookie → show slide (clears session dismiss).
+  // After login / team code / gate / demo: one-time cookie — clear both reminder and Playing 11 dismiss lists.
   useEffect(() => {
     try {
       if (consumeSlideReminderCookieInBrowser()) {
         sessionStorage.removeItem(DISMISS_KEY);
+        sessionStorage.removeItem(PLAYING11_DISMISS_KEY);
         setDismissedIds([]);
       }
     } catch {}
@@ -71,6 +75,15 @@ export default function MatchNotification() {
     const interval = setInterval(load, REFRESH_MS);
     return () => clearInterval(interval);
   }, [load]);
+
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const ce = ev as CustomEvent<{ active?: boolean }>;
+      setPlaying11Active(Boolean(ce.detail?.active));
+    };
+    window.addEventListener(PLAYING11_ACTIVE_EVENT, handler);
+    return () => window.removeEventListener(PLAYING11_ACTIVE_EVENT, handler);
+  }, []);
 
   useEffect(() => {
     const handler = (ev: Event) => {
@@ -106,7 +119,7 @@ export default function MatchNotification() {
     });
   };
 
-  if (visible.length === 0) return null;
+  if (visible.length === 0 || playing11Active) return null;
 
   return (
     <div

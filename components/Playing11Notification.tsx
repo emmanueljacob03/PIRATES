@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { buildUpcomingMatchesSearchParams, selectMatchesForReminderWindow } from '@/lib/upcoming-notifications';
 import { formatCentralNow } from '@/lib/app-timezone';
 import { formatMatchDate } from '@/lib/match-date';
+import { consumeSlideReminderCookieInBrowser } from '@/lib/slide-reminder-cookie';
 
 type Row = {
   id: string;
@@ -12,11 +13,11 @@ type Row = {
   opponent: string;
   is_practice?: boolean;
   playing11_added?: boolean;
-  playing11_revision?: string | null;
 };
 
 const DISMISS_KEY = 'pirates_playing11_slide_dismissed';
-const REV_KEY = 'pirates_p11_revisions';
+const REMINDER_DISMISS_KEY = 'pirates_reminder_slide_dismissed';
+const ACTIVE_EVENT = 'playing11-notification-active';
 const REFRESH_MS = 15_000;
 
 function loadDismissedIds(): string[] {
@@ -35,6 +36,17 @@ export default function Playing11Notification() {
   const [rows, setRows] = useState<Row[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => loadDismissedIds());
   const [centralClock, setCentralClock] = useState('');
+
+  // After login / team code / gate: same behavior as `MatchNotification` — clear both dismiss stores.
+  useEffect(() => {
+    try {
+      if (consumeSlideReminderCookieInBrowser()) {
+        sessionStorage.removeItem(DISMISS_KEY);
+        sessionStorage.removeItem(REMINDER_DISMISS_KEY);
+        setDismissedIds([]);
+      }
+    } catch {}
+  }, []);
 
   const load = useCallback(() => {
     const qs = buildUpcomingMatchesSearchParams();
@@ -72,42 +84,6 @@ export default function Playing11Notification() {
     return () => window.removeEventListener('playing11-updated', handler);
   }, [load]);
 
-  useEffect(() => {
-    if (rows.length === 0) return;
-    try {
-      const raw = sessionStorage.getItem(REV_KEY);
-      let prev: Record<string, string> = {};
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          prev = parsed as Record<string, string>;
-        }
-      }
-      const next: Record<string, string> = {};
-      const toUndismiss = new Set<string>();
-
-      for (const m of rows) {
-        if (m.playing11_added && m.playing11_revision) {
-          const rev = m.playing11_revision;
-          const old = prev[m.id];
-          if (old !== rev) toUndismiss.add(m.id);
-          next[m.id] = rev;
-        }
-      }
-
-      sessionStorage.setItem(REV_KEY, JSON.stringify(next));
-      if (toUndismiss.size > 0) {
-        setDismissedIds((d) => {
-          const filtered = d.filter((id) => !toUndismiss.has(id));
-          try {
-            sessionStorage.setItem(DISMISS_KEY, JSON.stringify(filtered));
-          } catch {}
-          return filtered;
-        });
-      }
-    } catch {}
-  }, [rows]);
-
   const visible = useMemo(
     () =>
       rows.filter(
@@ -118,6 +94,22 @@ export default function Playing11Notification() {
       ),
     [rows, dismissedIds],
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(
+      new CustomEvent(ACTIVE_EVENT, {
+        detail: { active: visible.length > 0 },
+      }),
+    );
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent(ACTIVE_EVENT, {
+          detail: { active: false },
+        }),
+      );
+    };
+  }, [visible.length]);
 
   const dismissAll = () => {
     setDismissedIds((prev) => {
