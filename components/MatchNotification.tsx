@@ -163,18 +163,18 @@ export default function MatchNotification() {
     >
       <div className="space-y-3">
         {playing11Visible.length > 0 && (
-          <div className="relative overflow-hidden rounded-lg border border-fuchsia-400/70 bg-gradient-to-br from-fuchsia-950/70 via-violet-950/70 to-indigo-950/70 p-4 shadow-[0_0_28px_rgba(217,70,239,0.35)]">
-            <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_20%,rgba(244,114,182,0.22),transparent_42%),radial-gradient(circle_at_85%_85%,rgba(129,140,248,0.22),transparent_45%)]" />
+          <div className="relative overflow-hidden rounded-lg border border-[var(--pirate-yellow)]/75 bg-gradient-to-br from-amber-950/80 via-slate-900 to-[var(--pirate-navy)] p-4 shadow-[0_0_30px_rgba(245,158,11,0.28)]">
+            <div className="pointer-events-none absolute inset-0 animate-pulse bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.20),transparent_42%),radial-gradient(circle_at_85%_85%,rgba(253,224,71,0.14),transparent_45%)]" />
             <div className="relative flex items-start gap-3 pr-8">
               <span className="text-2xl shrink-0" aria-hidden>
                 ✨
               </span>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-fuchsia-200 tracking-wide uppercase text-xs">Playing 11 Updated</p>
-                <p className="text-[11px] text-fuchsia-100/70 mt-0.5">CST now: {centralClock}</p>
-                <ul className="mt-3 max-h-44 overflow-y-auto space-y-0 text-sm text-fuchsia-50 leading-snug">
+                <p className="font-semibold text-amber-200 tracking-wide uppercase text-xs">Playing 11 Updated</p>
+                <p className="text-[11px] text-amber-100/70 mt-0.5">CST now: {centralClock}</p>
+                <ul className="mt-3 max-h-44 overflow-y-auto space-y-0 text-sm text-amber-50 leading-snug">
                   {playing11Visible.map((m, i) => (
-                    <li key={m.id} className={i > 0 ? 'pt-3 mt-3 border-t border-fuchsia-300/30' : ''}>
+                    <li key={m.id} className={i > 0 ? 'pt-3 mt-3 border-t border-amber-300/30' : ''}>
                       {`Match vs ${m.opponent} — ${formatMatchDate(m.date, 'MMM d, yyyy')} · ${m.time}`}
                     </li>
                   ))}
