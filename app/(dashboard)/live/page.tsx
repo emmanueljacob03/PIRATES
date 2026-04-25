@@ -37,7 +37,8 @@ export default async function LivePage() {
     <div>
       <h2 className="text-2xl font-bold text-pirate-gold mb-2">Live Stream</h2>
       <p className="text-slate-400 mb-6">
-        Watch the match live when the stream is on. Admins can start the broadcast using a YouTube or Vimeo link.
+        Admins: start the stream from this page (YouTube or Vimeo link + <span className="text-slate-300">Start stream</span>) so
+        the team and the public <code className="text-amber-200/80 text-xs">/watch</code> page can view.
       </p>
       <LiveStreamPageClient isAdmin={isAdmin} initial={initial} />
     </div>
