@@ -117,12 +117,7 @@ export default function LiveStreamPageClient({
     <div className="max-w-4xl">
       {isAdmin && (
         <div className="card mb-6 border-amber-500/30">
-          <h3 className="text-lg font-semibold text-amber-200 mb-2">Post your YouTube URL here and start</h3>
-          <p className="text-slate-400 text-sm mb-4">
-            Go live on <strong className="text-slate-300">YouTube</strong> or <strong className="text-slate-300">Vimeo</strong> in
-            your studio, then paste the watch or live page URL here and press <strong className="text-amber-200/90">Start stream</strong>.
-            That turns on the player on this page and the public page so anyone can watch — no app login on the public link.
-          </p>
+          <h3 className="text-lg font-semibold text-amber-200 mb-4">Post your YouTube URL here and start</h3>
           {isLive ? (
             <p
               className="mb-4 rounded-lg border border-emerald-500/50 bg-emerald-950/50 px-3 py-2 text-sm text-emerald-200"
