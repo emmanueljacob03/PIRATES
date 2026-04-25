@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   buildUpcomingMatchesSearchParams,
   selectMatchesForReminderWindow,
-  formatReminderLine,
 } from '@/lib/upcoming-notifications';
 import { formatCentralNow } from '@/lib/app-timezone';
 import { consumeSlideReminderCookieInBrowser } from '@/lib/slide-reminder-cookie';
+import { formatMatchDate } from '@/lib/match-date';
 
 type Row = {
   id: string;
@@ -31,6 +31,13 @@ function loadDismissedIds(): string[] {
   } catch {
     return [];
   }
+}
+
+function formatRegularReminderLine(m: Row): string {
+  if (m.is_practice) {
+    return `Practice — ${formatMatchDate(m.date, 'MMM d, yyyy')} · ${m.time}`;
+  }
+  return `Match vs ${m.opponent} — ${formatMatchDate(m.date, 'MMM d, yyyy')} · ${m.time}`;
 }
 
 export default function MatchNotification() {
@@ -85,7 +92,7 @@ export default function MatchNotification() {
   }, [load]);
 
   const visible = useMemo(
-    () => reminderRows.filter((m) => !m.playing11_added && !dismissedIds.includes(m.id)),
+    () => reminderRows.filter((m) => !dismissedIds.includes(m.id)),
     [reminderRows, dismissedIds],
   );
 
@@ -121,7 +128,7 @@ export default function MatchNotification() {
                   key={m.id}
                   className={i > 0 ? 'pt-3 mt-3 border-t border-slate-600/80' : ''}
                 >
-                  {formatReminderLine(m)}
+                  {formatRegularReminderLine(m)}
                 </li>
               ))}
             </ul>
