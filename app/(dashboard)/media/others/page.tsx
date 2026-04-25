@@ -3,6 +3,7 @@ import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import TeamOthersMediaClient from '@/components/TeamOthersMediaClient';
+import MediaPhotoGallery from '@/components/MediaPhotoGallery';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,18 +57,8 @@ export default async function TeamOthersMediaPage() {
       <TeamOthersMediaClient canUpload={canUpload} />
 
       <h3 className="text-lg font-semibold text-white mb-3">Photos ({photos.length})</h3>
-      <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-8 gap-1 mb-10">
-        {photos.length === 0 ? (
-          <p className="text-slate-500 col-span-full">No photos yet.</p>
-        ) : (
-          photos.map((m) => (
-            <a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer" className="group block">
-              <div className="aspect-square rounded-sm overflow-hidden bg-slate-700 border border-slate-600 group-hover:border-amber-400 transition">
-                <img src={m.url} alt="" className="w-full h-full object-cover scale-85" />
-              </div>
-            </a>
-          ))
-        )}
+      <div className="mb-10">
+        <MediaPhotoGallery photos={photos} canDelete={canUpload} />
       </div>
 
       <h3 className="text-lg font-semibold text-white mb-3">Videos ({videos.length})</h3>

@@ -232,6 +232,31 @@ export interface Database {
           updated_at: string;
         }>;
       };
+      live_stream_history: {
+        Row: {
+          id: string;
+          url: string;
+          label: string | null;
+          started_at: string | null;
+          ended_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          url: string;
+          label?: string | null;
+          started_at?: string | null;
+          ended_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<{
+          url: string;
+          label: string | null;
+          started_at: string | null;
+          ended_at: string;
+          created_at: string;
+        }>;
+      };
     };
   };
 }

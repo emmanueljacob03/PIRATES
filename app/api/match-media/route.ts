@@ -133,3 +133,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const cookieStore = await cookies();
+  if (cookieStore.get('pirates_code_verified')?.value !== 'true') {
+    return NextResponse.json({ error: 'Enter the team code to manage media.' }, { status: 403 });
+  }
+
+  const userClient = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+  const {
+    data: { user },
+  } = await userClient.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
+  }
+
+  let body: { id?: string } = {};
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+  const id = String(body.id || '').trim();
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+  try {
+    const supabase = createAdminSupabase() as any;
+    const { data: row, error: readErr } = await supabase
+      .from('match_media')
+      .select('id, url')
+      .eq('id', id)
+      .single();
+    if (readErr) return NextResponse.json({ error: readErr.message }, { status: 400 });
+    const url = String((row as { url?: string }).url || '').trim();
+
+    if (url) {
+      const marker = '/storage/v1/object/public/avatars/';
+      const idx = url.indexOf(marker);
+      if (idx !== -1) {
+        const objectPath = decodeURIComponent(url.slice(idx + marker.length));
+        if (objectPath) {
+          await supabase.storage.from('avatars').remove([objectPath]);
+        }
+      }
+    }
+
+    const { error: delErr } = await supabase.from('match_media').delete().eq('id', id);
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 });
+  }
+}

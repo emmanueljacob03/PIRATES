@@ -4,6 +4,7 @@ import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import { format, parseISO, addHours, isAfter } from 'date-fns';
 import { mediaAlbum } from '@/lib/match-media-shared';
+import MediaPhotoGallery from '@/components/MediaPhotoGallery';
 
 function isPracticeMatch(match: { opponent: string }) {
   return (match.opponent || '').toLowerCase().includes('practice');
@@ -94,19 +95,11 @@ export default async function MediaAllPage() {
       </div>
 
       <h3 className="text-lg font-semibold text-white mb-3">All photos ({photos.length})</h3>
-      <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-8 gap-1 mb-10">
-        {photos.length === 0 ? (
-          <p className="text-slate-500 col-span-full">No photos yet.</p>
-        ) : (
-          photos.map(({ row, label }) => (
-            <a key={row.id} href={row.url} target="_blank" rel="noopener noreferrer" className="group block">
-              <div className="aspect-square rounded-sm overflow-hidden bg-slate-700 border border-slate-600 group-hover:border-amber-400 transition">
-                <img src={row.url} alt="" className="w-full h-full object-cover scale-85" />
-              </div>
-              <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-tight">{label}</p>
-            </a>
-          ))
-        )}
+      <div className="mb-10">
+        <MediaPhotoGallery
+          photos={photos.map(({ row, label }) => ({ id: row.id, url: row.url, label }))}
+          canDelete={codeVerified}
+        />
       </div>
 
       <h3 className="text-lg font-semibold text-white mb-3">All videos ({videos.length})</h3>

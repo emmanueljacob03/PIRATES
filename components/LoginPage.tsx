@@ -453,7 +453,7 @@ export default function LoginPage() {
           Log in or create an account to continue.
         </p>
 
-        <div className="fixed bottom-5 left-5 z-20">
+        <div className="fixed top-4 left-4 sm:top-auto sm:bottom-5 sm:left-5 z-20">
           <Link
             href="/achievements"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
@@ -462,7 +462,22 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        <div className="fixed bottom-5 right-5 z-20 flex flex-wrap justify-end gap-3">
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-5 z-20 flex flex-wrap justify-center sm:justify-end gap-3 w-[calc(100%-2rem)] sm:w-auto">
+          <a
+            href="https://www.youtube.com/@GO-PIRATES"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"
+          >
+            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
+              <path
+                fill="#FF0000"
+                d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.9 31.9 0 0 0 0 12a31.9 31.9 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.9 31.9 0 0 0 24 12a31.9 31.9 0 0 0-.5-5.8Z"
+              />
+              <path fill="#fff" d="m9.6 15.6 6.2-3.6-6.2-3.6v7.2Z" />
+            </svg>
+            YouTube
+          </a>
           <a
             href="mailto:gopirates102@gmail.com"
             className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium bg-slate-800/90 hover:bg-slate-700/95 border border-slate-600/80 text-white shadow-md"

@@ -105,6 +105,9 @@ export default function Playing11Notification() {
         detail: { ready: p11DataReady, active },
       }),
     );
+  }, [p11DataReady, visible.length]);
+
+  useEffect(() => {
     return () => {
       window.dispatchEvent(
         new CustomEvent(ACTIVE_EVENT, {
@@ -112,7 +115,7 @@ export default function Playing11Notification() {
         }),
       );
     };
-  }, [p11DataReady, visible.length]);
+  }, []);
 
   const dismissAll = () => {
     setDismissedIds((prev) => {

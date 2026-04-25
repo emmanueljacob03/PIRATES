@@ -3,12 +3,22 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toLiveEmbedUrl } from '@/lib/live-stream-embed';
+import { format } from 'date-fns';
 
 type State = {
   url: string | null;
   active: boolean;
   title: string | null;
   embedUrl: string | null;
+  startedAt?: string | null;
+  history?: {
+    id: string;
+    url: string;
+    label: string | null;
+    started_at: string | null;
+    ended_at: string;
+    created_at: string;
+  }[];
 };
 
 export default function LiveStreamPageClient({
@@ -26,6 +36,7 @@ export default function LiveStreamPageClient({
   const [titleInput, setTitleInput] = useState(initial.title ?? '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [history, setHistory] = useState(initial.history ?? []);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const publicLink = origin ? `${origin}${publicWatchPath}` : publicWatchPath;
@@ -38,6 +49,7 @@ export default function LiveStreamPageClient({
           setS(d);
           setUrlInput(d.url ?? '');
           setTitleInput(d.title ?? '');
+          setHistory(d.history ?? []);
         }
       })
       .catch(() => {});
@@ -63,6 +75,7 @@ export default function LiveStreamPageClient({
       setS(data as State);
       setUrlInput((data as State).url ?? '');
       setTitleInput((data as State).title ?? '');
+      setHistory((data as State).history ?? []);
       router.refresh();
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Save failed');
@@ -75,11 +88,36 @@ export default function LiveStreamPageClient({
     isAdmin && Boolean(urlInput.trim()) && toLiveEmbedUrl(urlInput.trim()) != null;
   const isLive = s.active && s.embedUrl;
 
+  async function deleteHistory(id: string) {
+    if (!isAdmin) return;
+    const ok = window.confirm('Delete this previous stream item?');
+    if (!ok) return;
+    setSaving(true);
+    setErr('');
+    try {
+      const res = await fetch('/api/live-stream', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || 'Delete failed');
+      const nextHistory = (data as { history?: typeof history }).history ?? [];
+      setHistory(nextHistory);
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="max-w-4xl">
       {isAdmin && (
         <div className="card mb-6 border-amber-500/30">
-          <h3 className="text-lg font-semibold text-amber-200 mb-2">Start the stream for everyone</h3>
+          <h3 className="text-lg font-semibold text-amber-200 mb-2">Post your YouTube URL here and start</h3>
           <p className="text-slate-400 text-sm mb-4">
             Go live on <strong className="text-slate-300">YouTube</strong> or <strong className="text-slate-300">Vimeo</strong> in
             your studio, then paste the watch or live page URL here and press <strong className="text-amber-200/90">Start stream</strong>.
@@ -202,6 +240,51 @@ export default function LiveStreamPageClient({
           <button type="button" className="text-sm text-amber-400/80 hover:underline mt-3" onClick={load}>
             Refresh status
           </button>
+        )}
+      </div>
+
+      <div className="card mt-6">
+        <h3 className="text-lg font-semibold text-white mb-3">Previous live streams</h3>
+        {history.length === 0 ? (
+          <p className="text-slate-500 text-sm">No previous streams yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {history.map((h) => (
+              <li
+                key={h.id}
+                className="rounded-lg border border-slate-700/80 bg-slate-900/35 px-3 py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-200 truncate">
+                    {h.label?.trim() || 'Live stream'}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {format(new Date(h.ended_at), 'MMM d, yyyy · h:mm a')}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={h.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-2.5 py-1 rounded border border-amber-500/60 text-amber-200 hover:bg-amber-500/10"
+                  >
+                    Open
+                  </a>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="text-xs px-2.5 py-1 rounded border border-red-500/60 text-red-200 hover:bg-red-900/30 disabled:opacity-40"
+                      disabled={saving}
+                      onClick={() => deleteHistory(h.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
