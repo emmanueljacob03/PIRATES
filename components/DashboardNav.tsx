@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const links = [
-  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Home' },
   { href: '/jerseys', label: 'Jerseys' },
   { href: '/budget', label: 'Team Budget' },
   { href: '/schedule', label: 'Match Schedule' },
@@ -22,20 +22,10 @@ function isActive(pathname: string, href: string) {
   return pathname === href;
 }
 
-function currentSectionLabel(pathname: string) {
-  const found = links.find((l) => isActive(pathname, l.href));
-  if (found) return found.label;
-  if (pathname.startsWith('/profiles')) return 'Profile';
-  if (pathname.startsWith('/chat')) return 'Team chat';
-  return 'Pirates';
-}
-
 export default function DashboardNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuId = useId();
-
-  const section = currentSectionLabel(pathname);
 
   useEffect(() => {
     setOpen(false);
@@ -82,9 +72,6 @@ export default function DashboardNav() {
         </svg>
         <span className="text-sm font-medium hidden sm:inline">Menu</span>
       </button>
-      <p className="text-slate-300 text-sm font-medium truncate min-w-0">
-        {section}
-      </p>
 
       {open ? (
         <div className="fixed inset-0 z-[100]">

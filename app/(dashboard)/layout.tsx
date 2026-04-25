@@ -86,7 +86,7 @@ export default async function DashboardLayout({
           )}
         </header>
         <main className="px-4 py-6 max-w-6xl mx-auto relative">
-          <div className="absolute top-2 right-4 sm:right-0 z-10 flex flex-col items-end">
+          <div className="absolute top-4 right-4 sm:right-0 z-10 flex flex-col items-end">
             <TeamChatNavButton />
           </div>
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-700 pb-4 mb-6 w-full min-h-[2.75rem] pr-16 sm:pr-20">
