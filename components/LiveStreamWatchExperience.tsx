@@ -30,6 +30,45 @@ function LikeSolidIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Outline thumbs-up (Feather-style) — pairs visually with LikeSolidIcon. */
+function LikeOutlineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"
+      />
+    </svg>
+  );
+}
+
+const YT_LIKE_LS_PREFIX = 'pirates:yt-like:';
+
+function readLocalYoutubeLike(videoId: string): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(`${YT_LIKE_LS_PREFIX}${videoId}`) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeLocalYoutubeLike(videoId: string, liked: boolean) {
+  try {
+    const k = `${YT_LIKE_LS_PREFIX}${videoId}`;
+    if (liked) localStorage.setItem(k, '1');
+    else localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** YouTube API total plus optional +1 counted from this app (not sent to YouTube). */
+function displayedLikeTotal(youtubeLikes: number | null, localLiked: boolean): number | null {
+  if (youtubeLikes == null && !localLiked) return null;
+  return (youtubeLikes ?? 0) + (localLiked ? 1 : 0);
+}
+
 function ChatGlyph(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
@@ -77,15 +116,17 @@ const BAR =
 
 const BAR_BTN = 'p-2.5 text-white/90 hover:text-amber-200 hover:bg-white/10 transition-colors';
 
-/** Tailwind-compatible duration utilities */
+/** Narrow chat strip: smooth slide + inner content follows slightly after the shell (reads better when the panel is thin). */
 const MOTION_CHAT =
-  'transition-transform duration-[260ms] ease-out motion-reduce:transition-none motion-reduce:duration-0';
+  'transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none motion-reduce:duration-0';
+const MOTION_CHAT_SHELL =
+  'transition-transform duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none motion-reduce:duration-0';
 const MOTION_W =
-  'transition-[width,min-width,max-width,padding,margin,border-opacity,opacity] duration-[260ms] ease-out motion-reduce:transition-none motion-reduce:duration-0';
+  'transition-[width,min-width,max-width,padding,margin,border-opacity,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none motion-reduce:duration-0';
 const MOTION_FADE =
-  'transition-opacity duration-[260ms] ease-out motion-reduce:transition-none motion-reduce:duration-0';
+  'transition-opacity duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none motion-reduce:duration-0';
 
-const CHAT_SLIDE_MS = 260;
+const CHAT_SLIDE_MS = 300;
 
 /** Keeps chat body mounted briefly after close so the panel/content can animate out; `entered` stages desktop inner slide-in. */
 function useChatSlidePanel(open: boolean) {
@@ -95,7 +136,7 @@ function useChatSlidePanel(open: boolean) {
   useEffect(() => {
     if (open) {
       setMounted(true);
-      const t = window.setTimeout(() => setEntered(true), 20);
+      const t = window.setTimeout(() => setEntered(true), 56);
       return () => window.clearTimeout(t);
     }
     setEntered(false);
@@ -121,6 +162,7 @@ export default function LiveStreamWatchExperience({
   const [chatOpen, setChatOpen] = useState(false);
   const [shareFlash, setShareFlash] = useState(false);
   const [youtubeLikes, setYoutubeLikes] = useState<number | null>(null);
+  const [localLiked, setLocalLiked] = useState(false);
   const { mounted: chatBodyMounted, entered: chatInnerEntered } = useChatSlidePanel(chatOpen);
 
   useEffect(() => {
@@ -131,6 +173,14 @@ export default function LiveStreamWatchExperience({
     () => youtubeVideoIdFromUrl(rawWatchUrl ?? '') ?? youtubeVideoIdFromUrl(embedUrl ?? ''),
     [rawWatchUrl, embedUrl],
   );
+
+  useEffect(() => {
+    if (!videoId) {
+      setLocalLiked(false);
+      return;
+    }
+    setLocalLiked(readLocalYoutubeLike(videoId));
+  }, [videoId]);
 
   useEffect(() => {
     if (!videoId || !active) {
@@ -193,7 +243,8 @@ export default function LiveStreamWatchExperience({
 
   const showYoutubeChat = Boolean(chatIframeSrc);
   const isVimeo = !videoId && /vimeo\.com|player\.vimeo/i.test(embedUrl);
-  const likesLabel = videoId ? formatLikeCount(youtubeLikes) : '—';
+  const likesDisplay = videoId ? displayedLikeTotal(youtubeLikes, localLiked) : null;
+  const likesLabel = formatLikeCount(likesDisplay);
   const showOverlayShare = !shareUrlYoutube;
   const chatEndRounding = showOverlayShare ? '' : ' pr-3 rounded-r-full';
 
@@ -226,15 +277,19 @@ export default function LiveStreamWatchExperience({
               {/* Slides in from the right; trimmed narrow width */}
               <div
                 className={`absolute top-0 right-0 bottom-0 z-20 flex flex-col w-[min(186px,44vw)] max-w-[200px]
-                  border-l border-slate-600/90 bg-black shadow-[-8px_0_20px_rgba(0,0,0,0.55)]
-                  lg:hidden ${MOTION_CHAT} will-change-transform
+                  border-l border-slate-600/90 bg-black shadow-[-8px_0_24px_rgba(0,0,0,0.55)]
+                  lg:hidden ${MOTION_CHAT_SHELL} will-change-transform
                   ${chatOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'}`}
                 aria-hidden={!chatOpen}
               >
-                {/* Only mount iframe when slid open saves work when drawer closed */}
-                {chatBodyMounted ? (
-                  <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
-                ) : null}
+                <div
+                  className={`flex flex-col flex-1 min-h-0 h-full overflow-hidden ${MOTION_CHAT}
+                    ${chatInnerEntered ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
+                >
+                  {chatBodyMounted ? (
+                    <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                  ) : null}
+                </div>
               </div>
             </>
           ) : null}
@@ -242,15 +297,38 @@ export default function LiveStreamWatchExperience({
           {/* Bottom: Like | Comment | Share */}
           <div className="absolute bottom-0 left-0 right-0 z-30 flex justify-center pb-2.5 pt-10 bg-gradient-to-t from-black/80 via-black/25 to-transparent pointer-events-none">
             <div className={BAR} role="toolbar" aria-label="Stream actions">
-              <div
-                className="flex items-center gap-1.5 pl-3 pr-2 py-1 text-white"
-                title={videoId ? 'Likes on YouTube' : undefined}
-              >
-                <LikeSolidIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
-                <span className="text-[13px] font-semibold tabular-nums leading-none min-w-[1.75rem]">
-                  {likesLabel}
-                </span>
-              </div>
+              {videoId ? (
+                <button
+                  type="button"
+                  className={`flex items-center gap-1.5 pl-3 pr-2 py-1 text-white rounded-l-full hover:bg-white/10 transition-colors ${
+                    localLiked ? 'text-amber-200' : ''
+                  }`}
+                  aria-pressed={localLiked}
+                  aria-label={localLiked ? 'Unlike (count from this app only)' : 'Like — adds 1 for you here'}
+                  title="Total from YouTube; tap to add +1 counted on this device (does not post to YouTube)"
+                  onClick={() => {
+                    setLocalLiked((v) => {
+                      const next = !v;
+                      writeLocalYoutubeLike(videoId, next);
+                      return next;
+                    });
+                  }}
+                >
+                  {localLiked ? (
+                    <LikeSolidIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
+                  ) : (
+                    <LikeOutlineIcon className="w-[18px] h-[18px] text-white/90 shrink-0" />
+                  )}
+                  <span className="text-[13px] font-semibold tabular-nums leading-none min-w-[1.75rem]">
+                    {likesLabel}
+                  </span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5 pl-3 pr-2 py-1 text-white opacity-50">
+                  <LikeOutlineIcon className="w-[18px] h-[18px] shrink-0" />
+                  <span className="text-[13px] font-semibold tabular-nums leading-none min-w-[1.75rem]">—</span>
+                </div>
+              )}
               <span className="w-px self-stretch bg-white/15 my-1.5" aria-hidden />
               {showYoutubeChat ? (
                 <button
@@ -298,8 +376,8 @@ export default function LiveStreamWatchExperience({
             aria-hidden={!chatOpen}
           >
             <div
-              className={`flex flex-col flex-1 min-h-0 min-w-[min(186px,20vw)] max-w-[200px] h-full overflow-hidden ${MOTION_CHAT} will-change-transform motion-reduce:will-change-auto ${
-                chatInnerEntered ? 'translate-x-0' : 'translate-x-full'
+              className={`flex flex-col flex-1 min-h-0 min-w-[min(186px,20vw)] max-w-[200px] h-full overflow-hidden ${MOTION_CHAT} will-change-transform motion-reduce:[will-change:auto] ${
+                chatInnerEntered ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
               }`}
             >
               {chatBodyMounted ? (
