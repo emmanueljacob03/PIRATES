@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
   youtubeVideoIdFromUrl,
@@ -43,31 +43,8 @@ function LikeOutlineIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-const YT_LIKE_LS_PREFIX = 'pirates:yt-like:';
-
-function readLocalYoutubeLike(videoId: string): boolean {
-  try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem(`${YT_LIKE_LS_PREFIX}${videoId}`) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeLocalYoutubeLike(videoId: string, liked: boolean) {
-  try {
-    const k = `${YT_LIKE_LS_PREFIX}${videoId}`;
-    if (liked) localStorage.setItem(k, '1');
-    else localStorage.removeItem(k);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** YouTube API total plus optional +1 counted from this app (not sent to YouTube). */
-function displayedLikeTotal(youtubeLikes: number | null, localLiked: boolean): number | null {
-  if (youtubeLikes == null && !localLiked) return null;
-  return (youtubeLikes ?? 0) + (localLiked ? 1 : 0);
-}
+/** YouTube chat renders wider than our rail; iframe min width + horizontal scroll to read lines. */
+const CHAT_IFRAME_CSS_WIDTH = 360;
 
 function ChatGlyph(props: SVGProps<SVGSVGElement>) {
   return (
@@ -90,8 +67,10 @@ function TrimmedChatIframe({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between px-1.5 py-0.5 border-b border-slate-700/90 shrink-0 bg-slate-950/90">
-        <span className="text-[10px] text-slate-500 uppercase tracking-wide truncate pr-1">Live chat</span>
+      <div className="flex items-center justify-between gap-1 px-1.5 py-0.5 border-b border-slate-700/90 shrink-0 bg-slate-950/90">
+        <span className="text-[10px] text-slate-500 uppercase tracking-wide truncate pr-1 leading-tight">
+          Live chat <span className="text-slate-600 font-normal normal-case">· scroll ↔</span>
+        </span>
         <button
           type="button"
           className="text-[10px] text-amber-400/90 px-1 py-0.5 rounded hover:bg-white/5"
@@ -101,12 +80,18 @@ function TrimmedChatIframe({
           ×
         </button>
       </div>
-      <iframe
-        title="YouTube live chat"
-        src={chatIframeSrc}
-        className="w-full flex-1 min-h-0 border-0 bg-black"
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+      <div
+        className="flex-1 min-h-0 min-w-0 w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin] touch-pan-x"
+        title="Scroll sideways for full chat lines"
+      >
+        <iframe
+          title="YouTube live chat"
+          src={chatIframeSrc}
+          className="h-full border-0 bg-black align-top shrink-0"
+          style={{ width: CHAT_IFRAME_CSS_WIDTH, minWidth: CHAT_IFRAME_CSS_WIDTH, maxWidth: CHAT_IFRAME_CSS_WIDTH }}
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
     </>
   );
 }
@@ -162,8 +147,8 @@ export default function LiveStreamWatchExperience({
   const [chatOpen, setChatOpen] = useState(false);
   const [shareFlash, setShareFlash] = useState(false);
   const [youtubeLikes, setYoutubeLikes] = useState<number | null>(null);
-  const [localLiked, setLocalLiked] = useState(false);
   const { mounted: chatBodyMounted, entered: chatInnerEntered } = useChatSlidePanel(chatOpen);
+  const likeBurstRef = useRef<number | null>(null);
 
   useEffect(() => {
     setHost(typeof window !== 'undefined' ? window.location.hostname : '');
@@ -174,39 +159,50 @@ export default function LiveStreamWatchExperience({
     [rawWatchUrl, embedUrl],
   );
 
-  useEffect(() => {
-    if (!videoId) {
-      setLocalLiked(false);
-      return;
-    }
-    setLocalLiked(readLocalYoutubeLike(videoId));
-  }, [videoId]);
+  const fetchYoutubeLikes = useCallback(() => {
+    if (!videoId || !active) return;
+    fetch(`/api/youtube-stats?videoId=${encodeURIComponent(videoId)}`, { credentials: 'omit' })
+      .then((r) => r.json())
+      .then((d: { likeCount?: number | null }) => {
+        const n = d.likeCount;
+        setYoutubeLikes(typeof n === 'number' && Number.isFinite(n) ? n : null);
+      })
+      .catch(() => setYoutubeLikes(null));
+  }, [videoId, active]);
 
   useEffect(() => {
     if (!videoId || !active) {
       setYoutubeLikes(null);
       return;
     }
-    let cancel = false;
-    const tick = () => {
-      fetch(`/api/youtube-stats?videoId=${encodeURIComponent(videoId)}`, { credentials: 'omit' })
-        .then((r) => r.json())
-        .then((d: { likeCount?: number | null }) => {
-          if (cancel) return;
-          const n = d.likeCount;
-          setYoutubeLikes(typeof n === 'number' && Number.isFinite(n) ? n : null);
-        })
-        .catch(() => {
-          if (!cancel) setYoutubeLikes(null);
-        });
-    };
-    tick();
-    const id = window.setInterval(tick, 90_000);
-    return () => {
-      cancel = true;
-      window.clearInterval(id);
-    };
+    fetchYoutubeLikes();
+    const id = window.setInterval(fetchYoutubeLikes, 90_000);
+    return () => window.clearInterval(id);
+  }, [videoId, active, fetchYoutubeLikes]);
+
+  useEffect(() => {
+    if (likeBurstRef.current != null) {
+      window.clearInterval(likeBurstRef.current);
+      likeBurstRef.current = null;
+    }
   }, [videoId, active]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible') fetchYoutubeLikes();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [fetchYoutubeLikes]);
+
+  useEffect(() => {
+    return () => {
+      if (likeBurstRef.current != null) {
+        window.clearInterval(likeBurstRef.current);
+        likeBurstRef.current = null;
+      }
+    };
+  }, []);
 
   const chatIframeSrc =
     active && embedUrl && videoId && host ? youtubeLiveChatEmbedSrc(videoId, host) : null;
@@ -243,8 +239,22 @@ export default function LiveStreamWatchExperience({
 
   const showYoutubeChat = Boolean(chatIframeSrc);
   const isVimeo = !videoId && /vimeo\.com|player\.vimeo/i.test(embedUrl);
-  const likesDisplay = videoId ? displayedLikeTotal(youtubeLikes, localLiked) : null;
-  const likesLabel = formatLikeCount(likesDisplay);
+  const likesLabel = videoId ? formatLikeCount(youtubeLikes) : '—';
+
+  function openYoutubeToLike() {
+    if (!shareUrlYoutube) return;
+    window.open(shareUrlYoutube, '_blank', 'noopener,noreferrer');
+    if (likeBurstRef.current != null) window.clearInterval(likeBurstRef.current);
+    let n = 0;
+    fetchYoutubeLikes();
+    likeBurstRef.current = window.setInterval(() => {
+      fetchYoutubeLikes();
+      if (++n >= 30) {
+        if (likeBurstRef.current != null) window.clearInterval(likeBurstRef.current);
+        likeBurstRef.current = null;
+      }
+    }, 4000);
+  }
   const showOverlayShare = !shareUrlYoutube;
   const chatEndRounding = showOverlayShare ? '' : ' pr-3 rounded-r-full';
 
@@ -300,26 +310,16 @@ export default function LiveStreamWatchExperience({
               {videoId ? (
                 <button
                   type="button"
-                  className={`flex items-center gap-1.5 pl-3 pr-2 py-1 text-white rounded-l-full hover:bg-white/10 transition-colors ${
-                    localLiked ? 'text-amber-200' : ''
-                  }`}
-                  aria-pressed={localLiked}
-                  aria-label={localLiked ? 'Unlike (count from this app only)' : 'Like — adds 1 for you here'}
-                  title="Total from YouTube; tap to add +1 counted on this device (does not post to YouTube)"
-                  onClick={() => {
-                    setLocalLiked((v) => {
-                      const next = !v;
-                      writeLocalYoutubeLike(videoId, next);
-                      return next;
-                    });
-                  }}
+                  className="flex items-center gap-1 pl-2.5 pr-2 py-1 text-white rounded-l-full hover:bg-white/10 transition-colors"
+                  aria-label={`Opens YouTube to like this stream. Current likes on YouTube: ${likesLabel}.`}
+                  title="Opens the video on YouTube — tap Like there so the total matches YouTube. We refresh the count automatically."
+                  onClick={() => openYoutubeToLike()}
                 >
-                  {localLiked ? (
-                    <LikeSolidIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" />
-                  ) : (
-                    <LikeOutlineIcon className="w-[18px] h-[18px] text-white/90 shrink-0" />
-                  )}
-                  <span className="text-[13px] font-semibold tabular-nums leading-none min-w-[1.75rem]">
+                  <LikeSolidIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" aria-hidden />
+                  <span
+                    aria-hidden
+                    className="text-[11px] font-bold tabular-nums leading-none min-w-[2rem] text-center px-1 py-px rounded-full bg-black/55 border border-amber-500/35 text-amber-100"
+                  >
                     {likesLabel}
                   </span>
                 </button>
