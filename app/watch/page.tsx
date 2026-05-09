@@ -1,5 +1,6 @@
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { toLiveEmbedUrl } from '@/lib/live-stream-embed';
+import PublicLiveWatchLayout from '@/components/PublicLiveWatchLayout';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,22 +42,7 @@ export default async function PublicWatchPage() {
         {title ? <p className="text-slate-300 text-sm truncate text-right flex-1">{title}</p> : null}
       </header>
       <main className="flex-1 flex flex-col p-3 sm:p-4 max-w-5xl mx-auto w-full">
-        {!active || !embedUrl ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-slate-400 text-center px-4">The stream is not live right now.</p>
-          </div>
-        ) : (
-          <div className="relative w-full flex-1 min-h-[50vh] sm:min-h-0 sm:aspect-video bg-black rounded-lg overflow-hidden border border-slate-600">
-            <iframe
-              title="Live stream"
-              src={embedUrl}
-              className="absolute inset-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
-        )}
+        <PublicLiveWatchLayout active={active} embedUrl={embedUrl} />
       </main>
     </div>
   );

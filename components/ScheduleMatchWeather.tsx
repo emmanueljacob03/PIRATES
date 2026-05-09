@@ -14,6 +14,7 @@ type WeatherState = {
   friendlyTip?: string;
   forecastForMatch?: boolean;
   forecastHint?: string | null;
+  nearestForecastNote?: string | null;
 };
 
 /** `matches.weather` JSON: temp is °C if unit === 'C'; legacy rows omit unit and are °F. */
@@ -107,6 +108,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
           friendlyTip?: string;
           forecastForMatch?: boolean;
           forecastHint?: string | null;
+          nearestForecastNote?: string | null;
         };
         if (!r.ok || d.error) {
           const hint =
@@ -126,6 +128,7 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
             weatherFriendlyTipFromConditions(d.temp ?? null, d.main ?? null, d.description ?? null, d.wind ?? null),
           forecastForMatch: d.forecastForMatch,
           forecastHint: d.forecastHint ?? null,
+          nearestForecastNote: d.nearestForecastNote ?? null,
         });
       })
       .catch(() =>
@@ -205,9 +208,14 @@ export default function ScheduleMatchWeather({ match }: { match: Match }) {
       <p className="text-white font-medium mb-1">
         {tempRounded}°C{desc ? ` · ${desc}` : ''}
         {weather?.forecastForMatch ? (
-          <span className="text-slate-400 text-xs font-normal block mt-0.5">Forecast for scheduled match time</span>
+          <span className="text-slate-400 text-xs font-normal block mt-0.5">
+            Forecast for scheduled match time (Central Time)
+          </span>
         ) : null}
       </p>
+      {weather?.nearestForecastNote ? (
+        <p className="text-slate-500 text-xs leading-snug mb-2">{weather.nearestForecastNote}</p>
+      ) : null}
       {weather?.forecastHint ? (
         <p className="text-slate-400 text-xs leading-snug mb-2">{weather.forecastHint}</p>
       ) : null}

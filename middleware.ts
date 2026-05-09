@@ -35,6 +35,7 @@ export const config = {
     '/live',
     '/watch',
     '/api/live-stream',
+    '/api/live-stream-chat',
     '/leaderboard',
     '/players/:path*',
     '/profiles',

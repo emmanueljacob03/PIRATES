@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toLiveEmbedUrl } from '@/lib/live-stream-embed';
+import LiveStreamChat from '@/components/LiveStreamChat';
 import { format } from 'date-fns';
 
 type State = {
@@ -237,6 +238,8 @@ export default function LiveStreamPageClient({
           </button>
         )}
       </div>
+
+      <LiveStreamChat canPost publicWatchHref={publicWatchPath} />
 
       <div className="card mt-6">
         <h3 className="text-lg font-semibold text-white mb-3">Previous live streams</h3>

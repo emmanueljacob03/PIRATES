@@ -1,12 +1,10 @@
-/** Scheduled instant (local date + time string HH:mm). */
+import { parseMatchStartInAppTimezone } from '@/lib/app-timezone';
+
+/** Scheduled instant from DB date + wall time interpreted in America/Chicago (same as matches / schedule UI). */
 export function dutyScheduledStartMs(dutyDate: string, dutyTime?: string | null): number {
-  const d = (dutyDate || '').slice(0, 10);
-  const raw = (dutyTime || '12:00').trim();
-  const m = raw.match(/^(\d{1,2}):(\d{2})$/);
-  const hh = m ? Math.min(23, Math.max(0, parseInt(m[1], 10))) : 12;
-  const mm = m ? Math.min(59, Math.max(0, parseInt(m[2], 10))) : 0;
-  const iso = `${d}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
-  const t = new Date(iso).getTime();
+  const time = dutyTime?.trim() ? dutyTime.trim() : '12:00';
+  const js = parseMatchStartInAppTimezone(dutyDate, time);
+  const t = js.getTime();
   return Number.isFinite(t) ? t : Date.now();
 }
 

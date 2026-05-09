@@ -203,6 +203,10 @@ export async function GET(req: NextRequest) {
       friendlyTip,
       forecastForMatch,
       forecastHint,
+      /** Forecast API provides 3-hour slices; closest slice to Central-Time match start is used. */
+      nearestForecastNote: forecastForMatch
+        ? 'Match time is interpreted in Central Time (America/Chicago). The forecast is the nearest 3-hour slot from OpenWeather — not hourly.'
+        : null,
     });
   } catch {
     return NextResponse.json({ error: 'Weather fetch failed' }, { status: 502 });
