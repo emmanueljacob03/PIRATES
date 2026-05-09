@@ -68,7 +68,7 @@ function TrimmedChatIframe({ chatIframeSrc, onClose }: { chatIframeSrc: string; 
       >
         <span className="text-[10px] text-slate-500 pr-1 leading-tight">
           <span className="uppercase tracking-wide">Live chat</span>
-          <span className="text-slate-600 font-normal normal-case"> · scroll ↔ ↕</span>
+          <span className="text-slate-600 font-normal normal-case"> · scroll</span>
         </span>
         <button
           type="button"
@@ -153,6 +153,7 @@ export default function LiveStreamWatchExperience({
   const [chatOpen, setChatOpen] = useState(false);
   const [shareFlash, setShareFlash] = useState(false);
   const [youtubeLikes, setYoutubeLikes] = useState<number | null>(null);
+  const [youtubeComments, setYoutubeComments] = useState<number | null>(null);
   const { mounted: chatBodyMounted, entered: chatInnerEntered } = useChatSlidePanel(chatOpen);
   const likeBurstRef = useRef<number | null>(null);
 
@@ -169,16 +170,22 @@ export default function LiveStreamWatchExperience({
     if (!videoId || !active) return;
     fetch(`/api/youtube-stats?videoId=${encodeURIComponent(videoId)}`, { credentials: 'omit' })
       .then((r) => r.json())
-      .then((d: { likeCount?: number | null }) => {
-        const n = d.likeCount;
-        setYoutubeLikes(typeof n === 'number' && Number.isFinite(n) ? n : null);
+      .then((d: { likeCount?: number | null; commentCount?: number | null }) => {
+        const likes = d.likeCount;
+        const comments = d.commentCount;
+        setYoutubeLikes(typeof likes === 'number' && Number.isFinite(likes) ? likes : null);
+        setYoutubeComments(typeof comments === 'number' && Number.isFinite(comments) ? comments : null);
       })
-      .catch(() => setYoutubeLikes(null));
+      .catch(() => {
+        setYoutubeLikes(null);
+        setYoutubeComments(null);
+      });
   }, [videoId, active]);
 
   useEffect(() => {
     if (!videoId || !active) {
       setYoutubeLikes(null);
+      setYoutubeComments(null);
       return;
     }
     fetchYoutubeLikes();
@@ -246,6 +253,7 @@ export default function LiveStreamWatchExperience({
   const showYoutubeChat = Boolean(chatIframeSrc);
   const isVimeo = !videoId && /vimeo\.com|player\.vimeo/i.test(embedUrl);
   const likesLabel = videoId ? formatLikeCount(youtubeLikes) : '—';
+  const commentsLabel = videoId ? formatLikeCount(youtubeComments) : '—';
 
   function openYoutubeToLike() {
     if (!shareUrlYoutube) return;
@@ -317,8 +325,8 @@ export default function LiveStreamWatchExperience({
                 <button
                   type="button"
                   className="flex items-center gap-1 pl-2.5 pr-2 py-1 text-white rounded-l-full hover:bg-white/10 transition-colors"
-                  aria-label={`Opens YouTube to like this stream. Current likes on YouTube: ${likesLabel}.`}
-                  title="Opens the video on YouTube — tap Like there so the total matches YouTube. We refresh the count automatically."
+                  aria-label={`Opens YouTube to like this stream. Current likes: ${likesLabel}. Current comments: ${commentsLabel}.`}
+                  title="Opens YouTube to like this stream. Display shows current YouTube likes and comments."
                   onClick={() => openYoutubeToLike()}
                 >
                   <LikeSolidIcon className="w-[18px] h-[18px] text-amber-400 shrink-0" aria-hidden />
@@ -327,6 +335,12 @@ export default function LiveStreamWatchExperience({
                     className="text-[11px] font-bold tabular-nums leading-none min-w-[2rem] text-center px-1 py-px rounded-full bg-black/55 border border-amber-500/35 text-amber-100"
                   >
                     {likesLabel}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="text-[11px] font-semibold tabular-nums leading-none min-w-[2rem] text-center px-1 py-px rounded-full bg-black/45 border border-slate-500/35 text-slate-200"
+                  >
+                    {commentsLabel}
                   </span>
                 </button>
               ) : (

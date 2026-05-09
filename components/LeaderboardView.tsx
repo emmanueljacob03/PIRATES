@@ -68,7 +68,7 @@ const theadStickyRow =
 function PlayerCellWithCornerMedal({ name, rankIndex }: { name: string; rankIndex: number }) {
   const medal = medalEmoji(rankIndex);
   return (
-    <td className="py-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
+    <td className="py-2 pl-2 min-w-0 max-w-[11rem] sm:max-w-[15rem]">
       <span className="relative inline-block min-w-0 max-w-full align-middle">
         <span className="block truncate pr-5" title={name}>
           {name}
@@ -130,7 +130,7 @@ export default function LeaderboardView({
           <tbody>
             {(expand.bat ? bestBatsman : bestBatsman.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className={plainRowClass()}>
-                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
+                <td className="py-2 pr-2 font-medium tabular-nums text-right w-8">{i + 1}</td>
                 <PlayerCellWithCornerMedal name={p.name} rankIndex={i} />
                 <td className={`py-2 ${pointsCellClass()}`}>{p.battingPoints}</td>
                 <td className="py-2 tabular-nums">{p.runs}</td>
@@ -155,7 +155,7 @@ export default function LeaderboardView({
           <tbody>
             {(expand.bowl ? bestBowler : bestBowler.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className={plainRowClass()}>
-                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
+                <td className="py-2 pr-2 font-medium tabular-nums text-right w-8">{i + 1}</td>
                 <PlayerCellWithCornerMedal name={p.name} rankIndex={i} />
                 <td className={`py-2 ${pointsCellClass()}`}>{p.bowlingPoints}</td>
                 <td className="py-2 tabular-nums">{p.wickets}</td>
@@ -180,7 +180,7 @@ export default function LeaderboardView({
           <tbody>
             {(expand.field ? bestFielder : bestFielder.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className={plainRowClass()}>
-                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
+                <td className="py-2 pr-2 font-medium tabular-nums text-right w-8">{i + 1}</td>
                 <PlayerCellWithCornerMedal name={p.name} rankIndex={i} />
                 <td className={`py-2 ${pointsCellClass()}`}>{p.fieldingPoints}</td>
                 <td className="py-2 tabular-nums">{p.catches}</td>
@@ -206,7 +206,7 @@ export default function LeaderboardView({
           <tbody>
             {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
               <tr key={p.playerId} className={podiumRowClass(i)}>
-                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
+                <td className="py-2 pr-2 font-medium tabular-nums text-right w-8">{i + 1}</td>
                 <td className="py-2 min-w-0 max-w-[14rem] sm:max-w-[18rem]">
                   <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
                     <span

@@ -8,12 +8,12 @@ const ID_RE = /^[a-zA-Z0-9_-]{6,}$/;
 export async function GET(req: NextRequest) {
   const videoId = req.nextUrl.searchParams.get('videoId')?.trim() ?? '';
   if (!videoId || !ID_RE.test(videoId)) {
-    return NextResponse.json({ error: 'Invalid videoId', likeCount: null }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid videoId', likeCount: null, commentCount: null }, { status: 400 });
   }
 
   const key = process.env.YOUTUBE_DATA_API_KEY?.trim();
   if (!key) {
-    return NextResponse.json({ likeCount: null, reason: 'missing_key' as const }, { status: 200 });
+    return NextResponse.json({ likeCount: null, commentCount: null, reason: 'missing_key' as const }, { status: 200 });
   }
 
   try {
@@ -24,23 +24,27 @@ export async function GET(req: NextRequest) {
     const res = await fetch(u.toString(), { cache: 'no-store' });
     const data = (await res.json()) as {
       error?: { message?: string };
-      items?: { statistics?: { likeCount?: string; viewCount?: string } }[];
+      items?: { statistics?: { likeCount?: string; commentCount?: string; viewCount?: string } }[];
     };
     if (!res.ok) {
       return NextResponse.json(
         {
           likeCount: null,
+          commentCount: null,
           error: data?.error?.message ?? 'YouTube API error',
         },
         { status: 502 },
       );
     }
-    const raw = data.items?.[0]?.statistics?.likeCount;
-    const n = raw != null ? Number.parseInt(String(raw), 10) : NaN;
+    const rawLikes = data.items?.[0]?.statistics?.likeCount;
+    const rawComments = data.items?.[0]?.statistics?.commentCount;
+    const likes = rawLikes != null ? Number.parseInt(String(rawLikes), 10) : NaN;
+    const comments = rawComments != null ? Number.parseInt(String(rawComments), 10) : NaN;
     return NextResponse.json({
-      likeCount: Number.isFinite(n) ? n : null,
+      likeCount: Number.isFinite(likes) ? likes : null,
+      commentCount: Number.isFinite(comments) ? comments : null,
     });
   } catch {
-    return NextResponse.json({ likeCount: null, error: 'fetch_failed' }, { status: 502 });
+    return NextResponse.json({ likeCount: null, commentCount: null, error: 'fetch_failed' }, { status: 502 });
   }
 }
