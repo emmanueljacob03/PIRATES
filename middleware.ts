@@ -35,6 +35,7 @@ export const config = {
     '/live',
     '/watch',
     '/api/live-stream',
+    '/api/youtube-stats',
     '/leaderboard',
     '/players/:path*',
     '/profiles',
