@@ -257,27 +257,6 @@ export interface Database {
           created_at: string;
         }>;
       };
-      live_stream_chat: {
-        Row: {
-          id: string;
-          profile_id: string;
-          author_name: string;
-          body: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          profile_id: string;
-          author_name: string;
-          body: string;
-          created_at?: string;
-        };
-        Update: Partial<{
-          author_name: string;
-          body: string;
-          created_at: string;
-        }>;
-      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

@@ -12,6 +12,7 @@ export const metadata = {
 export default async function PublicWatchPage() {
   let title: string | null = null;
   let embedUrl: string | null = null;
+  let rawWatchUrl: string | null = null;
   let active = false;
   try {
     const supabase = createAdminSupabase() as any;
@@ -29,6 +30,7 @@ export default async function PublicWatchPage() {
       active = Boolean(row.live_stream_active);
       title = row.live_stream_title?.trim() || null;
       const url = row.live_stream_url?.trim() || null;
+      rawWatchUrl = url;
       embedUrl = active && url ? toLiveEmbedUrl(url) : null;
     }
   } catch {
@@ -42,7 +44,7 @@ export default async function PublicWatchPage() {
         {title ? <p className="text-slate-300 text-sm truncate text-right flex-1">{title}</p> : null}
       </header>
       <main className="flex-1 flex flex-col p-3 sm:p-4 max-w-5xl mx-auto w-full">
-        <PublicLiveWatchLayout active={active} embedUrl={embedUrl} />
+        <PublicLiveWatchLayout active={active} embedUrl={embedUrl} rawWatchUrl={rawWatchUrl} />
       </main>
     </div>
   );

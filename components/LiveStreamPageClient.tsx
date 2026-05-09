@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toLiveEmbedUrl } from '@/lib/live-stream-embed';
-import LiveStreamChat from '@/components/LiveStreamChat';
+import LiveStreamWatchExperience from '@/components/LiveStreamWatchExperience';
 import { format } from 'date-fns';
 
 type State = {
@@ -198,6 +198,12 @@ export default function LiveStreamPageClient({
             {!canStart && urlInput.trim() ? (
               <p className="text-amber-200/80 text-xs">Use a full YouTube watch or Vimeo video URL we can embed.</p>
             ) : null}
+            <p className="text-slate-500 text-xs leading-snug">
+              For YouTube: turn on{' '}
+              <span className="text-slate-400">live chat</span> in YouTube Studio. Embedded chat appears beside the player
+              and matches youtube.com once your site&apos;s hostname is allowed (
+              <span className="text-slate-400">youtube.com/embed</span> / live-chat embed restrictions).
+            </p>
           </div>
           <p className="text-slate-500 text-xs mt-4 break-all">
             <span className="text-slate-400">Public watch link (share anywhere):</span>{' '}
@@ -221,16 +227,12 @@ export default function LiveStreamPageClient({
             )}
           </p>
         ) : (
-          <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden border border-slate-600">
-            <iframe
-              title="Live stream"
-              src={s.embedUrl}
-              className="absolute inset-0 w-full h-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
+          <LiveStreamWatchExperience
+            active
+            embedUrl={s.embedUrl}
+            rawWatchUrl={s.url}
+            publicSharePath={publicWatchPath}
+          />
         )}
         {isAdmin && (
           <button type="button" className="text-sm text-amber-400/80 hover:underline mt-3" onClick={load}>
@@ -238,8 +240,6 @@ export default function LiveStreamPageClient({
           </button>
         )}
       </div>
-
-      <LiveStreamChat canPost publicWatchHref={publicWatchPath} />
 
       <div className="card mt-6">
         <h3 className="text-lg font-semibold text-white mb-3">Previous live streams</h3>
