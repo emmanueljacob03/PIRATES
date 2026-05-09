@@ -59,7 +59,15 @@ function ChatGlyph(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function TrimmedChatIframe({ chatIframeSrc, onClose }: { chatIframeSrc: string; onClose: () => void }) {
+function TrimmedChatIframe({
+  chatIframeSrc,
+  onClose,
+  panMode = true,
+}: {
+  chatIframeSrc: string;
+  onClose: () => void;
+  panMode?: boolean;
+}) {
   return (
     <>
       <div
@@ -79,25 +87,34 @@ function TrimmedChatIframe({ chatIframeSrc, onClose }: { chatIframeSrc: string; 
           ×
         </button>
       </div>
-      <div
-        className="flex-1 min-h-0 min-w-0 w-full overflow-auto overscroll-contain [scrollbar-width:thin] touch-pan-x touch-pan-y"
-        title="Pan the chat — scroll sideways and up/down like a movable window."
-      >
+      {panMode ? (
+        <div
+          className="flex-1 min-h-0 min-w-0 w-full overflow-auto overscroll-contain [scrollbar-width:thin] touch-pan-x touch-pan-y"
+          title="Pan the chat — scroll sideways and up/down like a movable window."
+        >
+          <iframe
+            title="YouTube live chat"
+            src={chatIframeSrc}
+            className="border-0 bg-black align-top shrink-0 block"
+            width={CHAT_IFRAME_PAN_WIDTH}
+            height={CHAT_IFRAME_PAN_HEIGHT}
+            style={{
+              width: CHAT_IFRAME_PAN_WIDTH,
+              minWidth: CHAT_IFRAME_PAN_WIDTH,
+              height: CHAT_IFRAME_PAN_HEIGHT,
+              minHeight: CHAT_IFRAME_PAN_HEIGHT,
+            }}
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      ) : (
         <iframe
           title="YouTube live chat"
           src={chatIframeSrc}
-          className="border-0 bg-black align-top shrink-0 block"
-          width={CHAT_IFRAME_PAN_WIDTH}
-          height={CHAT_IFRAME_PAN_HEIGHT}
-          style={{
-            width: CHAT_IFRAME_PAN_WIDTH,
-            minWidth: CHAT_IFRAME_PAN_WIDTH,
-            height: CHAT_IFRAME_PAN_HEIGHT,
-            minHeight: CHAT_IFRAME_PAN_HEIGHT,
-          }}
+          className="w-full h-full min-h-0 flex-1 border-0 bg-black"
           referrerPolicy="strict-origin-when-cross-origin"
         />
-      </div>
+      )}
     </>
   );
 }
@@ -252,8 +269,8 @@ export default function LiveStreamWatchExperience({
 
   const showYoutubeChat = Boolean(chatIframeSrc);
   const isVimeo = !videoId && /vimeo\.com|player\.vimeo/i.test(embedUrl);
-  const likesLabel = videoId ? formatLikeCount(youtubeLikes) : '—';
-  const commentsLabel = videoId ? formatLikeCount(youtubeComments) : '—';
+  const likesLabel = videoId ? (youtubeLikes == null ? '0' : formatLikeCount(youtubeLikes)) : '—';
+  const commentsLabel = videoId && youtubeComments != null ? formatLikeCount(youtubeComments) : null;
 
   function openYoutubeToLike() {
     if (!shareUrlYoutube) return;
@@ -311,7 +328,7 @@ export default function LiveStreamWatchExperience({
                     ${chatInnerEntered ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
                 >
                   {chatBodyMounted ? (
-                    <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                    <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} panMode />
                   ) : null}
                 </div>
               </div>
@@ -325,7 +342,7 @@ export default function LiveStreamWatchExperience({
                 <button
                   type="button"
                   className="flex items-center gap-1 pl-2.5 pr-2 py-1 text-white rounded-l-full hover:bg-white/10 transition-colors"
-                  aria-label={`Opens YouTube to like this stream. Current likes: ${likesLabel}. Current comments: ${commentsLabel}.`}
+                  aria-label={`Opens YouTube to like this stream. Current likes: ${likesLabel}.${commentsLabel ? ` Current comments: ${commentsLabel}.` : ''}`}
                   title="Opens YouTube to like this stream. Display shows current YouTube likes and comments."
                   onClick={() => openYoutubeToLike()}
                 >
@@ -336,12 +353,14 @@ export default function LiveStreamWatchExperience({
                   >
                     {likesLabel}
                   </span>
-                  <span
-                    aria-hidden
-                    className="text-[11px] font-semibold tabular-nums leading-none min-w-[2rem] text-center px-1 py-px rounded-full bg-black/45 border border-slate-500/35 text-slate-200"
-                  >
-                    {commentsLabel}
-                  </span>
+                  {commentsLabel ? (
+                    <span
+                      aria-hidden
+                      className="text-[11px] font-semibold tabular-nums leading-none min-w-[2rem] text-center px-1 py-px rounded-full bg-black/45 border border-slate-500/35 text-slate-200"
+                    >
+                      {commentsLabel}
+                    </span>
+                  ) : null}
                 </button>
               ) : (
                 <div className="flex items-center gap-1.5 pl-3 pr-2 py-1 text-white opacity-50">
@@ -401,7 +420,7 @@ export default function LiveStreamWatchExperience({
               }`}
             >
               {chatBodyMounted ? (
-                <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} panMode={false} />
               ) : null}
             </div>
           </div>
