@@ -81,10 +81,12 @@ function PlayerCellWithCornerMedal({ name, rankIndex }: { name: string; rankInde
 
 function Section({ title, children, expanded, onToggle }: { title: string; children: React.ReactNode; expanded: boolean; onToggle: () => void }) {
   return (
-    <div className="card">
+    <div className="card min-w-0 max-w-full overflow-hidden">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      {children}
-      <button type="button" onClick={onToggle} className="mt-2 text-sm text-[var(--pirate-yellow)] hover:underline">
+      <div className="overflow-x-auto overscroll-x-contain max-w-full -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:thin] touch-pan-x">
+        {children}
+      </div>
+      <button type="button" onClick={onToggle} className="mt-3 text-sm text-[var(--pirate-yellow)] hover:underline">
         {expanded ? 'Show less' : 'View more'}
       </button>
     </div>
@@ -106,7 +108,7 @@ export default function LeaderboardView({
   const toggle = (k: string) => setExpand((e) => ({ ...e, [k]: !e[k] }));
 
   return (
-    <div className="grid md:grid-cols-2 gap-8">
+    <div className="grid md:grid-cols-2 gap-8 min-w-0 max-w-full">
       <Section title="Batting" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
         <table className="w-full text-sm">
           <thead>
@@ -183,8 +185,7 @@ export default function LeaderboardView({
       </Section>
 
       <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[420px]">
+        <table className="w-full text-sm min-w-[340px] sm:min-w-[420px]">
             <thead>
               <tr className="text-left text-slate-400 border-b border-slate-600">
                 <th className="pb-2">#</th>
@@ -231,7 +232,6 @@ export default function LeaderboardView({
               ))}
             </tbody>
           </table>
-        </div>
       </Section>
     </div>
   );

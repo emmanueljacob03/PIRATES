@@ -43,8 +43,8 @@ function LikeOutlineIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** YouTube chat renders wider than our rail; iframe min width + horizontal scroll to read lines. */
-const CHAT_IFRAME_CSS_WIDTH = 360;
+/** Narrow desktop rail only: iframe wider than strip so user can scroll horizontally for long lines. */
+const CHAT_IFRAME_CSS_WIDTH_RAIL = 360;
 
 function ChatGlyph(props: SVGProps<SVGSVGElement>) {
   return (
@@ -61,37 +61,66 @@ function ChatGlyph(props: SVGProps<SVGSVGElement>) {
 function TrimmedChatIframe({
   chatIframeSrc,
   onClose,
+  layout,
 }: {
   chatIframeSrc: string;
   onClose: () => void;
+  layout: 'drawer' | 'rail';
 }) {
   return (
     <>
-      <div className="flex items-center justify-between gap-1 px-1.5 py-0.5 border-b border-slate-700/90 shrink-0 bg-slate-950/90">
-        <span className="text-[10px] text-slate-500 uppercase tracking-wide truncate pr-1 leading-tight">
-          Live chat <span className="text-slate-600 font-normal normal-case">· scroll ↔</span>
+      <div
+        className="flex items-center justify-between gap-1 px-1.5 py-0.5 border-b border-slate-700/90 shrink-0 bg-slate-950/90"
+        title={
+          layout === 'drawer'
+            ? 'Scroll inside the chat to read and reach the message box. Sign in with Google if YouTube asks you to.'
+            : 'Scroll sideways if a line is clipped in this narrow column.'
+        }
+      >
+        <span className="text-[10px] text-slate-500 pr-1 leading-tight">
+          <span className="uppercase tracking-wide">Live chat</span>
+          {layout === 'rail' ? (
+            <span className="text-slate-600 font-normal normal-case"> · scroll ↔</span>
+          ) : (
+            <span className="text-slate-600 font-normal normal-case"> · scroll inside to send</span>
+          )}
         </span>
         <button
           type="button"
-          className="text-[10px] text-amber-400/90 px-1 py-0.5 rounded hover:bg-white/5"
+          className="text-[10px] text-amber-400/90 px-1 py-0.5 rounded hover:bg-white/5 shrink-0"
           onClick={onClose}
           aria-label="Close chat"
         >
           ×
         </button>
       </div>
-      <div
-        className="flex-1 min-h-0 min-w-0 w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin] touch-pan-x"
-        title="Scroll sideways for full chat lines"
-      >
-        <iframe
-          title="YouTube live chat"
-          src={chatIframeSrc}
-          className="h-full border-0 bg-black align-top shrink-0"
-          style={{ width: CHAT_IFRAME_CSS_WIDTH, minWidth: CHAT_IFRAME_CSS_WIDTH, maxWidth: CHAT_IFRAME_CSS_WIDTH }}
-          referrerPolicy="strict-origin-when-cross-origin"
-        />
-      </div>
+      {layout === 'rail' ? (
+        <div
+          className="flex-1 min-h-0 min-w-0 w-full overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin] touch-pan-x"
+          title="Scroll sideways for full chat lines"
+        >
+          <iframe
+            title="YouTube live chat"
+            src={chatIframeSrc}
+            className="h-full border-0 bg-black align-top shrink-0"
+            style={{
+              width: CHAT_IFRAME_CSS_WIDTH_RAIL,
+              minWidth: CHAT_IFRAME_CSS_WIDTH_RAIL,
+              maxWidth: CHAT_IFRAME_CSS_WIDTH_RAIL,
+            }}
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 min-w-0 w-full overflow-hidden flex flex-col">
+          <iframe
+            title="YouTube live chat"
+            src={chatIframeSrc}
+            className="flex-1 min-h-[140px] w-full border-0 bg-black"
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -279,16 +308,16 @@ export default function LiveStreamWatchExperience({
               <button
                 type="button"
                 aria-label="Close chat"
-                className={`absolute inset-0 z-[15] lg:hidden bg-black/50 ${MOTION_FADE} ${
+                className={`absolute inset-0 z-[55] lg:hidden bg-black/50 ${MOTION_FADE} ${
                   chatOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 }`}
                 onClick={() => setChatOpen(false)}
               />
-              {/* Slides in from the right; trimmed narrow width */}
+              {/* Mobile: wider drawer clear of bottom pill + full-width chat iframe (composer/readable messages) */}
               <div
-                className={`absolute top-0 right-0 bottom-0 z-20 flex flex-col w-[min(186px,44vw)] max-w-[200px]
-                  border-l border-slate-600/90 bg-black shadow-[-8px_0_24px_rgba(0,0,0,0.55)]
-                  lg:hidden ${MOTION_CHAT_SHELL} will-change-transform
+                className={`absolute top-0 right-0 bottom-[3.65rem] z-[60] flex flex-col w-[min(340px,calc(100vw-1rem))] max-h-full
+                  border-l border-slate-600/90 bg-black shadow-[-10px_0_28px_rgba(0,0,0,0.65)]
+                  rounded-tl-lg overflow-hidden lg:hidden ${MOTION_CHAT_SHELL} will-change-transform
                   ${chatOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'}`}
                 aria-hidden={!chatOpen}
               >
@@ -297,7 +326,11 @@ export default function LiveStreamWatchExperience({
                     ${chatInnerEntered ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}`}
                 >
                   {chatBodyMounted ? (
-                    <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                    <TrimmedChatIframe
+                      chatIframeSrc={chatSrc}
+                      layout="drawer"
+                      onClose={() => setChatOpen(false)}
+                    />
                   ) : null}
                 </div>
               </div>
@@ -381,7 +414,7 @@ export default function LiveStreamWatchExperience({
               }`}
             >
               {chatBodyMounted ? (
-                <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                <TrimmedChatIframe chatIframeSrc={chatSrc} layout="rail" onClose={() => setChatOpen(false)} />
               ) : null}
             </div>
           </div>

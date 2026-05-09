@@ -162,7 +162,7 @@ export default async function LeaderboardPage() {
   }
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <h2 className="text-2xl font-bold mb-6" style={{ color: 'var(--pirate-yellow)' }}>Leaderboard</h2>
       <LeaderboardView
         bestBatsman={data.bestBatsman}
