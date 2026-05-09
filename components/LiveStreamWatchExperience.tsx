@@ -85,6 +85,27 @@ const MOTION_W =
 const MOTION_FADE =
   'transition-opacity duration-[260ms] ease-out motion-reduce:transition-none motion-reduce:duration-0';
 
+const CHAT_SLIDE_MS = 260;
+
+/** Keeps chat body mounted briefly after close so the panel/content can animate out; `entered` stages desktop inner slide-in. */
+function useChatSlidePanel(open: boolean) {
+  const [mounted, setMounted] = useState(false);
+  const [entered, setEntered] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const t = window.setTimeout(() => setEntered(true), 20);
+      return () => window.clearTimeout(t);
+    }
+    setEntered(false);
+    const t = window.setTimeout(() => setMounted(false), CHAT_SLIDE_MS);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
+  return { mounted, entered };
+}
+
 export default function LiveStreamWatchExperience({
   active,
   embedUrl,
@@ -100,11 +121,10 @@ export default function LiveStreamWatchExperience({
   const [chatOpen, setChatOpen] = useState(false);
   const [shareFlash, setShareFlash] = useState(false);
   const [youtubeLikes, setYoutubeLikes] = useState<number | null>(null);
+  const { mounted: chatBodyMounted, entered: chatInnerEntered } = useChatSlidePanel(chatOpen);
 
   useEffect(() => {
     setHost(typeof window !== 'undefined' ? window.location.hostname : '');
-    if (typeof window === 'undefined') return;
-    setChatOpen(window.matchMedia('(min-width: 1024px)').matches);
   }, []);
 
   const videoId = useMemo(
@@ -212,7 +232,9 @@ export default function LiveStreamWatchExperience({
                 aria-hidden={!chatOpen}
               >
                 {/* Only mount iframe when slid open saves work when drawer closed */}
-                {chatOpen ? <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} /> : null}
+                {chatBodyMounted ? (
+                  <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+                ) : null}
               </div>
             </>
           ) : null}
@@ -276,11 +298,13 @@ export default function LiveStreamWatchExperience({
             aria-hidden={!chatOpen}
           >
             <div
-              className={`flex flex-col flex-1 min-h-0 min-w-[min(186px,20vw)] max-w-[200px] h-full transition-opacity duration-[260ms] ease-out motion-reduce:transition-none ${
-                chatOpen ? 'opacity-100' : 'opacity-0'
+              className={`flex flex-col flex-1 min-h-0 min-w-[min(186px,20vw)] max-w-[200px] h-full overflow-hidden ${MOTION_CHAT} will-change-transform motion-reduce:will-change-auto ${
+                chatInnerEntered ? 'translate-x-0' : 'translate-x-full'
               }`}
             >
-              {chatOpen ? <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} /> : null}
+              {chatBodyMounted ? (
+                <TrimmedChatIframe chatIframeSrc={chatSrc} onClose={() => setChatOpen(false)} />
+              ) : null}
             </div>
           </div>
         ) : null}
