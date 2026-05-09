@@ -198,12 +198,6 @@ export default function LiveStreamPageClient({
             {!canStart && urlInput.trim() ? (
               <p className="text-amber-200/80 text-xs">Use a full YouTube watch or Vimeo video URL we can embed.</p>
             ) : null}
-            <p className="text-slate-500 text-xs leading-snug">
-              For YouTube: turn on{' '}
-              <span className="text-slate-400">live chat</span> in YouTube Studio. Embedded chat appears beside the player
-              and matches youtube.com once your site&apos;s hostname is allowed (
-              <span className="text-slate-400">youtube.com/embed</span> / live-chat embed restrictions).
-            </p>
           </div>
           <p className="text-slate-500 text-xs mt-4 break-all">
             <span className="text-slate-400">Public watch link (share anywhere):</span>{' '}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
   youtubeVideoIdFromUrl,
@@ -8,10 +8,24 @@ import {
   youtubeCanonicalWatchUrl,
 } from '@/lib/live-stream-embed';
 
-function ShareIcon(props: SVGProps<SVGSVGElement>) {
+/** One share glyph (avoid duplicate upload-style icons). */
+function ShareGlyph(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
-      <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="18" cy="5" r="3" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="6" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="18" cy="19" r="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.59 13.51l6.82 3.98M15.41 6.51l-6.82 3.98" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ThumbUpOutline(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden {...props}>
+      <path d="M7 10v12" />
+      <path d="M15 5.88 14 10h5.83a2 2 0 011.925 2.565l-2.34 8.24A2 2 0 0117 22h-8V11" />
+      <path d="M13 21H7a5 5 0 015-6V11" />
     </svg>
   );
 }
@@ -28,6 +42,9 @@ function ChatBubbleIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+const BTN_ROUND =
+  'flex items-center justify-center w-10 h-10 rounded-full bg-black/70 border shadow-lg hover:bg-black/88 backdrop-blur-sm shrink-0';
+
 export default function LiveStreamWatchExperience({
   active,
   embedUrl,
@@ -40,9 +57,9 @@ export default function LiveStreamWatchExperience({
   publicSharePath?: string;
 }) {
   const [host, setHost] = useState('');
-  const [showChatMobile, setShowChatMobile] = useState(false);
-  const [copyFlash, setCopyFlash] = useState(false);
-  const chatAnchorRef = useRef<HTMLDivElement | null>(null);
+  /** YouTube/Vimeo chat or comments panel — starts closed everywhere. */
+  const [chatOpen, setChatOpen] = useState(false);
+  const [shareFlash, setShareFlash] = useState(false);
 
   useEffect(() => {
     setHost(typeof window !== 'undefined' ? window.location.hostname : '');
@@ -56,48 +73,37 @@ export default function LiveStreamWatchExperience({
   const chatIframeSrc =
     active && embedUrl && videoId && host ? youtubeLiveChatEmbedSrc(videoId, host) : null;
 
-  const shareTargetYoutube = videoId ? youtubeCanonicalWatchUrl(videoId) : null;
+  /** Page where tapping Like can count on YouTube (must use YouTube UI while signed in). */
+  const likeTargetYoutube = videoId ? youtubeCanonicalWatchUrl(videoId) : null;
+  const likeTargetFallback =
+    !likeTargetYoutube && rawWatchUrl?.trim() && /^https?:/i.test(rawWatchUrl.trim()) ? rawWatchUrl.trim() : null;
+  const likeTarget = likeTargetYoutube ?? likeTargetFallback;
 
-  async function shareViaDevice() {
+  /** Single share targets YouTube watch when applicable, otherwise public Pirates /watch URL. */
+  async function shareOnce() {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const url = shareTargetYoutube ?? `${origin}${publicSharePath}`;
+    const url = likeTargetYoutube ?? `${origin}${publicSharePath}`;
     const title = 'Pirates — Live';
     if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title, text: 'Watch the live stream', url });
         return;
       } catch {
-        /* dismissed */
+        /* cancelled */
       }
     }
     try {
       await navigator.clipboard.writeText(url);
-      setCopyFlash(true);
-      window.setTimeout(() => setCopyFlash(false), 2000);
+      setShareFlash(true);
+      window.setTimeout(() => setShareFlash(false), 2000);
     } catch {
       window.prompt('Copy link:', url);
     }
   }
 
-  async function copyPiratesWatchLink() {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const url = `${origin}${publicSharePath}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopyFlash(true);
-      window.setTimeout(() => setCopyFlash(false), 2000);
-    } catch {
-      window.prompt('Copy Pirates watch page:', url);
-    }
-  }
-
-  function toggleOrFocusChat() {
-    if (typeof window === 'undefined') return;
-    if (window.matchMedia('(min-width: 1024px)').matches) {
-      chatAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } else {
-      setShowChatMobile((v) => !v);
-    }
+  function openLikeOnYoutube() {
+    if (!likeTarget) return;
+    window.open(likeTarget, '_blank', 'noopener,noreferrer');
   }
 
   if (!active || !embedUrl) {
@@ -112,9 +118,9 @@ export default function LiveStreamWatchExperience({
   const isVimeo = !videoId && /vimeo\.com|player\.vimeo/i.test(embedUrl);
 
   return (
-    <div className="flex flex-col gap-4 w-full">
-      <div className="rounded-lg overflow-hidden border border-slate-600 bg-black lg:grid lg:grid-cols-[1fr,minmax(260px,min(92vw,360px))] lg:h-[min(432px,calc(100vh-200px))]">
-        <div className="relative w-full aspect-video lg:aspect-auto lg:h-full min-h-[200px]">
+    <div className="flex flex-col gap-3 w-full">
+      <div className="rounded-lg overflow-hidden border border-slate-600 bg-black flex flex-col">
+        <div className="relative w-full aspect-video bg-black min-h-[200px] isolate shrink-0">
           <iframe
             title="Live stream"
             src={embedUrl}
@@ -124,96 +130,94 @@ export default function LiveStreamWatchExperience({
             referrerPolicy="strict-origin-when-cross-origin"
           />
 
-          <div className="absolute bottom-3 right-3 flex flex-col gap-2 items-end z-10 pointer-events-none">
+          {/* Chat · Like · Share — one Share only */}
+          <div className="absolute bottom-3 right-3 flex flex-row gap-2 z-10 pointer-events-none">
             <div className="pointer-events-auto flex gap-2">
               {showYoutubeChat ? (
                 <button
                   type="button"
-                  onClick={toggleOrFocusChat}
-                  className="flex items-center justify-center w-11 h-11 rounded-full bg-black/65 border border-white/25 text-white shadow-lg hover:bg-black/85 backdrop-blur-sm"
-                  aria-label="Toggle or open YouTube live chat"
-                  title="Live chat"
+                  onClick={() => setChatOpen((v) => !v)}
+                  className={`${BTN_ROUND} ${chatOpen ? 'border-amber-400/70 text-amber-200' : 'border-white/25 text-white'}`}
+                  aria-expanded={chatOpen}
+                  aria-label={chatOpen ? 'Hide live chat' : 'Show live chat'}
+                  title="Chat"
                 >
                   <ChatBubbleIcon className="w-5 h-5" />
                 </button>
               ) : null}
+              {likeTarget ? (
+                <button
+                  type="button"
+                  onClick={openLikeOnYoutube}
+                  className={`${BTN_ROUND} border-rose-400/35 text-rose-100`}
+                  aria-label={videoId ? 'Open YouTube to like' : 'Open stream site'}
+                  title={
+                    videoId
+                      ? 'Opens YouTube — tap Like while signed in (counted on YouTube)'
+                      : 'Opens the stream link to like or react on the hosting site'
+                  }
+                >
+                  <ThumbUpOutline className="w-5 h-5" />
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={() => void shareViaDevice()}
-                className="flex items-center justify-center w-11 h-11 rounded-full bg-black/65 border border-amber-400/40 text-amber-300 shadow-lg hover:bg-black/85 backdrop-blur-sm"
-                aria-label="Share live stream link"
-                title={copyFlash ? 'Copied!' : shareTargetYoutube ? 'Share stream' : 'Share'}
+                onClick={() => void shareOnce()}
+                className={`${BTN_ROUND} border-amber-400/45 text-amber-300`}
+                aria-label="Share stream"
+                title={shareFlash ? 'Copied' : 'Share'}
               >
-                <ShareIcon className="w-5 h-5" />
+                <ShareGlyph className="w-5 h-5" />
               </button>
             </div>
           </div>
         </div>
 
-        {showYoutubeChat ? (
-          <div
-            ref={chatAnchorRef}
-            className="hidden lg:flex flex-col border-t lg:border-t-0 lg:border-l border-slate-700 bg-black min-h-0 h-full"
-          >
-            <div className="px-3 py-2 border-b border-slate-700 text-[11px] leading-snug text-slate-400 shrink-0">
-              YouTube live chat — what you send here appears in YouTube&apos;s broadcast chat (same as on youtube.com)
-              while the stream is live and chat is enabled.
-            </div>
-            <iframe
-              title="YouTube live chat"
-              src={chatIframeSrc!}
-              className="flex-1 w-full min-h-0 border-0 bg-black"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen={false}
-            />
-          </div>
-        ) : isVimeo ? (
-          <div className="hidden lg:flex flex-col border-t lg:border-t-0 lg:border-l border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400 lg:justify-center lg:text-center">
-            <p>
-              Vimeo playback is embedded above. Live reactions and threads stay inside Vimeo&apos;s apps and site —
-              use Share above to spread the Vimeo link if you pasted one here.
-            </p>
-          </div>
-        ) : null}
-      </div>
-
-      {showYoutubeChat && showChatMobile ? (
-        <div className="lg:hidden rounded-lg overflow-hidden border border-slate-600 bg-black flex flex-col max-h-[min(70vh,520px)]">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700 bg-slate-900/90">
-            <span className="text-xs text-slate-200 font-medium">YouTube live chat</span>
+        {/* Compact chat: closed by default; opens from chat bubble */}
+        {showYoutubeChat && chatOpen ? (
+          <>
             <button
               type="button"
-              className="text-xs text-amber-300 px-2 py-1 rounded border border-slate-600"
-              onClick={() => setShowChatMobile(false)}
+              aria-label="Close chat"
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setChatOpen(false)}
+            />
+            <div
+              className="
+              fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 rounded-lg overflow-hidden flex flex-col
+              border border-slate-600 bg-black shadow-2xl max-h-[min(36vh,280px)]
+              lg:static lg:z-auto lg:left-auto lg:right-auto lg:bottom-auto lg:mx-auto lg:max-w-[232px]
+              lg:rounded-none lg:border-x-0 lg:border-b-0 lg:shadow-none lg:border-t lg:border-slate-700
+              lg:max-h-[200px]
+            "
             >
-              Close
-            </button>
-          </div>
-          <iframe
-            title="YouTube live chat"
-            src={chatIframeSrc!}
-            className="w-full min-h-[300px] flex-1 border-0 bg-black"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen={false}
-          />
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap gap-2 gap-y-1 items-center text-xs">
-        <span className="text-slate-500">Links:</span>
-        {shareTargetYoutube ? (
-          <a href={shareTargetYoutube} target="_blank" rel="noopener noreferrer" className="text-amber-400/90 underline">
-            Open on YouTube
-          </a>
-        ) : rawWatchUrl && /^https?:/i.test(rawWatchUrl.trim()) ? (
-          <a href={rawWatchUrl.trim()} target="_blank" rel="noopener noreferrer" className="text-amber-400/90 underline">
-            Open stream page
-          </a>
+              <div className="flex items-center justify-between px-2 py-1 border-b border-slate-700 shrink-0 bg-slate-900/95">
+                <span className="text-[11px] text-slate-400 truncate pr-2">Live chat</span>
+                <button
+                  type="button"
+                  className="text-[11px] text-amber-300 px-1.5 py-0.5 rounded border border-slate-600 hover:bg-slate-800 shrink-0"
+                  onClick={() => setChatOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <iframe
+                title="YouTube live chat"
+                src={chatIframeSrc!}
+                className="w-full flex-1 min-h-[148px] max-h-[calc(min(36vh,280px)-40px)] border-0 bg-black lg:min-h-[140px] lg:max-h-[156px]"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          </>
         ) : null}
-        <button type="button" onClick={() => void copyPiratesWatchLink()} className="text-slate-400 underline hover:text-slate-200">
-          Copy Pirates watch page
-        </button>
       </div>
+
+      {/* Vimeo reminder only when Vimeo and chat not applicable */}
+      {isVimeo ? (
+        <p className="text-slate-500 text-[11px] leading-snug max-w-xl">
+          Use Share for this link. Vimeo doesn&apos;t expose YouTube-style embedded live chat beside the player.
+        </p>
+      ) : null}
     </div>
   );
 }
