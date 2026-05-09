@@ -58,6 +58,13 @@ function plainRowClass(): string {
   return 'border-b border-slate-700/50';
 }
 
+/** Scroll container: horizontal + vertical within each leaderboard block; keeps tables inside margins. */
+const TABLE_SCROLL_BOX =
+  'overflow-auto overscroll-contain max-h-[min(420px,52svh)] md:max-h-[min(480px,50vh)] [scrollbar-width:thin] touch-pan-x touch-pan-y max-w-full -mx-4 px-4 sm:mx-0 sm:px-0';
+
+const theadStickyRow =
+  'text-left text-slate-400 border-b border-slate-600 bg-slate-950/98 shadow-[0_4px_8px_-2px_rgba(0,0,0,0.45)]';
+
 function PlayerCellWithCornerMedal({ name, rankIndex }: { name: string; rankIndex: number }) {
   const medal = medalEmoji(rankIndex);
   return (
@@ -83,7 +90,7 @@ function Section({ title, children, expanded, onToggle }: { title: string; child
   return (
     <div className="card min-w-0 max-w-full overflow-hidden">
       <h3 className="text-lg font-semibold mb-4">{title}</h3>
-      <div className="overflow-x-auto overscroll-x-contain max-w-full -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:thin] touch-pan-x">
+      <div className={TABLE_SCROLL_BOX} role="region" aria-label={`${title} scrollable table`}>
         {children}
       </div>
       <button type="button" onClick={onToggle} className="mt-3 text-sm text-[var(--pirate-yellow)] hover:underline">
@@ -110,14 +117,14 @@ export default function LeaderboardView({
   return (
     <div className="grid md:grid-cols-2 gap-8 min-w-0 max-w-full">
       <Section title="Batting" expanded={!!expand.bat} onToggle={() => toggle('bat')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-400 border-b border-slate-600">
-              <th className="pb-2">#</th>
-              <th className="pb-2">Player</th>
-              <th className="pb-2">Pts</th>
-              <th className="pb-2">Runs</th>
-              <th className="pb-2">SR</th>
+        <table className="w-full text-sm relative">
+          <thead className="sticky top-0 z-[2] isolate">
+            <tr className={theadStickyRow}>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">#</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Player</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Pts</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Runs</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">SR</th>
             </tr>
           </thead>
           <tbody>
@@ -135,14 +142,14 @@ export default function LeaderboardView({
       </Section>
 
       <Section title="Bowling" expanded={!!expand.bowl} onToggle={() => toggle('bowl')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-400 border-b border-slate-600">
-              <th className="pb-2">#</th>
-              <th className="pb-2">Player</th>
-              <th className="pb-2">Pts</th>
-              <th className="pb-2">Wickets</th>
-              <th className="pb-2">Econ</th>
+        <table className="w-full text-sm relative">
+          <thead className="sticky top-0 z-[2] isolate">
+            <tr className={theadStickyRow}>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">#</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Player</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Pts</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Wickets</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Econ</th>
             </tr>
           </thead>
           <tbody>
@@ -160,14 +167,14 @@ export default function LeaderboardView({
       </Section>
 
       <Section title="Fielding" expanded={!!expand.field} onToggle={() => toggle('field')}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-400 border-b border-slate-600">
-              <th className="pb-2">#</th>
-              <th className="pb-2">Player</th>
-              <th className="pb-2">Pts</th>
-              <th className="pb-2">Catches</th>
-              <th className="pb-2">Run outs</th>
+        <table className="w-full text-sm relative">
+          <thead className="sticky top-0 z-[2] isolate">
+            <tr className={theadStickyRow}>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">#</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Player</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Pts</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Catches</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Run outs</th>
             </tr>
           </thead>
           <tbody>
@@ -185,53 +192,53 @@ export default function LeaderboardView({
       </Section>
 
       <Section title="MVP (season points)" expanded={!!expand.mvp} onToggle={() => toggle('mvp')}>
-        <table className="w-full text-sm min-w-[340px] sm:min-w-[420px]">
-            <thead>
-              <tr className="text-left text-slate-400 border-b border-slate-600">
-                <th className="pb-2">#</th>
-                <th className="pb-2">Player</th>
-                <th className="pb-2">Bat</th>
-                <th className="pb-2">Bowl</th>
-                <th className="pb-2">Field</th>
-                <th className="pb-2">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
-                <tr key={p.playerId} className={podiumRowClass(i)}>
-                  <td className="py-2 font-medium tabular-nums">{i + 1}</td>
-                  <td className="py-2 min-w-0 max-w-[14rem] sm:max-w-[18rem]">
-                    <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
-                      <span
-                        className={`relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-700 ${i <= 2 ? 'ring-2 ring-amber-300/50' : ''}`}
-                      >
-                        {p.photoUrl ? (
-                          <Image src={p.photoUrl} alt="" fill className="object-cover" sizes="28px" />
-                        ) : null}
-                      </span>
-                      <span className="relative min-w-0 max-w-[min(100%,12rem)] shrink">
-                        <span className="block truncate pr-5 font-medium" title={p.name}>
-                          {p.name}
-                        </span>
-                        {medalEmoji(i) ? (
-                          <span
-                            className="pointer-events-none absolute right-0 top-0 text-base leading-none drop-shadow-sm"
-                            aria-hidden
-                          >
-                            {medalEmoji(i)}
-                          </span>
-                        ) : null}
-                      </span>
+        <table className="w-full text-sm min-w-[340px] sm:min-w-[420px] relative">
+          <thead className="sticky top-0 z-[2] isolate">
+            <tr className={theadStickyRow}>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">#</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Player</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Bat</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Bowl</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Field</th>
+              <th className="sticky top-0 z-[2] pb-2 bg-slate-950/98 pt-1">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(expand.mvp ? mvp : mvp.slice(0, INITIAL)).map((p, i) => (
+              <tr key={p.playerId} className={podiumRowClass(i)}>
+                <td className="py-2 font-medium tabular-nums">{i + 1}</td>
+                <td className="py-2 min-w-0 max-w-[14rem] sm:max-w-[18rem]">
+                  <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
+                    <span
+                      className={`relative h-7 w-7 shrink-0 overflow-hidden rounded-full bg-slate-700 ${i <= 2 ? 'ring-2 ring-amber-300/50' : ''}`}
+                    >
+                      {p.photoUrl ? (
+                        <Image src={p.photoUrl} alt="" fill className="object-cover" sizes="28px" />
+                      ) : null}
                     </span>
-                  </td>
-                  <td className="py-2 tabular-nums">{p.battingPoints}</td>
-                  <td className="py-2 tabular-nums">{p.bowlingPoints}</td>
-                  <td className="py-2 tabular-nums">{p.fieldingPoints}</td>
-                  <td className={`py-2 font-semibold tabular-nums ${mvpPointsCellClass(i)}`}>{p.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className="relative min-w-0 max-w-[min(100%,12rem)] shrink">
+                      <span className="block truncate pr-5 font-medium" title={p.name}>
+                        {p.name}
+                      </span>
+                      {medalEmoji(i) ? (
+                        <span
+                          className="pointer-events-none absolute right-0 top-0 text-base leading-none drop-shadow-sm"
+                          aria-hidden
+                        >
+                          {medalEmoji(i)}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                </td>
+                <td className="py-2 tabular-nums">{p.battingPoints}</td>
+                <td className="py-2 tabular-nums">{p.bowlingPoints}</td>
+                <td className="py-2 tabular-nums">{p.fieldingPoints}</td>
+                <td className={`py-2 font-semibold tabular-nums ${mvpPointsCellClass(i)}`}>{p.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Section>
     </div>
   );
