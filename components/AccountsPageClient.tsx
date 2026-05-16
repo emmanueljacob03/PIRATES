@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { format, isValid, parseISO } from 'date-fns';
 import { formatUsd } from '@/lib/account-splits';
 import { dispatchFinanceUpdated } from '@/lib/finance-events';
 import { isPaid } from '@/lib/is-paid';
@@ -55,6 +56,39 @@ type OwedRow = {
   place: string | null;
   splitDate: string;
 };
+
+type DateSplitBatch = {
+  dateKey: string;
+  label: string;
+  splits: CreatedSplit[];
+};
+
+function formatSplitDateLabel(dateKey: string): string {
+  if (!dateKey || dateKey === 'unknown') return 'No date';
+  try {
+    const d = parseISO(dateKey.slice(0, 10));
+    return isValid(d) ? format(d, 'MMMM d, yyyy') : dateKey;
+  } catch {
+    return dateKey;
+  }
+}
+
+function groupSplitsByDate(splits: CreatedSplit[]): DateSplitBatch[] {
+  const byDate = new Map<string, CreatedSplit[]>();
+  for (const s of splits) {
+    const key = (s.split_date ?? '').slice(0, 10) || 'unknown';
+    const list = byDate.get(key) ?? [];
+    list.push(s);
+    byDate.set(key, list);
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([dateKey, items]) => ({
+      dateKey,
+      label: formatSplitDateLabel(dateKey),
+      splits: [...items].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')),
+    }));
+}
 
 function SplitRowCard({
   split,
@@ -219,6 +253,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
   const [splitDate, setSplitDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [expandedCreators, setExpandedCreators] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -272,6 +307,15 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
     setSelected(new Set());
   }
 
+  function toggleCreatorBlock(creatorProfileId: string) {
+    setExpandedCreators((prev) => {
+      const next = new Set(prev);
+      if (next.has(creatorProfileId)) next.delete(creatorProfileId);
+      else next.add(creatorProfileId);
+      return next;
+    });
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -318,6 +362,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
       setPlace('');
       setSplitDate('');
       setSelected(new Set());
+      setExpandedCreators((prev) => new Set(prev).add(currentProfileId));
       dispatchFinanceUpdated();
       router.refresh();
       await load();
@@ -546,36 +591,72 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
       ) : null}
 
       {totalSplits > 0 ? (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <h3 className="text-lg font-semibold text-[var(--pirate-yellow)]">Splits added</h3>
-          {splitsByCreator.map((block) => (
-            <div
-              key={block.creatorProfileId}
-              className={`card border-l-4 ${
-                block.creatorProfileId === currentProfileId
-                  ? 'border-l-amber-400/80'
-                  : 'border-l-slate-600'
-              }`}
-            >
-              <h4 className="text-base font-semibold text-white mb-1">{block.creatorName}</h4>
-              <p className="text-xs text-slate-500 mb-3">
-                {block.splits.length} split{block.splits.length === 1 ? '' : 's'}
-                {block.creatorProfileId === currentProfileId ? ' · you can edit these' : ''}
-              </p>
-              <ul className="space-y-3 text-sm">
-                {block.splits.map((s) => (
-                  <SplitRowCard
-                    key={s.id}
-                    split={s}
-                    updatingId={updatingId}
-                    onTogglePaid={(shareId, paid) => void setSharePaid(shareId, paid)}
-                    onDelete={(splitId) => void deleteSplit(splitId)}
-                    onSaveEdit={saveSplitEdit}
-                  />
-                ))}
-              </ul>
-            </div>
-          ))}
+          {splitsByCreator.map((block) => {
+            const isOpen = expandedCreators.has(block.creatorProfileId);
+            const dateBatches = groupSplitsByDate(block.splits);
+            const isOwn = block.creatorProfileId === currentProfileId;
+            return (
+              <div
+                key={block.creatorProfileId}
+                className={`card border-l-4 overflow-hidden ${
+                  isOwn ? 'border-l-amber-400/80' : 'border-l-slate-600'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleCreatorBlock(block.creatorProfileId)}
+                  className="w-full flex items-center gap-3 text-left py-1 pr-1 hover:bg-slate-800/40 rounded-lg transition-colors"
+                  aria-expanded={isOpen}
+                >
+                  <span
+                    className={`text-slate-400 text-xs shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                    aria-hidden
+                  >
+                    ▶
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="text-base font-semibold text-white block truncate">{block.creatorName}</span>
+                    <span className="text-xs text-slate-500">
+                      {block.splits.length} split{block.splits.length === 1 ? '' : 's'}
+                      {dateBatches.length > 0
+                        ? ` · ${dateBatches.length} day${dateBatches.length === 1 ? '' : 's'}`
+                        : ''}
+                      {isOwn ? ' · you can edit' : ''}
+                    </span>
+                  </span>
+                </button>
+
+                {isOpen ? (
+                  <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-4">
+                    {dateBatches.map((batch) => (
+                      <div key={`${block.creatorProfileId}-${batch.dateKey}`}>
+                        <p className="text-xs font-medium text-amber-200/90 uppercase tracking-wide mb-2">
+                          {batch.label}
+                          <span className="text-slate-500 font-normal normal-case ml-2">
+                            ({batch.splits.length})
+                          </span>
+                        </p>
+                        <ul className="space-y-3 text-sm">
+                          {batch.splits.map((s) => (
+                            <SplitRowCard
+                              key={s.id}
+                              split={s}
+                              updatingId={updatingId}
+                              onTogglePaid={(shareId, paid) => void setSharePaid(shareId, paid)}
+                              onDelete={(splitId) => void deleteSplit(splitId)}
+                              onSaveEdit={saveSplitEdit}
+                            />
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </section>
       ) : null}
 
