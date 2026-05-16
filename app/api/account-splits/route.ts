@@ -93,13 +93,12 @@ export async function GET() {
       .eq('participant_profile_id', user.id)
       .order('created_at', { ascending: false });
 
-    const { data: createdSplits } = await (supabase as any)
+    const { data: allSplits } = await (supabase as any)
       .from('account_splits')
       .select('*')
-      .eq('created_by_profile_id', user.id)
       .order('created_at', { ascending: false });
 
-    const splitIds = (createdSplits ?? []).map((s: SplitRow) => s.id);
+    const splitIds = (allSplits ?? []).map((s: SplitRow) => s.id);
     let sharesBySplit = new Map<string, ShareRow[]>();
     if (splitIds.length > 0) {
       const { data: allShares } = await (supabase as any)
@@ -114,14 +113,51 @@ export async function GET() {
       }
     }
 
-    const created = (createdSplits ?? []).map((s: SplitRow) => ({
+    const creatorIds = new Set((allSplits ?? []).map((s: SplitRow) => s.created_by_profile_id));
+    const missingCreatorIds = Array.from(creatorIds).filter(
+      (id): id is string => typeof id === 'string' && !profileNameById.has(id),
+    );
+    if (missingCreatorIds.length > 0) {
+      const { data: extraProfs } = await (supabase as any)
+        .from('profiles')
+        .select('id, name, email')
+        .in('id', missingCreatorIds);
+      for (const p of extraProfs ?? []) {
+        const row = p as { id: string; name: string | null; email: string | null };
+        profileNameById.set(row.id, (row.name || row.email || 'Member').trim());
+      }
+    }
+
+    const splitsWithShares = (allSplits ?? []).map((s: SplitRow) => ({
       ...s,
       payerName: profileNameById.get(s.payer_profile_id) ?? 'Member',
+      creatorName: profileNameById.get(s.created_by_profile_id) ?? 'Member',
+      canManage: s.created_by_profile_id === user.id,
       shares: (sharesBySplit.get(s.id) ?? []).map((sh) => ({
         ...sh,
         participantName: profileNameById.get(sh.participant_profile_id) ?? 'Member',
       })),
     }));
+
+    const splitsByCreatorMap = new Map<
+      string,
+      { creatorProfileId: string; creatorName: string; splits: typeof splitsWithShares }
+    >();
+    for (const split of splitsWithShares) {
+      const key = split.created_by_profile_id;
+      const block = splitsByCreatorMap.get(key) ?? {
+        creatorProfileId: key,
+        creatorName: split.creatorName,
+        splits: [],
+      };
+      block.splits.push(split);
+      splitsByCreatorMap.set(key, block);
+    }
+    const splitsByCreator = Array.from(splitsByCreatorMap.values()).sort((a, b) => {
+      const aLatest = a.splits[0]?.created_at ?? '';
+      const bLatest = b.splits[0]?.created_at ?? '';
+      return bLatest.localeCompare(aLatest);
+    });
 
     const owedToMe = await loadOwedToUser(supabase, user.id, profileNameById);
 
@@ -143,7 +179,7 @@ export async function GET() {
       },
     );
 
-    return NextResponse.json({ roster, created, myEntries, owedToMe });
+    return NextResponse.json({ roster, splitsByCreator, myEntries, owedToMe });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to load accounts';
     return NextResponse.json({ error: msg }, { status: 500 });

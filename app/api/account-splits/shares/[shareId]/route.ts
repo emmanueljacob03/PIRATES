@@ -50,8 +50,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { shareId: s
     const split = Array.isArray(splitRaw) ? splitRaw[0] : splitRaw;
     const splitInfo = split as { payer_profile_id: string; created_by_profile_id: string } | null;
 
-    const isParticipant = share.participant_profile_id === user.id;
-    const isPayer = splitInfo?.payer_profile_id === user.id;
     const isCreator = splitInfo?.created_by_profile_id === user.id;
 
     let isAdmin = cookieStore.get('pirates_admin')?.value === 'true';
@@ -60,8 +58,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { shareId: s
       isAdmin = (prof as { role?: string } | null)?.role === 'admin';
     }
 
-    if (!isParticipant && !isPayer && !isCreator && !isAdmin) {
-      return NextResponse.json({ error: 'Not allowed to update this share' }, { status: 403 });
+    if (!isCreator && !isAdmin) {
+      return NextResponse.json(
+        { error: 'Only the person who added this split can mark shares paid or unpaid.' },
+        { status: 403 },
+      );
     }
 
     const { error: updateErr } = await (supabase as any)

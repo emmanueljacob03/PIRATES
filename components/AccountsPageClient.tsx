@@ -22,8 +22,18 @@ type CreatedSplit = {
   place: string | null;
   total_amount: number;
   split_date: string;
+  created_at: string;
+  created_by_profile_id: string;
   payerName: string;
+  creatorName: string;
+  canManage: boolean;
   shares: CreatedShare[];
+};
+
+type CreatorBlock = {
+  creatorProfileId: string;
+  creatorName: string;
+  splits: CreatedSplit[];
 };
 
 type MyEntry = {
@@ -46,10 +56,156 @@ type OwedRow = {
   splitDate: string;
 };
 
+function SplitRowCard({
+  split,
+  updatingId,
+  onTogglePaid,
+  onDelete,
+  onSaveEdit,
+}: {
+  split: CreatedSplit;
+  updatingId: string | null;
+  onTogglePaid: (shareId: string, paid: boolean) => void;
+  onDelete: (splitId: string) => void;
+  onSaveEdit: (
+    splitId: string,
+    payload: { reason: string; place: string; totalAmount: number },
+  ) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editReason, setEditReason] = useState(split.reason);
+  const [editPlace, setEditPlace] = useState(split.place ?? '');
+  const [editAmount, setEditAmount] = useState(String(split.total_amount));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) {
+      setEditReason(split.reason);
+      setEditPlace(split.place ?? '');
+      setEditAmount(String(split.total_amount));
+    }
+  }, [split, editing]);
+
+  async function handleSave() {
+    const amount = parseFloat(editAmount);
+    if (!editReason.trim() || !Number.isFinite(amount) || amount <= 0) return;
+    setSaving(true);
+    try {
+      await onSaveEdit(split.id, {
+        reason: editReason.trim(),
+        place: editPlace.trim(),
+        totalAmount: amount,
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="border border-slate-700/60 rounded-lg p-3 bg-slate-900/40">
+      {editing ? (
+        <div className="space-y-2">
+          <input
+            className="input-field text-sm"
+            value={editReason}
+            onChange={(e) => setEditReason(e.target.value)}
+            placeholder="Reason"
+          />
+          <input
+            className="input-field text-sm"
+            value={editPlace}
+            onChange={(e) => setEditPlace(e.target.value)}
+            placeholder="Place (optional)"
+          />
+          <input
+            className="input-field text-sm"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={editAmount}
+            onChange={(e) => setEditAmount(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-primary text-xs py-1.5 px-3" disabled={saving} onClick={() => void handleSave()}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="text-xs text-slate-400 hover:text-white"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-white font-medium">
+                ${formatUsd(Number(split.total_amount))} — {split.reason}
+                {split.place ? <span className="text-slate-400"> @ {split.place}</span> : null}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">{split.split_date}</p>
+            </div>
+            {split.canManage ? (
+              <div className="flex flex-wrap gap-2 shrink-0">
+                <button
+                  type="button"
+                  className="text-xs text-amber-300 hover:underline"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="text-xs text-red-400 hover:underline"
+                  onClick={() => onDelete(split.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {split.shares.map((sh) => (
+              <li key={sh.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-slate-300">
+                  {sh.participantName} — ${formatUsd(Number(sh.share_amount))}
+                </span>
+                {split.canManage ? (
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      checked={isPaid(sh.paid)}
+                      disabled={updatingId === sh.id}
+                      onChange={(e) => onTogglePaid(sh.id, e.target.checked)}
+                      className="rounded border-slate-500 text-emerald-500"
+                    />
+                    <span className={isPaid(sh.paid) ? 'text-emerald-300' : 'text-red-300'}>
+                      {isPaid(sh.paid) ? 'Paid' : 'Unpaid'}
+                    </span>
+                  </label>
+                ) : (
+                  <span className={isPaid(sh.paid) ? 'text-emerald-300 text-xs' : 'text-red-300 text-xs'}>
+                    {isPaid(sh.paid) ? 'Paid' : 'Unpaid'}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </li>
+  );
+}
+
 export default function AccountsPageClient({ currentProfileId }: { currentProfileId: string }) {
   const router = useRouter();
   const [roster, setRoster] = useState<RosterMember[]>([]);
-  const [created, setCreated] = useState<CreatedSplit[]>([]);
+  const [splitsByCreator, setSplitsByCreator] = useState<CreatorBlock[]>([]);
   const [myEntries, setMyEntries] = useState<MyEntry[]>([]);
   const [owedToMe, setOwedToMe] = useState<OwedRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +216,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
   const [totalAmount, setTotalAmount] = useState('');
   const [reason, setReason] = useState('');
   const [place, setPlace] = useState('');
+  const [splitDate, setSplitDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -74,7 +231,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
         return;
       }
       setRoster(data.roster ?? []);
-      setCreated(data.created ?? []);
+      setSplitsByCreator(data.splitsByCreator ?? []);
       setMyEntries(data.myEntries ?? []);
       setOwedToMe(data.owedToMe ?? []);
     } catch {
@@ -91,6 +248,11 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
   const selectableRoster = useMemo(
     () => roster.filter((r) => r.profileId !== currentProfileId),
     [roster, currentProfileId],
+  );
+
+  const totalSplits = useMemo(
+    () => splitsByCreator.reduce((n, b) => n + b.splits.length, 0),
+    [splitsByCreator],
   );
 
   function toggleProfile(profileId: string) {
@@ -142,6 +304,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
           totalAmount: amount,
           reason: reason.trim(),
           place: place.trim() || undefined,
+          splitDate: splitDate.trim() || undefined,
           includeYou,
         }),
       });
@@ -153,6 +316,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
       setTotalAmount('');
       setReason('');
       setPlace('');
+      setSplitDate('');
       setSelected(new Set());
       dispatchFinanceUpdated();
       router.refresh();
@@ -188,6 +352,53 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
     }
   }
 
+  async function deleteSplit(splitId: string) {
+    if (!window.confirm('Delete this split? This cannot be undone.')) return;
+    setUpdatingId(splitId);
+    try {
+      const res = await fetch(`/api/account-splits/${splitId}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Could not delete');
+        return;
+      }
+      dispatchFinanceUpdated();
+      router.refresh();
+      await load();
+    } catch {
+      setError('Could not delete');
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function saveSplitEdit(
+    splitId: string,
+    payload: { reason: string; place: string; totalAmount: number },
+  ) {
+    const res = await fetch(`/api/account-splits/${splitId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        reason: payload.reason,
+        place: payload.place || undefined,
+        totalAmount: payload.totalAmount,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? 'Could not save');
+      throw new Error(data.error);
+    }
+    dispatchFinanceUpdated();
+    router.refresh();
+    await load();
+  }
+
   const amountNum = parseFloat(totalAmount);
   const previewCount = includeYou ? selected.size + 1 : selected.size;
   const previewEach =
@@ -199,11 +410,6 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
 
   return (
     <div className="space-y-8 max-w-3xl">
-      <p className="text-slate-400 text-sm leading-relaxed">
-        Log what you paid. With <strong className="text-slate-300 font-medium">Include you</strong>, we split the total
-        equally among you and the players you pick. Uncheck it to charge one player the full amount.
-      </p>
-
       {error ? (
         <p className="text-red-400 text-sm rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2" role="alert">
           {error}
@@ -270,6 +476,16 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
         </div>
 
         <div>
+          <label className="block text-xs text-slate-500 mb-1">Date (optional)</label>
+          <input
+            className="input-field"
+            type="date"
+            value={splitDate}
+            onChange={(e) => setSplitDate(e.target.value)}
+          />
+        </div>
+
+        <div>
           <p className="text-xs text-slate-500 mb-2">
             {includeYou ? 'Split with (players with an account)' : 'Who owes you? (pick one)'}
           </p>
@@ -318,20 +534,10 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
                   {e.reason}
                   {e.place ? ` · ${e.place}` : ''}
                 </p>
-                <div className="pl-5 mt-1 flex flex-wrap items-center gap-2">
+                <div className="pl-5 mt-1">
                   <span className={isPaid(e.paid) ? 'text-emerald-300' : 'text-red-300'}>
                     {isPaid(e.paid) ? 'Paid' : 'Pending'}
                   </span>
-                  {!isPaid(e.paid) && !e.isPayer ? (
-                    <button
-                      type="button"
-                      className="text-xs text-amber-300 hover:underline"
-                      disabled={updatingId === e.shareId}
-                      onClick={() => void setSharePaid(e.shareId, true)}
-                    >
-                      Mark paid
-                    </button>
-                  ) : null}
                 </div>
               </li>
             ))}
@@ -339,44 +545,37 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
         </section>
       ) : null}
 
-      {created.length > 0 ? (
-        <section className="card">
-          <h3 className="text-lg font-semibold text-[var(--pirate-yellow)] mb-3">Splits you added</h3>
-          <ul className="space-y-4 text-sm">
-            {created.map((s) => (
-              <li key={s.id} className="border border-slate-700/60 rounded-lg p-3 bg-slate-900/40">
-                <p className="text-white font-medium">
-                  ${formatUsd(Number(s.total_amount))} — {s.reason}
-                  {s.place ? <span className="text-slate-400"> @ {s.place}</span> : null}
-                </p>
-                <p className="text-xs text-slate-500 mt-1">{s.split_date}</p>
-                <ul className="mt-2 space-y-1">
-                  {s.shares.map((sh) => (
-                    <li key={sh.id} className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-slate-300">
-                        {sh.participantName} — ${formatUsd(Number(sh.share_amount))}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className={isPaid(sh.paid) ? 'text-emerald-300 text-xs' : 'text-red-300 text-xs'}>
-                          {isPaid(sh.paid) ? 'Paid' : 'Pending'}
-                        </span>
-                        {!isPaid(sh.paid) ? (
-                          <button
-                            type="button"
-                            className="text-xs text-amber-300 hover:underline"
-                            disabled={updatingId === sh.id}
-                            onClick={() => void setSharePaid(sh.id, true)}
-                          >
-                            Mark paid
-                          </button>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
+      {totalSplits > 0 ? (
+        <section className="space-y-4">
+          <h3 className="text-lg font-semibold text-[var(--pirate-yellow)]">Splits added</h3>
+          {splitsByCreator.map((block) => (
+            <div
+              key={block.creatorProfileId}
+              className={`card border-l-4 ${
+                block.creatorProfileId === currentProfileId
+                  ? 'border-l-amber-400/80'
+                  : 'border-l-slate-600'
+              }`}
+            >
+              <h4 className="text-base font-semibold text-white mb-1">{block.creatorName}</h4>
+              <p className="text-xs text-slate-500 mb-3">
+                {block.splits.length} split{block.splits.length === 1 ? '' : 's'}
+                {block.creatorProfileId === currentProfileId ? ' · you can edit these' : ''}
+              </p>
+              <ul className="space-y-3 text-sm">
+                {block.splits.map((s) => (
+                  <SplitRowCard
+                    key={s.id}
+                    split={s}
+                    updatingId={updatingId}
+                    onTogglePaid={(shareId, paid) => void setSharePaid(shareId, paid)}
+                    onDelete={(splitId) => void deleteSplit(splitId)}
+                    onSaveEdit={saveSplitEdit}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
         </section>
       ) : null}
 
