@@ -8,6 +8,8 @@ export type ProfileAccountEntry = {
   reason: string;
   place: string | null;
   splitDate: string;
+  /** When the split was recorded (share row created_at). */
+  recordedAt: string | null;
   paid: boolean;
 };
 
@@ -19,7 +21,7 @@ export async function loadProfileAccountEntries(userId: string): Promise<Profile
     const { data: rows, error } = await (supabase as any)
       .from('account_split_shares')
       .select(
-        'id, share_amount, paid, account_splits(reason, place, split_date, payer_profile_id)',
+        'id, share_amount, paid, created_at, account_splits(reason, place, split_date, created_at, payer_profile_id)',
       )
       .eq('participant_profile_id', userId)
       .order('created_at', { ascending: false });
@@ -51,6 +53,8 @@ export async function loadProfileAccountEntries(userId: string): Promise<Profile
       const split = Array.isArray(row.account_splits) ? row.account_splits[0] : row.account_splits;
       if (!split || split.payer_profile_id === userId) continue;
 
+      const shareCreated = (row as { created_at?: string | null }).created_at ?? null;
+      const splitCreated = (split as { created_at?: string | null }).created_at ?? null;
       entries.push({
         shareId: row.id,
         payerName: payerNameById.get(split.payer_profile_id) ?? 'Member',
@@ -58,6 +62,7 @@ export async function loadProfileAccountEntries(userId: string): Promise<Profile
         reason: split.reason ?? '',
         place: split.place ?? null,
         splitDate: split.split_date ?? '',
+        recordedAt: shareCreated || splitCreated || null,
         paid: isPaid(row.paid),
       });
     }

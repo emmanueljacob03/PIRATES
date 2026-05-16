@@ -57,6 +57,19 @@ function formatContributionDate(ymd: string): string {
   }
 }
 
+function formatAccountWhen(entry: ProfileAccountEntry): string {
+  if (entry.recordedAt) {
+    try {
+      const d = parseISO(entry.recordedAt);
+      if (isValid(d)) return format(d, 'MMM d, yyyy · h:mm a');
+    } catch {
+      /* fall through */
+    }
+  }
+  if (entry.splitDate) return formatContributionDate(entry.splitDate);
+  return '—';
+}
+
 /** Display like #03 for numeric jersey numbers. */
 function formatJerseyHash(num: string): string {
   const t = num.trim();
@@ -139,6 +152,21 @@ export default function ProfilePageClient({
   const [profileFormError, setProfileFormError] = useState('');
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const [accountsModalOpen, setAccountsModalOpen] = useState(false);
+
+  const umpiringActive = umpiringDuties.filter(
+    (d) => !isUmpiringDutyCompleted(d.duty_date, d.duty_time),
+  );
+  const hasUmpiringAssigned = umpiringDuties.length > 0;
+  const umpiringMandatory = umpiringActive.length > 0;
+
+  const accountEntriesSorted = [...accountEntries].sort((a, b) => {
+    if (a.paid !== b.paid) return a.paid ? 1 : -1;
+    const da = a.recordedAt || a.splitDate || '';
+    const db = b.recordedAt || b.splitDate || '';
+    return db.localeCompare(da);
+  });
+  const pendingAccountEntries = accountEntriesSorted.filter((e) => !e.paid);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -149,6 +177,20 @@ export default function ProfilePageClient({
     setFilePreviewUrl(u);
     return () => URL.revokeObjectURL(u);
   }, [avatarFile]);
+
+  useEffect(() => {
+    if (!accountsModalOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAccountsModalOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [accountsModalOpen]);
 
   useEffect(() => {
     if (editing) return;
@@ -484,11 +526,78 @@ export default function ProfilePageClient({
         </div>
       </div>
 
+      <div
+        className={
+          hasUmpiringAssigned
+            ? 'rounded-xl border-2 border-amber-500/60 bg-gradient-to-br from-amber-950/50 via-slate-900/40 to-slate-900/60 px-4 py-4 shadow-[0_0_24px_rgba(245,158,11,0.12)]'
+            : ''
+        }
+      >
+        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2 flex flex-wrap items-center gap-2">
+          Umpire duties
+          {umpiringMandatory ? (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-red-600/90 text-white border border-red-400/80"
+              title="Mandatory umpiring assignment"
+            >
+              <span aria-hidden className="text-sm leading-none">
+                *
+              </span>
+              Mandatory
+            </span>
+          ) : null}
+        </h3>
+        {umpiringDuties.length === 0 ? (
+          <p className="text-slate-400 text-sm">Nothing yet</p>
+        ) : (
+          <ul className="text-sm text-slate-300 space-y-2.5">
+            {umpiringDuties.map((d, i) => {
+              const t = (d.duty_time || '12:00').trim();
+              const done = isUmpiringDutyCompleted(d.duty_date, d.duty_time);
+              return (
+                <li
+                  key={d.id ?? i}
+                  className={`rounded-lg px-3 py-2 border ${
+                    done
+                      ? 'border-slate-700/60 bg-slate-900/30'
+                      : 'border-amber-500/40 bg-amber-950/30'
+                  }`}
+                >
+                  <span className="text-white font-medium">
+                    {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
+                    {` at ${t}`}
+                    {!done && umpiringMandatory ? (
+                      <span className="ml-2 text-red-300 font-bold" aria-label="Required">
+                        *
+                      </span>
+                    ) : null}
+                    {done ? (
+                      <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
+                        Completed
+                      </span>
+                    ) : null}
+                  </span>
+                  {d.notes ? (
+                    <span className="text-slate-400 block mt-0.5 text-xs">Note: {d.notes}</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       <div>
-        <Link
-          href="/accounts"
-          className={`block rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 transition-colors ${accountsBlockClass}`}
-          aria-label={accountsPending ? 'Accounts: amount pending. Open accounts.' : 'Accounts: cleared. Open accounts.'}
+        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Total matches played</h3>
+        <p className="text-white">{matchesPlayed}</p>
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setAccountsModalOpen(true)}
+          className={`w-full text-left block rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 transition-colors ${accountsBlockClass}`}
+          aria-label={accountsPending ? 'Accounts: amount pending. View details.' : 'Accounts: cleared. View details.'}
         >
           <h3 className="font-semibold text-[var(--pirate-yellow)] tracking-[0.12em] font-['Times_New_Roman',Times,serif] text-lg mb-2">
             ACCOUNTS
@@ -504,46 +613,85 @@ export default function ProfilePageClient({
             {accountsPending ? (
               <p className="text-2xl font-bold tabular-nums text-white">${formatUsd(pendingAccounts)}</p>
             ) : (
-              <p className="text-xs text-emerald-100/80">Nothing owed · tap to open</p>
+              <p className="text-xs text-emerald-100/80">Tap to view details</p>
             )}
           </div>
-        </Link>
+        </button>
       </div>
 
-      <div>
-        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Umpire duties</h3>
-        {umpiringDuties.length === 0 ? (
-          <p className="text-slate-400 text-sm">Nothing yet</p>
-        ) : (
-          <ul className="text-sm text-slate-300 space-y-2">
-            {umpiringDuties.map((d, i) => {
-              const t = (d.duty_time || '12:00').trim();
-              const done = isUmpiringDutyCompleted(d.duty_date, d.duty_time);
-              return (
-                <li key={d.id ?? i} className="text-slate-300">
-                  <span className="text-white">
-                    {format(new Date(d.duty_date.slice(0, 10)), 'MMM d, yyyy')}
-                    {` at ${t}`}
-                    {done && (
-                      <span className="ml-2 inline-block rounded px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300">
-                        Completed
-                      </span>
-                    )}
-                  </span>
-                  {d.notes ? (
-                    <span className="text-slate-400 block sm:inline sm:ml-1"> · Note (admin): {d.notes}</span>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {accountsModalOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+          role="presentation"
+          onClick={() => setAccountsModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[min(85vh,32rem)] flex flex-col rounded-xl border-2 border-amber-500/40 bg-slate-900 shadow-xl"
+            role="dialog"
+            aria-labelledby="profile-accounts-modal-title"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setAccountsModalOpen(false)}
+              className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-slate-200 text-xl leading-none border border-slate-600 hover:bg-slate-700"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <div className="px-4 pt-4 pb-2 border-b border-slate-700/80 shrink-0 pr-12">
+              <h3 id="profile-accounts-modal-title" className="text-lg font-semibold text-[var(--pirate-yellow)]">
+                Accounts
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">Synced from team splits</p>
+            </div>
+            <div className="overflow-y-auto flex-1 px-4 py-3 min-h-0">
+              {accountEntriesSorted.length === 0 ? (
+                <p className="text-slate-400 text-sm py-4">No shared splits on your record.</p>
+              ) : pendingAccountEntries.length === 0 ? (
+                <p className="text-emerald-300 text-sm py-2 mb-3">All cleared — nothing owed.</p>
+              ) : (
+                <p className="text-red-200 text-sm font-medium mb-3 tabular-nums">
+                  You owe ${formatUsd(pendingAccounts)} total
+                </p>
+              )}
+              {accountEntriesSorted.length > 0 ? (
+                <ol className="space-y-3 text-sm list-decimal list-inside">
+                  {accountEntriesSorted.map((e) => (
+                    <li
+                      key={e.shareId}
+                      className={`border-b border-slate-700/50 pb-3 last:border-0 last:pb-0 ${e.paid ? 'opacity-60' : ''}`}
+                    >
+                      <p className="text-white font-medium">
+                        {e.payerName} — ${formatUsd(e.amount)}
+                        <span className={e.paid ? 'text-emerald-300 ml-1' : 'text-red-300 ml-1'}>
+                          {e.paid ? 'paid' : 'pending'}
+                        </span>
+                      </p>
+                      <p className="text-slate-300 mt-0.5 pl-5 leading-snug">
+                        {e.reason}
+                        {e.place ? ` · ${e.place}` : ''}
+                      </p>
+                      <p className="text-slate-500 text-xs mt-1 pl-5">{formatAccountWhen(e)}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+            <div className="px-4 py-3 border-t border-slate-700/80 shrink-0">
+              <Link
+                href="/accounts"
+                className="text-sm text-amber-300 hover:text-amber-200 hover:underline font-medium"
+                onClick={() => setAccountsModalOpen(false)}
+              >
+                Open full Accounts page →
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-      <div>
-        <h3 className="font-semibold text-[var(--pirate-yellow)] mb-2">Total matches played</h3>
-        <p className="text-white">{matchesPlayed}</p>
-      </div>
 
       <div className="pt-6 mt-2 border-t border-slate-700 flex justify-center">
         <LogoutButton />
