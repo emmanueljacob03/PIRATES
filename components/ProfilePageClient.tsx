@@ -122,20 +122,10 @@ export default function ProfilePageClient({
         : 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)]';
 
   const pendingAccounts = pendingAccountTotal(accountEntries);
-  const accountCount = accountEntries.length;
-  type AccountTone = 'empty' | 'all' | 'outstanding';
-  const accountTone: AccountTone =
-    accountCount === 0
-      ? 'empty'
-      : pendingAccounts >= 1
-        ? 'outstanding'
-        : 'all';
-  const accountsBlockClass =
-    accountTone === 'all'
-      ? 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)]'
-      : accountTone === 'empty'
-        ? 'border-slate-600/80 bg-slate-900/55'
-        : 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)]';
+  const accountsPending = pendingAccounts >= 1;
+  const accountsBlockClass = accountsPending
+    ? 'border-red-500/70 bg-red-950/50 shadow-[inset_0_1px_0_0_rgba(239,68,68,0.12)] hover:border-red-400/80'
+    : 'border-emerald-500/75 bg-emerald-950/55 shadow-[inset_0_1px_0_0_rgba(16,185,129,0.15)] hover:border-emerald-400/80';
   const [profile, setProfile] = useState(initialProfile);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initialProfile.name ?? '');
@@ -495,62 +485,29 @@ export default function ProfilePageClient({
       </div>
 
       <div>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h3 className="font-semibold text-[var(--pirate-yellow)] tracking-[0.12em] font-['Times_New_Roman',Times,serif] text-lg">
+        <Link
+          href="/accounts"
+          className={`block rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 transition-colors ${accountsBlockClass}`}
+          aria-label={accountsPending ? 'Accounts: amount pending. Open accounts.' : 'Accounts: cleared. Open accounts.'}
+        >
+          <h3 className="font-semibold text-[var(--pirate-yellow)] tracking-[0.12em] font-['Times_New_Roman',Times,serif] text-lg mb-2">
             ACCOUNTS
           </h3>
-          <Link href="/accounts" className="text-xs text-amber-300 hover:underline">
-            Add / manage splits
-          </Link>
-        </div>
-        <div
-          className={`rounded-xl border-2 px-4 py-4 sm:px-5 sm:py-5 ${accountsBlockClass}`}
-          role="region"
-          aria-label="Shared expense splits"
-        >
-          {accountTone === 'empty' ? (
-            <p className="text-slate-400 text-sm leading-relaxed">
-              No shared splits yet. When a teammate adds a bill split with you, it appears here numbered 1, 2, 3…
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p
+              className={`text-sm font-semibold uppercase tracking-wide ${
+                accountsPending ? 'text-red-200' : 'text-emerald-200'
+              }`}
+            >
+              {accountsPending ? 'Pending' : 'Cleared'}
             </p>
-          ) : (
-            <>
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4 border-b border-white/10 pb-3 mb-4">
-                <div>
-                  <p
-                    className={`flex items-center gap-2 flex-wrap text-sm font-semibold uppercase tracking-wide ${
-                      accountTone === 'all' ? 'text-emerald-200' : 'text-red-200'
-                    }`}
-                  >
-                    {accountTone === 'all' ? 'All settled' : 'Amount pending'}
-                  </p>
-                </div>
-                <div className="text-left sm:text-right shrink-0">
-                  <p className="text-[11px] uppercase tracking-wide opacity-80 text-white/80">You still owe</p>
-                  <p className="text-2xl font-bold tabular-nums text-white">${pendingAccounts.toFixed(2)}</p>
-                </div>
-              </div>
-              <ol className="space-y-3 text-sm list-decimal list-inside">
-                {accountEntries.map((e) => (
-                  <li key={e.shareId} className="border-b border-white/5 pb-2.5 last:border-0 last:pb-0">
-                    <p className="text-white font-medium leading-snug">
-                      {e.payerName} — $
-                      {formatUsd(e.amount)}
-                      {isPaid(e.paid) ? (
-                        <span className="text-emerald-300 ml-1">paid</span>
-                      ) : (
-                        <span className="text-red-300 ml-1">pending</span>
-                      )}
-                    </p>
-                    <p className="text-slate-300 mt-0.5 pl-5 leading-snug">
-                      {e.reason}
-                      {e.place ? ` · ${e.place}` : ''}
-                    </p>
-                  </li>
-                ))}
-              </ol>
-            </>
-          )}
-        </div>
+            {accountsPending ? (
+              <p className="text-2xl font-bold tabular-nums text-white">${formatUsd(pendingAccounts)}</p>
+            ) : (
+              <p className="text-xs text-emerald-100/80">Nothing owed · tap to open</p>
+            )}
+          </div>
+        </Link>
       </div>
 
       <div>
