@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
+import { isAlumniPlayerRow } from '@/lib/alumni-players';
 import { memoryDuties, nextMemoryDutyId, type MemoryDuty } from '@/lib/umpiring-duties-memory';
 
 function sortDutyRows<T extends { duty_date: string; duty_time?: string | null }>(rows: T[]): T[] {
@@ -51,9 +52,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = createAdminSupabase();
-    const { data: pl, error: plErr } = await (supabase as any).from('players').select('name').eq('id', player_id).single();
+    const { data: pl, error: plErr } = await (supabase as any)
+      .from('players')
+      .select('name, profile_id')
+      .eq('id', player_id)
+      .single();
     if (plErr || !pl) return NextResponse.json({ error: 'Player not found' }, { status: 400 });
-    const who = String((pl as { name?: string }).name ?? '').trim();
+    const row = pl as { name?: string; profile_id?: string | null };
+    const profileNameById = new Map<string, string | null>();
+    if (row.profile_id) {
+      const { data: prof } = await (supabase as any).from('profiles').select('name').eq('id', row.profile_id).maybeSingle();
+      profileNameById.set(row.profile_id, (prof as { name?: string | null } | null)?.name ?? null);
+    }
+    if (isAlumniPlayerRow({ name: row.name ?? null, profile_id: row.profile_id ?? null }, profileNameById)) {
+      return NextResponse.json({ error: 'Alumni players cannot be assigned umpiring duties.' }, { status: 400 });
+    }
+    const who = String(row.name ?? '').trim();
     if (!who) return NextResponse.json({ error: 'Player has no name' }, { status: 400 });
 
     const { data, error } = await (supabase as any)

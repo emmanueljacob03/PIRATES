@@ -3,6 +3,7 @@ import { createAdminSupabase } from '@/lib/supabase-admin';
 import { cookies } from 'next/headers';
 import BudgetContributions from '@/components/BudgetContributions';
 import BudgetExpenses from '@/components/BudgetExpenses';
+import { filterActiveRosterNames } from '@/lib/alumni-players';
 import type { Contribution, Expense } from '@/types/database';
 
 export default async function BudgetPage() {
@@ -22,9 +23,9 @@ export default async function BudgetPage() {
     ]);
     contributions = (contributionsRes.data ?? []) as Contribution[];
     expenses = (expensesRes.data ?? []) as (Expense & { bought?: boolean })[];
-    rosterPlayerNames = (playersRes.data ?? [])
-      .map((p: { name: string }) => (p.name ?? '').trim())
-      .filter(Boolean);
+    rosterPlayerNames = filterActiveRosterNames(
+      (playersRes.data ?? []).map((p: { name: string }) => (p.name ?? '').trim()).filter(Boolean),
+    );
   } catch {
     contributions = [];
     expenses = [];

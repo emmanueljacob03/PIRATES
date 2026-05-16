@@ -5,6 +5,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/types/database';
 import { isWithinPlaying11VisibilityWindow } from '@/lib/app-timezone';
 import { REQUIRED_PLAYING11_COUNT } from '@/lib/playing11-config';
+import { filterActiveRosterPlayers, isAlumniPlayerRow } from '@/lib/alumni-players';
 import { scorecardDisplayName } from '@/lib/player-display-name';
 
 function parseMatchId(raw: string | null): string | null {
@@ -47,9 +48,9 @@ export async function GET(req: NextRequest) {
     }
 
     type PRow = { id: string; name: string; jersey_number: number | null; profile_id: string | null };
-    const plist = (players ?? []) as PRow[];
+    const rawList = (players ?? []) as PRow[];
     const profileIds = Array.from(
-      new Set(plist.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
+      new Set(rawList.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
     );
     const profileNameById = new Map<string, string | null>();
     if (profileIds.length > 0) {
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
         profileNameById.set(r.id, r.name);
       }
     }
+    const plist = filterActiveRosterPlayers(rawList, profileNameById);
 
     const { data: lineup, error: lineupErr } = await (supabase as any)
       .from('match_playing11')
@@ -139,6 +141,28 @@ export async function POST(req: NextRequest) {
     const isPractice = String(matchRow.opponent || '').toLowerCase().includes('practice');
     if (isPractice) {
       return NextResponse.json({ error: 'Cannot set Playing 11 for practice matches.' }, { status: 400 });
+    }
+
+    const pickIds = [...playingIds, ...Array.from(extraSet)];
+    const { data: playerRows } = await (supabase as any)
+      .from('players')
+      .select('id, name, profile_id')
+      .in('id', pickIds);
+    const pickRows = (playerRows ?? []) as { id: string; name: string; profile_id: string | null }[];
+    const profileIdsForAlumni = Array.from(
+      new Set(pickRows.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
+    );
+    const profileNameByIdPost = new Map<string, string | null>();
+    if (profileIdsForAlumni.length > 0) {
+      const { data: profs } = await (supabase as any).from('profiles').select('id, name').in('id', profileIdsForAlumni);
+      for (const row of profs ?? []) {
+        const r = row as { id: string; name: string | null };
+        profileNameByIdPost.set(r.id, r.name);
+      }
+    }
+    const alumniPick = pickRows.find((p) => isAlumniPlayerRow(p, profileNameByIdPost));
+    if (alumniPick) {
+      return NextResponse.json({ error: 'Alumni players cannot be in Playing 11.' }, { status: 400 });
     }
 
     // Replace existing lineup for this match.

@@ -18,6 +18,7 @@ import { unstable_noStore as noStore } from 'next/cache';
 import { readDesiredCollectionValue } from '@/lib/desired-collection';
 import { isPracticeOpponent } from '@/lib/match-opponent';
 import { isPaid } from '@/lib/is-paid';
+import { filterActiveRosterPlayers } from '@/lib/alumni-players';
 
 export const revalidate = 0;
 export const dynamic = 'force-dynamic';
@@ -219,8 +220,26 @@ export default async function DashboardPage() {
   try {
     if (codeVerified) {
       const sup = createAdminSupabase();
-      const { data: rosterRows } = await sup.from('players').select('id, name').order('name');
-      umpiringRoster = (rosterRows ?? []).map((p: { id: string; name: string | null }) => ({
+      const { data: rosterRows } = await sup.from('players').select('id, name, profile_id').order('name');
+      const profileIds = Array.from(
+        new Set(
+          (rosterRows ?? [])
+            .map((p: { profile_id?: string | null }) => p.profile_id)
+            .filter((id): id is string => id != null && id !== ''),
+        ),
+      );
+      const profileNameById = new Map<string, string | null>();
+      if (profileIds.length > 0) {
+        const { data: profs } = await sup.from('profiles').select('id, name').in('id', profileIds);
+        for (const row of profs ?? []) {
+          const r = row as { id: string; name: string | null };
+          profileNameById.set(r.id, r.name);
+        }
+      }
+      umpiringRoster = filterActiveRosterPlayers(
+        (rosterRows ?? []) as { id: string; name: string | null; profile_id?: string | null }[],
+        profileNameById,
+      ).map((p) => ({
         id: p.id,
         name: (p.name ?? '').trim() || 'Player',
       }));

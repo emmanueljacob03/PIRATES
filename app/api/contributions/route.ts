@@ -80,9 +80,12 @@ export async function POST(req: NextRequest) {
     const requestedFor = (body.player_name ?? '').trim();
     let player_name = displayName;
     if (requestedFor) {
+      const { filterActiveRosterNames } = await import('@/lib/alumni-players');
       const { data: rosterRows } = await (supabase as any).from('players').select('name');
       const allowed = new Set(
-        (rosterRows ?? []).map((r: { name: string }) => String(r.name ?? '').trim().toLowerCase()).filter(Boolean),
+        filterActiveRosterNames(
+          (rosterRows ?? []).map((r: { name: string }) => String(r.name ?? '').trim()).filter(Boolean),
+        ).map((n) => n.toLowerCase()),
       );
       if (!allowed.has(requestedFor.toLowerCase())) {
         return NextResponse.json({ error: 'Choose a player from the team list.' }, { status: 400 });

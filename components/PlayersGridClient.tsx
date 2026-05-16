@@ -18,6 +18,7 @@ export type PlayersGridPlayer = {
   contactPhone: string | null;
   contactEmail: string | null;
   contactBirthday: string | null;
+  isAlumni?: boolean;
 };
 
 export default function PlayersGridClient({
@@ -119,6 +120,11 @@ export default function PlayersGridClient({
                   No photo yet
                 </div>
               )}
+              {p.isAlumni ? (
+                <span className="absolute top-2 left-2 z-40 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-900/85 text-amber-200 border border-amber-500/45">
+                  Alumni
+                </span>
+              ) : null}
               <div className="absolute inset-x-0 bottom-0 z-40 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-2 py-2 flex items-center justify-between gap-2 min-h-[2.75rem]">
                 <p className="font-semibold text-xs sm:text-sm text-white truncate min-w-0 flex-1 pr-1">{p.displayName}</p>
                 {showUpload ? (

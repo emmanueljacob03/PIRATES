@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { createAdminSupabase } from '@/lib/supabase-admin';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { filterActiveRosterPlayers, isAlumniPlayerRow } from '@/lib/alumni-players';
 import { equalShareAmounts } from '@/lib/account-splits';
 import type { Database } from '@/types/database';
 
@@ -71,7 +72,14 @@ export async function GET() {
       }
     }
 
-    const roster = (players ?? []).map((p: { id: string; name: string; profile_id: string }) => ({
+    const profileNameForAlumni = new Map<string, string | null>(
+      Array.from(profileNameById.entries()).map(([id, name]) => [id, name]),
+    );
+    const activePlayers = filterActiveRosterPlayers(
+      (players ?? []) as { id: string; name: string; profile_id: string }[],
+      profileNameForAlumni,
+    );
+    const roster = activePlayers.map((p) => ({
       playerId: p.id,
       profileId: p.profile_id,
       name: profileNameById.get(p.profile_id) || p.name || 'Member',
@@ -189,6 +197,7 @@ export async function POST(req: NextRequest) {
     reason?: string;
     place?: string;
     splitDate?: string;
+    includeYou?: boolean;
   } = {};
   try {
     body = await req.json();
@@ -208,24 +217,60 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter a valid amount greater than 0.' }, { status: 400 });
   }
 
+  const includeYou = body.includeYou !== false;
   const participantIds = Array.from(
     new Set(
       (body.participantProfileIds ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0),
     ),
-  );
-  if (participantIds.length < 1) {
-    return NextResponse.json({ error: 'Select at least one player to split with.' }, { status: 400 });
-  }
+  ).filter((id) => id !== user.id);
 
-  if (!participantIds.includes(user.id)) {
-    participantIds.push(user.id);
+  if (includeYou) {
+    if (participantIds.length < 1) {
+      return NextResponse.json({ error: 'Select at least one player to split with.' }, { status: 400 });
+    }
+    if (!participantIds.includes(user.id)) {
+      participantIds.push(user.id);
+    }
+  } else {
+    if (participantIds.length !== 1) {
+      return NextResponse.json({ error: 'Select exactly one player for the full amount.' }, { status: 400 });
+    }
   }
 
   const splitDate = (body.splitDate ?? new Date().toISOString().slice(0, 10)).toString().slice(0, 10);
 
   try {
     const supabase = createAdminSupabase();
-    const shares = equalShareAmounts(totalAmount, participantIds.length);
+
+    const { data: linkedPlayers } = await (supabase as any)
+      .from('players')
+      .select('id, name, profile_id')
+      .in('profile_id', participantIds);
+    const linked = (linkedPlayers ?? []) as { id: string; name: string; profile_id: string | null }[];
+    const linkedProfileIds = Array.from(
+      new Set(linked.map((p) => p.profile_id).filter((id): id is string => id != null && id !== '')),
+    );
+    const profileNameForPost = new Map<string, string | null>();
+    if (linkedProfileIds.length > 0) {
+      const { data: profs } = await (supabase as any).from('profiles').select('id, name').in('id', linkedProfileIds);
+      for (const row of profs ?? []) {
+        const r = row as { id: string; name: string | null };
+        profileNameForPost.set(r.id, r.name);
+      }
+    }
+    const alumniProfileIds = new Set(
+      linked
+        .filter((p) => isAlumniPlayerRow(p, profileNameForPost))
+        .map((p) => p.profile_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    if (alumniProfileIds.size > 0) {
+      return NextResponse.json({ error: 'Alumni players cannot be included in account splits.' }, { status: 400 });
+    }
+
+    const shareAmounts = includeYou
+      ? equalShareAmounts(totalAmount, participantIds.length)
+      : [totalAmount];
 
     const { data: split, error: splitErr } = await (supabase as any)
       .from('account_splits')
@@ -247,9 +292,9 @@ export async function POST(req: NextRequest) {
     const shareRows = participantIds.map((participant_profile_id, i) => ({
       split_id: split.id,
       participant_profile_id,
-      share_amount: shares[i] ?? 0,
-      paid: participant_profile_id === user.id,
-      paid_at: participant_profile_id === user.id ? new Date().toISOString() : null,
+      share_amount: shareAmounts[i] ?? 0,
+      paid: includeYou && participant_profile_id === user.id,
+      paid_at: includeYou && participant_profile_id === user.id ? new Date().toISOString() : null,
     }));
 
     const { error: sharesErr } = await (supabase as any).from('account_split_shares').insert(shareRows);

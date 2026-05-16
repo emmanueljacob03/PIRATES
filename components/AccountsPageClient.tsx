@@ -56,6 +56,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
   const [error, setError] = useState('');
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [includeYou, setIncludeYou] = useState(true);
   const [totalAmount, setTotalAmount] = useState('');
   const [reason, setReason] = useState('');
   const [place, setPlace] = useState('');
@@ -94,11 +95,19 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
 
   function toggleProfile(profileId: string) {
     setSelected((prev) => {
+      if (!includeYou) {
+        return prev.has(profileId) ? new Set() : new Set([profileId]);
+      }
       const next = new Set(prev);
       if (next.has(profileId)) next.delete(profileId);
       else next.add(profileId);
       return next;
     });
+  }
+
+  function setIncludeYouChecked(checked: boolean) {
+    setIncludeYou(checked);
+    setSelected(new Set());
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -113,8 +122,12 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
       setError('Enter a valid amount.');
       return;
     }
-    if (selected.size < 1) {
+    if (includeYou && selected.size < 1) {
       setError('Select at least one player to split with.');
+      return;
+    }
+    if (!includeYou && selected.size !== 1) {
+      setError('Select exactly one player for the full amount.');
       return;
     }
 
@@ -129,6 +142,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
           totalAmount: amount,
           reason: reason.trim(),
           place: place.trim() || undefined,
+          includeYou,
         }),
       });
       const data = await res.json();
@@ -174,17 +188,20 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
     }
   }
 
-  const previewCount = selected.size + 1;
+  const amountNum = parseFloat(totalAmount);
+  const previewCount = includeYou ? selected.size + 1 : selected.size;
   const previewEach =
-    previewCount > 0 && Number.isFinite(parseFloat(totalAmount))
-      ? formatUsd(parseFloat(totalAmount) / previewCount)
+    includeYou && previewCount > 0 && Number.isFinite(amountNum)
+      ? formatUsd(amountNum / previewCount)
       : null;
+  const previewOwed =
+    !includeYou && selected.size === 1 && Number.isFinite(amountNum) ? formatUsd(amountNum) : null;
 
   return (
     <div className="space-y-8 max-w-3xl">
       <p className="text-slate-400 text-sm leading-relaxed">
-        Add what you spent, pick players to split with, and we divide the total equally. Each person sees their share on
-        their profile under Accounts.
+        Log what you paid. With <strong className="text-slate-300 font-medium">Include you</strong>, we split the total
+        equally among you and the players you pick. Uncheck it to charge one player the full amount.
       </p>
 
       {error ? (
@@ -208,10 +225,25 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
             placeholder="100.00"
             required
           />
+          <label className="mt-3 flex items-center gap-2 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={includeYou}
+              onChange={(e) => setIncludeYouChecked(e.target.checked)}
+              className="rounded border-slate-500 text-amber-500"
+            />
+            <span className="text-sm text-slate-300">Include you</span>
+          </label>
           {previewEach ? (
             <p className="text-xs text-slate-500 mt-1">
               Split equally: <span className="text-amber-200">${previewEach}</span> each ({previewCount} people
               including you)
+            </p>
+          ) : null}
+          {previewOwed ? (
+            <p className="text-xs text-slate-500 mt-1">
+              <span className="text-white">{selectableRoster.find((m) => selected.has(m.profileId))?.name}</span> owes
+              you: <span className="text-amber-200">${previewOwed}</span>
             </p>
           ) : null}
         </div>
@@ -238,7 +270,9 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
         </div>
 
         <div>
-          <p className="text-xs text-slate-500 mb-2">Split with (players with an account)</p>
+          <p className="text-xs text-slate-500 mb-2">
+            {includeYou ? 'Split with (players with an account)' : 'Who owes you? (pick one)'}
+          </p>
           {selectableRoster.length === 0 ? (
             <p className="text-slate-500 text-sm">No other linked players yet.</p>
           ) : (
@@ -247,10 +281,11 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
                 <li key={m.profileId}>
                   <label className="flex items-center gap-2 rounded-lg border border-slate-600/80 bg-slate-900/50 px-3 py-2 cursor-pointer hover:border-amber-500/40">
                     <input
-                      type="checkbox"
+                      type={includeYou ? 'checkbox' : 'radio'}
+                      name={includeYou ? undefined : 'account-charge-player'}
                       checked={selected.has(m.profileId)}
                       onChange={() => toggleProfile(m.profileId)}
-                      className="rounded border-slate-500 text-amber-500"
+                      className={includeYou ? 'rounded border-slate-500 text-amber-500' : 'border-slate-500 text-amber-500'}
                     />
                     <span className="text-sm text-white truncate">{m.name}</span>
                   </label>
@@ -261,7 +296,7 @@ export default function AccountsPageClient({ currentProfileId }: { currentProfil
         </div>
 
         <button type="submit" className="btn-primary" disabled={submitting || loading}>
-          {submitting ? 'Saving…' : 'Split equally'}
+          {submitting ? 'Saving…' : includeYou ? 'Split equally' : 'Add charge'}
         </button>
       </form>
 

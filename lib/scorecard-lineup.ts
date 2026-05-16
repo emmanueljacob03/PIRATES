@@ -1,3 +1,4 @@
+import { filterActiveRosterPlayers } from '@/lib/alumni-players';
 import { scorecardDisplayName } from '@/lib/player-display-name';
 
 export type ScorecardPlayerRow = { id: string; name: string };
@@ -31,13 +32,14 @@ export function buildScorecardPlayersForMatch(args: {
 }): { players: ScorecardPlayerRow[]; prefillPlayerIds: string[] | null; orderedIds: string[] } {
   const { allPlayers, profilesByUserId, lineup, existingPlayerIds } = args;
 
-  const byId = new Map(allPlayers.map((p) => [p.id, p]));
+  const rosterPlayers = filterActiveRosterPlayers(allPlayers, profilesByUserId);
+  const byId = new Map(rosterPlayers.map((p) => [p.id, p]));
 
   const display = (p: RawPlayer) =>
     scorecardDisplayName(p.name, p.profile_id ? profilesByUserId.get(p.profile_id) ?? null : null, p.profile_id);
 
   if (!lineup || lineup.length === 0) {
-    const sorted = [...allPlayers].sort((a, b) => display(a).localeCompare(display(b), undefined, { sensitivity: 'base' }));
+    const sorted = [...rosterPlayers].sort((a, b) => display(a).localeCompare(display(b), undefined, { sensitivity: 'base' }));
     const players = sorted.map((p) => ({ id: p.id, name: display(p) }));
     return { players, prefillPlayerIds: null, orderedIds: players.map((p) => p.id) };
   }
@@ -62,7 +64,7 @@ export function buildScorecardPlayersForMatch(args: {
 
   const orderedIds = [...playing11, ...extras, ...fromStatsNotInLineup];
 
-  const restIds = allPlayers.map((p) => p.id).filter((id) => !orderedIds.includes(id));
+  const restIds = rosterPlayers.map((p) => p.id).filter((id) => !orderedIds.includes(id));
   restIds.sort((a, b) => {
     const na = display(byId.get(a)!);
     const nb = display(byId.get(b)!);

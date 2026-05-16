@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerSupabase } from '@/lib/supabase-server';
 import { createAdminSupabase } from '@/lib/supabase-admin';
+import { isAlumniDisplayName } from '@/lib/alumni-players';
 import { playerPhotoUrl, scorecardDisplayName } from '@/lib/player-display-name';
 import PlayersGridClient, { type PlayersGridPlayer } from '@/components/PlayersGridClient';
 
@@ -106,6 +107,10 @@ export default async function PlayersPage() {
         contactPhone: pr?.phone ?? null,
         contactEmail: pr?.email ?? null,
         contactBirthday: pr?.date_of_birth ?? null,
+        isAlumni:
+          isAlumniDisplayName(displayName) ||
+          isAlumniDisplayName(p.name) ||
+          isAlumniDisplayName(pr?.name ?? null),
       };
     });
   } catch {
