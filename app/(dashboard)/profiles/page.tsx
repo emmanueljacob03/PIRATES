@@ -13,6 +13,7 @@ import { NEW_JERSEY_AMOUNT_USD } from '@/lib/jersey-utils';
 import { format, parseISO } from 'date-fns';
 import { dutyScheduledStartMs, isWithinThreeDaysBeforeUmpiringDuty } from '@/lib/umpiring-duties';
 import { isPaid } from '@/lib/is-paid';
+import { loadProfileAccountEntries } from '@/lib/profile-account-entries';
 
 export default async function ProfilesPage() {
   noStore();
@@ -55,6 +56,7 @@ export default async function ProfilesPage() {
   let jerseyEntries: { id: string; jerseyNumber: string; paid: boolean }[] = [];
   let playerId: string | null = null;
   let umpiringReminder: string | null = null;
+  let accountEntries: Awaited<ReturnType<typeof loadProfileAccountEntries>> = [];
 
   if (demo) {
     return (
@@ -278,6 +280,12 @@ export default async function ProfilesPage() {
     } catch {
       /* no table */
     }
+
+    try {
+      accountEntries = await loadProfileAccountEntries(user.id);
+    } catch {
+      accountEntries = [];
+    }
   } catch {
     redirect('/dashboard');
   }
@@ -300,6 +308,7 @@ export default async function ProfilesPage() {
         pendingContribution={pendingContribution}
         jerseyEntries={jerseyEntries}
         playerId={playerId}
+        accountEntries={accountEntries}
       />
     </div>
   );

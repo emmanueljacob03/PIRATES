@@ -8,6 +8,7 @@ const links = [
   { href: '/dashboard', label: 'Home' },
   { href: '/jerseys', label: 'Jerseys' },
   { href: '/budget', label: 'Team Budget' },
+  { href: '/accounts', label: 'Accounts' },
   { href: '/schedule', label: 'Match Schedule' },
   { href: '/media', label: 'Match Media' },
   { href: '/live', label: 'Live Stream' },
